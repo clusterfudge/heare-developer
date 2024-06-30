@@ -1,5 +1,4 @@
 import os
-import subprocess
 from dotenv import load_dotenv
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
@@ -11,59 +10,8 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.live import Live
 import anthropic
-import json
-import shlex
 
-
-def read_file(path):
-    try:
-        with open(path, 'r') as file:
-            return file.read()
-    except Exception as e:
-        return f"Error reading file: {str(e)}"
-
-
-def write_file(path, content):
-    try:
-        with open(path, 'w') as file:
-            file.write(content)
-        return "File written successfully"
-    except Exception as e:
-        return f"Error writing file: {str(e)}"
-
-
-def list_directory(path):
-    try:
-        return os.listdir(path)
-    except Exception as e:
-        return f"Error listing directory: {str(e)}"
-
-
-def run_bash_command(command):
-    try:
-        # Split the command string into a list of arguments
-        args = shlex.split(command)
-
-        # Check for potentially dangerous commands
-        dangerous_commands = ['rm', 'mv', 'cp', 'chmod', 'chown', 'sudo', '>', '>>', '|']
-        if any(cmd in args for cmd in dangerous_commands):
-            return "Error: This command is not allowed for safety reasons."
-
-        # Run the command and capture output
-        result = subprocess.run(args, capture_output=True, text=True, timeout=10)
-
-        # Prepare the output
-        output = f"Exit code: {result.returncode}\n"
-        if result.stdout:
-            output += f"STDOUT:\n{result.stdout}\n"
-        if result.stderr:
-            output += f"STDERR:\n{result.stderr}\n"
-
-        return output
-    except subprocess.TimeoutExpired:
-        return "Error: Command execution timed out"
-    except Exception as e:
-        return f"Error executing command: {str(e)}"
+from heare.developer.tools import TOOLS_SCHEMA, handle_tool_use
 
 
 def main():
@@ -102,7 +50,6 @@ def main():
             print_formatted_text(FormattedText([('#0000FF', ' > ')]), end='')
             user_input = session.prompt("")
 
-
             if user_input.startswith("!"):
                 if user_input == "!quit":
                     break
@@ -129,53 +76,7 @@ def main():
                     max_tokens=1024,
                     messages=chat_history,
                     model="claude-3-5-sonnet-20240620",
-                    tools=[
-                    {
-                        "name": "read_file",
-                        "description": "Read the contents of a file",
-                        "input_schema": {
-                            "type": "object",
-                            "properties": {
-                                "path": {"type": "string", "description": "Path to the file"}
-                            },
-                            "required": ["path"]
-                        }
-                    },
-                    {
-                        "name": "write_file",
-                        "description": "Write content to a file",
-                        "input_schema": {
-                            "type": "object",
-                            "properties": {
-                                "path": {"type": "string", "description": "Path to the file"},
-                                "content": {"type": "string", "description": "Content to write"}
-                            },
-                            "required": ["path", "content"]
-                        }
-                    },
-                    {
-                        "name": "list_directory",
-                        "description": "List contents of a directory",
-                        "input_schema": {
-                            "type": "object",
-                            "properties": {
-                                "path": {"type": "string", "description": "Path to the directory"}
-                            },
-                            "required": ["path"]
-                        }
-                    },
-                    {
-                        "name": "run_bash_command",
-                        "description": "Run a bash command",
-                        "input_schema": {
-                            "type": "object",
-                            "properties": {
-                                "command": {"type": "string", "description": "Bash command to execute"}
-                            },
-                            "required": ["command"]
-                        }
-                    }
-                ]
+                    tools=TOOLS_SCHEMA
             ) as stream:
                 for chunk in stream:
                     if chunk.type == "text":
@@ -190,26 +91,15 @@ def main():
                     "content": final_message.content
                 })
                 if final_message.stop_reason == 'tool_use':
-                    tool_use = next(block for block in final_message.content if block.type == "tool_use")
-                    function_name = tool_use.name
-                    arguments = tool_use.input
-
-                    if function_name == "read_file":
-                        result = read_file(arguments['path'])
-                    elif function_name == "write_file":
-                        result = write_file(arguments['path'], arguments['content'])
-                    elif function_name == "list_directory":
-                        result = list_directory(arguments['path'])
-                    elif function_name == "run_bash_command":
-                        result = run_bash_command(arguments['command'])
-                    else:
-                        result = f"Unknown function: {function_name}"
+                    result, tool_use = handle_tool_use(final_message)
 
                     tool_result_buffer.append({"role": "user", "content": [{
                         "type": "tool_result",
                         "tool_use_id": tool_use.id,
                         "content": result
                     }]})
+                elif final_message.stop_reason == 'max_tokens':
+                    console.print(Panel(f"[bold red]Hit max tokens.[/bold red]"))
 
 
 
