@@ -95,117 +95,123 @@ def main():
     console.print("[bold yellow]!quit - Quit the chat[/bold yellow]")
 
     chat_history = []
+    tool_result_buffer = []
 
     while True:
-        print_formatted_text(FormattedText([('#0000FF', ' > ')]), end='')
-        user_input = session.prompt("")
+        if not tool_result_buffer:
+            print_formatted_text(FormattedText([('#0000FF', ' > ')]), end='')
+            user_input = session.prompt("")
 
-        if user_input.startswith("!"):
-            if user_input == "!quit":
-                break
-            elif user_input == "!help":
-                console.print("[bold yellow]Available commands:[/bold yellow]")
-                console.print("[bold yellow]!help - Show help[/bold yellow]")
-                console.print("[bold yellow]!quit - Quit the chat[/bold yellow]")
-                console.print("[bold yellow]You can ask the AI to read, write, or list files/directories[/bold yellow]")
-                console.print(
-                    "[bold yellow]You can also ask the AI to run bash commands (with some restrictions)[/bold yellow]")
-            else:
-                console.print(f"[bold red]Unknown command: {user_input}[/bold red]")
-            continue
 
-        chat_history.append({"role": "user", "content": user_input})
-        console.print(Panel(f"[bold blue]You:[/bold blue] {user_input}", expand=False))
+            if user_input.startswith("!"):
+                if user_input == "!quit":
+                    break
+                elif user_input == "!help":
+                    console.print("[bold yellow]Available commands:[/bold yellow]")
+                    console.print("[bold yellow]!help - Show help[/bold yellow]")
+                    console.print("[bold yellow]!quit - Quit the chat[/bold yellow]")
+                    console.print("[bold yellow]You can ask the AI to read, write, or list files/directories[/bold yellow]")
+                    console.print(
+                        "[bold yellow]You can also ask the AI to run bash commands (with some restrictions)[/bold yellow]")
+                else:
+                    console.print(f"[bold red]Unknown command: {user_input}[/bold red]")
+                continue
+
+            chat_history.append({"role": "user", "content": user_input})
+            console.print(Panel(f"[bold blue]You:[/bold blue] {user_input}", expand=False))
+
+        else:
+            chat_history.append(tool_result_buffer.pop(0))
 
         with Live(console=console, auto_refresh=True) as live:
             ai_response = ""
             with client.messages.stream(
                     max_tokens=1024,
                     messages=chat_history,
-                    model="claude-3-opus-20240229",
+                    model="claude-3-5-sonnet-20240620",
                     tools=[
-                        {
-                            "type": "function",
-                            "function": {
-                                "name": "read_file",
-                                "description": "Read the contents of a file",
-                                "parameters": {
-                                    "type": "object",
-                                    "properties": {
-                                        "path": {"type": "string", "description": "Path to the file"}
-                                    },
-                                    "required": ["path"]
-                                }
-                            }
-                        },
-                        {
-                            "type": "function",
-                            "function": {
-                                "name": "write_file",
-                                "description": "Write content to a file",
-                                "parameters": {
-                                    "type": "object",
-                                    "properties": {
-                                        "path": {"type": "string", "description": "Path to the file"},
-                                        "content": {"type": "string", "description": "Content to write"}
-                                    },
-                                    "required": ["path", "content"]
-                                }
-                            }
-                        },
-                        {
-                            "type": "function",
-                            "function": {
-                                "name": "list_directory",
-                                "description": "List contents of a directory",
-                                "parameters": {
-                                    "type": "object",
-                                    "properties": {
-                                        "path": {"type": "string", "description": "Path to the directory"}
-                                    },
-                                    "required": ["path"]
-                                }
-                            }
-                        },
-                        {
-                            "type": "function",
-                            "function": {
-                                "name": "run_bash_command",
-                                "description": "Run a bash command",
-                                "parameters": {
-                                    "type": "object",
-                                    "properties": {
-                                        "command": {"type": "string", "description": "Bash command to execute"}
-                                    },
-                                    "required": ["command"]
-                                }
-                            }
+                    {
+                        "name": "read_file",
+                        "description": "Read the contents of a file",
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {
+                                "path": {"type": "string", "description": "Path to the file"}
+                            },
+                            "required": ["path"]
                         }
-                    ]
+                    },
+                    {
+                        "name": "write_file",
+                        "description": "Write content to a file",
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {
+                                "path": {"type": "string", "description": "Path to the file"},
+                                "content": {"type": "string", "description": "Content to write"}
+                            },
+                            "required": ["path", "content"]
+                        }
+                    },
+                    {
+                        "name": "list_directory",
+                        "description": "List contents of a directory",
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {
+                                "path": {"type": "string", "description": "Path to the directory"}
+                            },
+                            "required": ["path"]
+                        }
+                    },
+                    {
+                        "name": "run_bash_command",
+                        "description": "Run a bash command",
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {
+                                "command": {"type": "string", "description": "Bash command to execute"}
+                            },
+                            "required": ["command"]
+                        }
+                    }
+                ]
             ) as stream:
                 for chunk in stream:
                     if chunk.type == "text":
                         ai_response += chunk.text
                         live.update(Panel(f"[bold green]AI Assistant:[/bold green]\n{ai_response}", expand=False))
-                    elif chunk.type == "function_call":
-                        function_name = chunk.function_call.name
-                        arguments = json.loads(chunk.function_call.arguments)
 
-                        if function_name == "read_file":
-                            result = read_file(arguments['path'])
-                        elif function_name == "write_file":
-                            result = write_file(arguments['path'], arguments['content'])
-                        elif function_name == "list_directory":
-                            result = list_directory(arguments['path'])
-                        elif function_name == "run_bash_command":
-                            result = run_bash_command(arguments['command'])
-                        else:
-                            result = f"Unknown function: {function_name}"
+                live.update(Panel(f"[bold green]AI Assistant:[/bold green]\n{ai_response}", expand=False))
 
-                        ai_response += f"\nFunction call: {function_name}\nResult: {result}\n"
-                        live.update(Panel(f"[bold green]AI Assistant:[/bold green]\n{ai_response}", expand=False))
+                final_message = stream.get_final_message()
+                chat_history.append({
+                    "role": "assistant",
+                    "content": final_message.content
+                })
+                if final_message.stop_reason == 'tool_use':
+                    tool_use = next(block for block in final_message.content if block.type == "tool_use")
+                    function_name = tool_use.name
+                    arguments = tool_use.input
 
-            chat_history.append({"role": "assistant", "content": ai_response})
+                    if function_name == "read_file":
+                        result = read_file(arguments['path'])
+                    elif function_name == "write_file":
+                        result = write_file(arguments['path'], arguments['content'])
+                    elif function_name == "list_directory":
+                        result = list_directory(arguments['path'])
+                    elif function_name == "run_bash_command":
+                        result = run_bash_command(arguments['command'])
+                    else:
+                        result = f"Unknown function: {function_name}"
+
+                    tool_result_buffer.append({"role": "user", "content": [{
+                        "type": "tool_result",
+                        "tool_use_id": tool_use.id,
+                        "content": result
+                    }]})
+
+
 
     console.print("[bold green]Chat ended. Goodbye![/bold green]")
 
