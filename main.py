@@ -36,7 +36,7 @@ def main():
 
     client = anthropic.Client(api_key=api_key)
 
-    commands = ["!help", "!quit", "!tree"]
+    commands = ["!help", "!quit", "!tree", "!restart"]
     command_completer = WordCompleter(commands)
 
     session = PromptSession(
@@ -48,12 +48,13 @@ def main():
     )
 
     console.print(Panel(
-        "[bold green]Welcome to the Anthropic Chat Console with Filesystem Access and Bash Command Execution![/bold green]",
+        "[bold green]Welcome to the Heare Developer CLI, your personal coding assistant.[/bold green]",
         expand=False))
     console.print("[bold yellow]Available commands:[/bold yellow]")
     console.print("[bold yellow]!help - Show help[/bold yellow]")
     console.print("[bold yellow]!quit - Quit the chat[/bold yellow]")
     console.print("[bold yellow]!tree - List contents of the sandbox[/bold yellow]")
+    console.print("[bold yellow]!restart - Clear chat history and start over[/bold yellow]")
 
     # Create system message with current directory contents
     system_message = create_system_message(sandbox)
@@ -73,6 +74,7 @@ def main():
                     console.print("[bold yellow]!help - Show help[/bold yellow]")
                     console.print("[bold yellow]!quit - Quit the chat[/bold yellow]")
                     console.print("[bold yellow]!tree - List contents of the sandbox[/bold yellow]")
+                    console.print("[bold yellow]!restart - Clear chat history and start over[/bold yellow]")
                     console.print("[bold yellow]You can ask the AI to read, write, or list files/directories[/bold yellow]")
                     console.print(
                         "[bold yellow]You can also ask the AI to run bash commands (with some restrictions)[/bold yellow]")
@@ -81,6 +83,11 @@ def main():
                     console.print("[bold cyan]Sandbox contents:[/bold cyan]")
                     for item in sandbox_contents:
                         console.print(f"[cyan]{item}[/cyan]")
+                elif user_input == "!restart":
+                    chat_history = []
+                    tool_result_buffer = []
+                    console.print("[bold green]Chat history cleared. Starting over.[/bold green]")
+                    continue
                 else:
                     console.print(f"[bold red]Unknown command: {user_input}[/bold red]")
                 continue
