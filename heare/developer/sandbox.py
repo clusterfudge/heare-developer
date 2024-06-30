@@ -45,18 +45,35 @@ class Sandbox:
         full_path = pathlib.Path(file_path).resolve()
         return open(full_path, mode)
 
-    def list_sandbox(self, allowed_extensions=None):
+    def list_directory(self, path):
+        if not self._is_in_sandbox(path):
+            raise ValueError(f"Cannot read file outside of sandbox: {path}")
+
+        return '\n'.join([path.name for path in pathlib.Path(path).iterdir()])
+
+    def list_sandbox(self, allowed_extensions=None, excluded_directories=None):
         if allowed_extensions is None:
             allowed_extensions = ['.py', '.md']
+        if excluded_directories is None:
+            excluded_directories = ['.git', '.venv', 'venv', '.idea']
         files_and_dirs = []
         for sandbox_path in self.sandbox_paths:
             if os.path.isdir(sandbox_path):
                 for root, dirs, files in os.walk(sandbox_path):
+                    dirs[:] = [d for d in dirs if d not in excluded_directories]  # This line excludes .git directories
                     files_and_dirs.extend([os.path.join(root, d) for d in dirs])
                     files_and_dirs.extend([os.path.join(root, f) for f in files if os.path.splitext(f)[1] in allowed_extensions])
             elif os.path.isfile(sandbox_path) and os.path.splitext(sandbox_path)[1] in allowed_extensions:
                 files_and_dirs.append(str(sandbox_path))
         return files_and_dirs
+
+    def write_file(self, file_path, content):
+        if not self._is_in_sandbox(file_path):
+            raise ValueError(f"Cannot read file outside of sandbox: {file_path}")
+        full_path = pathlib.Path(file_path).resolve()
+        with open(full_path, 'w') as f:
+            return f.write(content)
+
 
     def remove_file_or_dir(self, path):
         if not self._is_in_sandbox(path):
