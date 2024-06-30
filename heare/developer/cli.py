@@ -50,7 +50,7 @@ MODEL_MAP = {
 
 def main():
     arg_parser = argparse.ArgumentParser()
-    arg_parser.add_argument('--sandbox', default='.')
+    arg_parser.add_argument('--sandbox', default=None)
     arg_parser.add_argument('--model', default='claude-3-5-sonnet-20240620')
     arg_parser.add_argument('--summary-cache', default=os.path.join(os.path.expanduser('~'), '.cache/heare.summary_cache'))
     args = arg_parser.parse_args()
@@ -59,8 +59,11 @@ def main():
 
 def run(model, sandbox_dir):
     load_dotenv()  # Load environment variables from .env file
-    os.chdir(sandbox_dir)  # Change working directory to the sandbox
-    sandbox = Sandbox(sandbox_dir)
+    if sandbox_dir:
+        os.chdir(sandbox_dir)  # Change working directory to the sandbox
+        sandbox = Sandbox(sandbox_dir)
+    else:
+        sandbox = Sandbox()
     console = Console()
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
