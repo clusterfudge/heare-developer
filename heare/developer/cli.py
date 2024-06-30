@@ -1,3 +1,4 @@
+import argparse
 import os
 import shutil
 from dotenv import load_dotenv
@@ -39,9 +40,25 @@ class CustomCompleter(Completer):
                     yield Completion(history_item, start_position=-len(text))
 
 
+MODEL_MAP = {
+    "opus": "claude-3-opus-20240229",
+    "sonnet": "claude-3-sonnet-20240229",
+    "sonnet-3.5": "claude-3-5-sonnet-20240620",
+    "haiku": "claude-3-haiku-20240307",
+}
+
+
 def main():
+    arg_parser = argparse.ArgumentParser()
+    arg_parser.add_argument('--sandbox', default='.')
+    arg_parser.add_argument('--model', default='claude-3-5-sonnet-20240620')
+    arg_parser.add_argument('--summary-cache', default=os.path.join(os.path.expanduser('~'), '.cache/heare.summary_cache'))
+    args = arg_parser.parse_args()
+    run(MODEL_MAP.get(args.model, args.model), args.sandbox)
+
+
+def run(model, sandbox_dir):
     load_dotenv()  # Load environment variables from .env file
-    sandbox_dir = initialize_sandbox()
     os.chdir(sandbox_dir)  # Change working directory to the sandbox
     sandbox = Sandbox(sandbox_dir)
     console = Console()
@@ -56,6 +73,7 @@ def main():
         '!help': 'Show help',
         '!quit': 'Quit the chat',
         '!tree': 'List contents of the sandbox',
+        '!add': 'Add file or directory to sandbox',
         '!restart': 'Clear chat history and start over'
     }
     history = FileHistory("../../chat_history.txt")
@@ -76,11 +94,10 @@ def main():
     console.print("[bold yellow]!help - Show help[/bold yellow]")
     console.print("[bold yellow]!quit - Quit the chat[/bold yellow]")
     console.print("[bold yellow]!tree - List contents of the sandbox[/bold yellow]")
+    console.print("[bold yellow]!add - Add file or directory to sandbox[/bold yellow]")
     console.print("[bold yellow]!restart - Clear chat history and start over[/bold yellow]")
 
     # Create system message with current directory contents
-    system_message = create_system_message(sandbox)
-
     chat_history = []
     tool_result_buffer = []
 
@@ -107,6 +124,12 @@ def main():
                             console.print("[bold cyan]Sandbox contents:[/bold cyan]")
                             for item in sandbox_contents:
                                 console.print(f"[cyan]{item}[/cyan]")
+                        elif user_input.startswith("!add"):
+                            sandbox.add_to_sandbox(user_input[4:].strip())
+                            sandbox_contents = sandbox.list_sandbox()
+                            console.print("[bold cyan]Sandbox contents:[/bold cyan]")
+                            for item in sandbox_contents:
+                                console.print(f"[cyan]{item}[/cyan]")
                         elif user_input == "!restart":
                             chat_history = []
                             tool_result_buffer = []
@@ -122,13 +145,14 @@ def main():
                 else:
                     chat_history.append(tool_result_buffer.pop(0))
 
+                system_message = create_system_message(sandbox)
                 with (Live(console=console, auto_refresh=True) as live):
                     ai_response = ""
                     with client.messages.stream(
                             system=system_message,
                             max_tokens=4096,
                             messages=chat_history,
-                            model="claude-3-5-sonnet-20240620",
+                            model=model,
                             tools=TOOLS_SCHEMA
                     ) as stream:
                         for chunk in stream:

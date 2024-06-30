@@ -60,7 +60,7 @@ class Sandbox:
         for sandbox_path in self.sandbox_paths:
             if os.path.isdir(sandbox_path):
                 for root, dirs, files in os.walk(sandbox_path):
-                    dirs[:] = [d for d in dirs if d not in excluded_directories]  # This line excludes .git directories
+                    dirs[:] = [d for d in dirs if d not in excluded_directories] 
                     files_and_dirs.extend([os.path.join(root, d) for d in dirs])
                     files_and_dirs.extend([os.path.join(root, f) for f in files if os.path.splitext(f)[1] in allowed_extensions])
             elif os.path.isfile(sandbox_path) and os.path.splitext(sandbox_path)[1] in allowed_extensions:
