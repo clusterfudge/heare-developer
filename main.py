@@ -1,4 +1,5 @@
 import os
+import shutil
 from dotenv import load_dotenv
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
@@ -11,11 +12,22 @@ from rich.panel import Panel
 from rich.live import Live
 import anthropic
 
+from heare.developer.sandbox import Sandbox
 from heare.developer.tools import TOOLS_SCHEMA, handle_tool_use
+from heare.developer.prompt import create_system_message
+
+
+def initialize_sandbox(sandbox_dir=os.getcwd()):
+    if not os.path.exists(sandbox_dir):
+        os.makedirs(sandbox_dir)
+    return sandbox_dir
 
 
 def main():
     load_dotenv()  # Load environment variables from .env file
+    sandbox_dir = initialize_sandbox()
+    os.chdir(sandbox_dir)  # Change working directory to the sandbox
+    sandbox = Sandbox(sandbox_dir)
     console = Console()
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
@@ -24,7 +36,7 @@ def main():
 
     client = anthropic.Client(api_key=api_key)
 
-    commands = ["!help", "!quit"]
+    commands = ["!help", "!quit", "!tree"]
     command_completer = WordCompleter(commands)
 
     session = PromptSession(
@@ -41,14 +53,17 @@ def main():
     console.print("[bold yellow]Available commands:[/bold yellow]")
     console.print("[bold yellow]!help - Show help[/bold yellow]")
     console.print("[bold yellow]!quit - Quit the chat[/bold yellow]")
+    console.print("[bold yellow]!tree - List contents of the sandbox[/bold yellow]")
+
+    # Create system message with current directory contents
+    system_message = create_system_message(sandbox)
 
     chat_history = []
     tool_result_buffer = []
 
     while True:
         if not tool_result_buffer:
-            print_formatted_text(FormattedText([('#0000FF', ' > ')]), end='')
-            user_input = session.prompt("")
+            user_input = session.prompt(FormattedText([('#00FF00', ' > ')]))
 
             if user_input.startswith("!"):
                 if user_input == "!quit":
@@ -57,9 +72,15 @@ def main():
                     console.print("[bold yellow]Available commands:[/bold yellow]")
                     console.print("[bold yellow]!help - Show help[/bold yellow]")
                     console.print("[bold yellow]!quit - Quit the chat[/bold yellow]")
+                    console.print("[bold yellow]!tree - List contents of the sandbox[/bold yellow]")
                     console.print("[bold yellow]You can ask the AI to read, write, or list files/directories[/bold yellow]")
                     console.print(
                         "[bold yellow]You can also ask the AI to run bash commands (with some restrictions)[/bold yellow]")
+                elif user_input == "!tree":
+                    sandbox_contents = sandbox.list_sandbox()
+                    console.print("[bold cyan]Sandbox contents:[/bold cyan]")
+                    for item in sandbox_contents:
+                        console.print(f"[cyan]{item}[/cyan]")
                 else:
                     console.print(f"[bold red]Unknown command: {user_input}[/bold red]")
                 continue
@@ -70,10 +91,11 @@ def main():
         else:
             chat_history.append(tool_result_buffer.pop(0))
 
-        with Live(console=console, auto_refresh=True) as live:
+        with (Live(console=console, auto_refresh=True) as live):
             ai_response = ""
             with client.messages.stream(
-                    max_tokens=1024,
+                    system=system_message,
+                    max_tokens=2048,
                     messages=chat_history,
                     model="claude-3-5-sonnet-20240620",
                     tools=TOOLS_SCHEMA
@@ -90,22 +112,22 @@ def main():
                     "role": "assistant",
                     "content": final_message.content
                 })
-                if final_message.stop_reason == 'tool_use':
-                    result, tool_use = handle_tool_use(final_message)
+        if final_message.stop_reason == 'tool_use':
+            results = handle_tool_use(sandbox, final_message)
 
-                    tool_result_buffer.append({"role": "user", "content": [{
-                        "type": "tool_result",
-                        "tool_use_id": tool_use.id,
-                        "content": result
-                    }]})
-                elif final_message.stop_reason == 'max_tokens':
-                    console.print(Panel(f"[bold red]Hit max tokens.[/bold red]"))
-
-
+            tool_result_buffer.append({"role": "user", "content": results})
+            for result in results:
+                console.print(
+                    Panel(
+                        f"[italic]tool: {result['tool_use_id']}\n{result['content']}[/italic]",
+                        border_style="bold green",
+                    )
+                )
+        elif final_message.stop_reason == 'max_tokens':
+            console.print(Panel(f"[bold red]Hit max tokens.[/bold red]"))
 
     console.print("[bold green]Chat ended. Goodbye![/bold green]")
 
 
 if __name__ == "__main__":
     main()
-
