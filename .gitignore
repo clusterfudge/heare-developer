@@ -1,0 +1,4 @@
+.anthropic-api-key
+.env
+.venv
+chat_history.txt
