@@ -58,7 +58,7 @@ def main():
         '!tree': 'List contents of the sandbox',
         '!restart': 'Clear chat history and start over'
     }
-    history = FileHistory("../../../chat_history.txt")
+    history = FileHistory("../../chat_history.txt")
     custom_completer = CustomCompleter(commands, history)
 
     session = PromptSession(
