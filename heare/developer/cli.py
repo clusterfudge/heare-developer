@@ -145,7 +145,7 @@ def run(model, sandbox_dir):
                     elif command_name in cli_tools.tools.keys():
                         cli_tool = cli_tools.tools.get(command_name)
                         if cli_tool:
-                            cli_tool['invoke'](console=console, sandbox=sandbox, user_input=user_input)
+                            cli_tool['invoke'](console=console, sandbox=sandbox, user_input=user_input, chat_history=chat_history)
                     else:
                         console.print(Panel(f"[bold red]Unknown command: {user_input}[/bold red]"))
                     continue
@@ -276,6 +276,21 @@ def tree(console, sandbox, *args, **kwargs):
     console.print(Panel(
         "[bold cyan]Sandbox contents:[/bold cyan]\n" + "\n".join(f"[cyan]{item}[/cyan]" for item in sandbox_contents)))
 
+
+@cli_tools.tool
+def dump(console, sandbox, user_input, *args, **kwargs):
+    """
+    Render the system message, tool specs, and chat history
+    """
+    console.print("[bold cyan]System Message:[/bold cyan]")
+    console.print(create_system_message(sandbox))
+    
+    console.print("\n[bold cyan]Tool Specifications:[/bold cyan]")
+    console.print(TOOLS_SCHEMA)
+    
+    console.print("\n[bold cyan]Chat History:[/bold cyan]")
+    for message in kwargs['chat_history']:
+        console.print(f"[bold]{message['role']}:[/bold] {message['content']}")
 
 if __name__ == "__main__":
     main()
