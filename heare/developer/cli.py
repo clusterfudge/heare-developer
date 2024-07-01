@@ -12,6 +12,8 @@ from prompt_toolkit.shortcuts import print_formatted_text
 from rich.console import Console
 from rich.panel import Panel
 from rich.live import Live
+from rich.layout import Layout
+from rich.text import Text
 import anthropic
 
 from heare.developer.sandbox import Sandbox
@@ -57,10 +59,19 @@ def main():
     run(MODEL_MAP.get(args.model, args.model), args.sandbox)
 
 
+def format_token_count(prompt_tokens, completion_tokens, total_tokens):
+    return Text.assemble(
+        ("Token Count:\n", "bold"),
+        (f"Prompt: {prompt_tokens}\n", "cyan"),
+        (f"Completion: {completion_tokens}\n", "green"),
+        (f"Total: {total_tokens}", "yellow")
+    )
+
+
 def run(model, sandbox_dir):
-    load_dotenv()  # Load environment variables from .env file
+    load_dotenv()
     if sandbox_dir:
-        os.chdir(sandbox_dir)  # Change working directory to the sandbox
+        os.chdir(sandbox_dir)
         sandbox = Sandbox(sandbox_dir)
     else:
         sandbox = Sandbox()
@@ -77,7 +88,8 @@ def run(model, sandbox_dir):
         '!quit': 'Quit the chat',
         '!tree': 'List contents of the sandbox',
         '!add': 'Add file or directory to sandbox',
-        '!restart': 'Clear chat history and start over'
+        '!restart': 'Clear chat history and start over',
+        '!dump': 'Dump the current system prompt, tools'
     }
     history = FileHistory("../../chat_history.txt")
     custom_completer = CustomCompleter(commands, history)
@@ -100,9 +112,11 @@ def run(model, sandbox_dir):
     console.print("[bold yellow]!add - Add file or directory to sandbox[/bold yellow]")
     console.print("[bold yellow]!restart - Clear chat history and start over[/bold yellow]")
 
-    # Create system message with current directory contents
     chat_history = []
     tool_result_buffer = []
+    prompt_tokens = 0
+    completion_tokens = 0
+    total_tokens = 0
 
     try:
         while True:
@@ -114,32 +128,30 @@ def run(model, sandbox_dir):
                         if user_input == "!quit":
                             break
                         elif user_input == "!help":
-                            console.print("[bold yellow]Available commands:[/bold yellow]")
-                            console.print("[bold yellow]!help - Show help[/bold yellow]")
-                            console.print("[bold yellow]!quit - Quit the chat[/bold yellow]")
-                            console.print("[bold yellow]!tree - List contents of the sandbox[/bold yellow]")
-                            console.print("[bold yellow]!restart - Clear chat history and start over[/bold yellow]")
-                            console.print("[bold yellow]You can ask the AI to read, write, or list files/directories[/bold yellow]")
-                            console.print(
-                                "[bold yellow]You can also ask the AI to run bash commands (with some restrictions)[/bold yellow]")
+                            console.print(Panel("[bold yellow]Available commands:[/bold yellow]\n"
+                                                "!help - Show help\n"
+                                                "!quit - Quit the chat\n"
+                                                "!tree - List contents of the sandbox\n"
+                                                "!restart - Clear chat history and start over\n"
+                                                "You can ask the AI to read, write, or list files/directories\n"
+                                                "You can also ask the AI to run bash commands (with some restrictions)"))
                         elif user_input == "!tree":
                             sandbox_contents = sandbox.list_sandbox()
-                            console.print("[bold cyan]Sandbox contents:[/bold cyan]")
-                            for item in sandbox_contents:
-                                console.print(f"[cyan]{item}[/cyan]")
+                            console.print(Panel("[bold cyan]Sandbox contents:[/bold cyan]\n" + "\n".join(f"[cyan]{item}[/cyan]" for item in sandbox_contents)))
                         elif user_input.startswith("!add"):
                             sandbox.add_to_sandbox(user_input[4:].strip())
                             sandbox_contents = sandbox.list_sandbox()
-                            console.print("[bold cyan]Sandbox contents:[/bold cyan]")
-                            for item in sandbox_contents:
-                                console.print(f"[cyan]{item}[/cyan]")
+                            console.print(Panel("[bold cyan]Sandbox contents:[/bold cyan]\n" + "\n".join(f"[cyan]{item}[/cyan]" for item in sandbox_contents)))
                         elif user_input == "!restart":
                             chat_history = []
                             tool_result_buffer = []
-                            console.print("[bold green]Chat history cleared. Starting over.[/bold green]")
+                            prompt_tokens = 0
+                            completion_tokens = 0
+                            total_tokens = 0
+                            console.print(Panel("[bold green]Chat history cleared. Starting over.[/bold green]"))
                             continue
                         else:
-                            console.print(f"[bold red]Unknown command: {user_input}[/bold red]")
+                            console.print(Panel(f"[bold red]Unknown command: {user_input}[/bold red]"))
                         continue
 
                     chat_history.append({"role": "user", "content": user_input})
@@ -149,8 +161,8 @@ def run(model, sandbox_dir):
                     chat_history.append(tool_result_buffer.pop(0))
 
                 system_message = create_system_message(sandbox)
-                with (Live(console=console, auto_refresh=True) as live):
-                    ai_response = ""
+                ai_response = ""
+                with console.status("[bold green]AI is thinking...[/bold green]", spinner="dots"):
                     with client.messages.stream(
                             system=system_message,
                             max_tokens=4096,
@@ -161,15 +173,21 @@ def run(model, sandbox_dir):
                         for chunk in stream:
                             if chunk.type == "text":
                                 ai_response += chunk.text
-                                live.update(Panel(f"[bold green]AI Assistant:[/bold green]\n{ai_response}", expand=False))
-
-                        live.update(Panel(f"[bold green]AI Assistant:[/bold green]\n{ai_response}", expand=False))
 
                         final_message = stream.get_final_message()
                         chat_history.append({
                             "role": "assistant",
                             "content": final_message.content
                         })
+
+                        # Update token counts
+                        prompt_tokens += final_message.usage.input_tokens
+                        completion_tokens += final_message.usage.output_tokens
+                        total_tokens = prompt_tokens + completion_tokens
+
+                console.print(Panel(f"[bold green]AI Assistant:[/bold green]\n{ai_response}", expand=False))
+                console.print(format_token_count(prompt_tokens, completion_tokens, total_tokens))
+
                 if final_message.stop_reason == 'tool_use':
                     results = handle_tool_use(sandbox, final_message)
 
@@ -194,3 +212,4 @@ def run(model, sandbox_dir):
 
 if __name__ == "__main__":
     main()
+    
