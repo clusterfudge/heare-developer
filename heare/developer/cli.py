@@ -18,7 +18,7 @@ from rich.text import Text
 import anthropic
 
 from heare.developer.sandbox import Sandbox
-from heare.developer.tools import TOOLS_SCHEMA, handle_tool_use
+from heare.developer.tools import TOOLS_SCHEMA, handle_tool_use, run_bash_command
 from heare.developer.prompt import create_system_message
 from heare.developer.utils import CLITools
 
@@ -145,7 +145,7 @@ def run(model, sandbox_dir):
                     elif command_name in cli_tools.tools.keys():
                         cli_tool = cli_tools.tools.get(command_name)
                         if cli_tool:
-                            cli_tool['invoke'](console=console, sandbox=sandbox, user_input=user_input, chat_history=chat_history)
+                            cli_tool['invoke'](console=console, sandbox=sandbox, user_input=user_input, chat_history=chat_history, tool_result_buffer=tool_result_buffer)
                     else:
                         console.print(Panel(f"[bold red]Unknown command: {user_input}[/bold red]"))
                     continue
@@ -291,6 +291,26 @@ def dump(console, sandbox, user_input, *args, **kwargs):
     console.print("\n[bold cyan]Chat History:[/bold cyan]")
     for message in kwargs['chat_history']:
         console.print(f"[bold]{message['role']}:[/bold] {message['content']}")
+
+@cli_tools.tool
+def exec(console, sandbox, user_input, *args, **kwargs):
+    """
+    Execute a bash command and optionally add it to tool result buffer
+    """
+    command = user_input[5:].strip()  # Remove '!exec' from the beginning
+    result = run_bash_command(sandbox, command)
+    
+    console.print("[bold cyan]Command Output:[/bold cyan]")
+    console.print(result)
+    
+    add_to_buffer = console.input("[bold yellow]Add command and output to tool result buffer? (y/n): [/bold yellow]").strip().lower()
+    if add_to_buffer == 'y':
+        chat_entry = f"Executed bash command: {command}\n\nCommand output:\n{result}"
+        tool_result_buffer = kwargs.get('tool_result_buffer', [])
+        tool_result_buffer.append({"role": "user", "content": chat_entry})
+        console.print("[bold green]Command and output added to tool result buffer as a user message.[/bold green]")
+    else:
+        console.print("[bold yellow]Command and output not added to tool result buffer.[/bold yellow]")
 
 if __name__ == "__main__":
     main()
