@@ -127,6 +127,7 @@ def run(model, sandbox_dir):
             try:
                 if not tool_result_buffer:
                     user_input = session.prompt(FormattedText([('#00FF00', ' > ')]))
+                    command_name = user_input[1:].split()[0]
 
                     if user_input.startswith("!"):
                         if user_input == "!quit":
@@ -138,8 +139,8 @@ def run(model, sandbox_dir):
                             completion_tokens = 0
                             total_tokens = 0
                             console.print(Panel("[bold green]Chat history cleared. Starting over.[/bold green]"))
-                        elif user_input in cli_tools.tools.keys():
-                            cli_tool = cli_tools.tools.get(user_input[1:].split()[0])
+                        elif command_name in cli_tools.tools.keys():
+                            cli_tool = cli_tools.tools.get(command_name)
                             if cli_tool:
                                 cli_tool['invoke'](console=console, sandbox=sandbox, user_input=user_input)
                         else:
