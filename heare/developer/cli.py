@@ -19,7 +19,9 @@ import anthropic
 from heare.developer.sandbox import Sandbox
 from heare.developer.tools import TOOLS_SCHEMA, handle_tool_use
 from heare.developer.prompt import create_system_message
+from heare.developer.utils import CLITools
 
+cli_tools = CLITools()
 
 def initialize_sandbox(sandbox_dir=os.getcwd()):
     if not os.path.exists(sandbox_dir):
@@ -84,13 +86,11 @@ def run(model, sandbox_dir):
     client = anthropic.Client(api_key=api_key)
 
     commands = {
-        '!help': 'Show help',
         '!quit': 'Quit the chat',
-        '!tree': 'List contents of the sandbox',
-        '!add': 'Add file or directory to sandbox',
         '!restart': 'Clear chat history and start over',
-        '!dump': 'Dump the current system prompt, tools'
     }
+    for tool_name, spec in cli_tools.tools.items():
+        commands[f"!{tool_name}"] = spec['docstring']
     history = FileHistory("../../chat_history.txt")
     custom_completer = CustomCompleter(commands, history)
 
@@ -106,10 +106,13 @@ def run(model, sandbox_dir):
         "[bold green]Welcome to the Heare Developer CLI, your personal coding assistant.[/bold green]",
         expand=False))
     console.print("[bold yellow]Available commands:[/bold yellow]")
-    console.print("[bold yellow]!help - Show help[/bold yellow]")
+    for tool_name, spec in cli_tools.tools.items():
+        row = f"![bold yellow]{tool_name}"
+        if spec['docstring']:
+            row += f" - {spec['docstring']}"
+        row += "[/bold yellow]"
+        console.print(row)
     console.print("[bold yellow]!quit - Quit the chat[/bold yellow]")
-    console.print("[bold yellow]!tree - List contents of the sandbox[/bold yellow]")
-    console.print("[bold yellow]!add - Add file or directory to sandbox[/bold yellow]")
     console.print("[bold yellow]!restart - Clear chat history and start over[/bold yellow]")
 
     chat_history = []
@@ -128,21 +131,6 @@ def run(model, sandbox_dir):
                     if user_input.startswith("!"):
                         if user_input == "!quit":
                             break
-                        elif user_input == "!help":
-                            console.print(Panel("[bold yellow]Available commands:[/bold yellow]\n"
-                                                "!help - Show help\n"
-                                                "!quit - Quit the chat\n"
-                                                "!tree - List contents of the sandbox\n"
-                                                "!restart - Clear chat history and start over\n"
-                                                "You can ask the AI to read, write, or list files/directories\n"
-                                                "You can also ask the AI to run bash commands (with some restrictions)"))
-                        elif user_input == "!tree":
-                            sandbox_contents = sandbox.list_sandbox()
-                            console.print(Panel("[bold cyan]Sandbox contents:[/bold cyan]\n" + "\n".join(f"[cyan]{item}[/cyan]" for item in sandbox_contents)))
-                        elif user_input.startswith("!add"):
-                            sandbox.add_to_sandbox(user_input[4:].strip())
-                            sandbox_contents = sandbox.list_sandbox()
-                            console.print(Panel("[bold cyan]Sandbox contents:[/bold cyan]\n" + "\n".join(f"[cyan]{item}[/cyan]" for item in sandbox_contents)))
                         elif user_input == "!restart":
                             chat_history = []
                             tool_result_buffer = []
@@ -150,7 +138,10 @@ def run(model, sandbox_dir):
                             completion_tokens = 0
                             total_tokens = 0
                             console.print(Panel("[bold green]Chat history cleared. Starting over.[/bold green]"))
-                            continue
+                        elif user_input in cli_tools.tools.keys():
+                            cli_tool = cli_tools.tools.get(user_input[1:].split()[0])
+                            if cli_tool:
+                                cli_tool['invoke'](console=console, sandbox=sandbox, user_input=user_input)
                         else:
                             console.print(Panel(f"[bold red]Unknown command: {user_input}[/bold red]"))
                         continue
@@ -211,6 +202,44 @@ def run(model, sandbox_dir):
         pass
 
     console.print("[bold green]Chat ended. Goodbye![/bold green]")
+
+
+@cli_tools.tool
+def help(console, sandbox, user_input, *args, **kwargs):
+    """
+    Show help
+    """
+    help_text = "[bold yellow]Available commands:[/bold yellow]\n"
+    help_text += "!restart - Clear chat history and start over\n"
+    help_text += "!quit - Quit the chat\n"
+
+    for tool_name, spec in cli_tools.tools.items():
+        help_text += f"!{tool_name} - {spec['docstring']} - {spec['args']}\n"
+
+    help_text += "You can ask the AI to read, write, or list files/directories\n"
+    help_text += "You can also ask the AI to run bash commands (with some restrictions)"
+
+
+    console.print(Panel())
+
+
+@cli_tools.tool
+def add(console, sandbox, user_input, *args, **kwargs):
+    """
+    Add file or directory to sandbox
+    """
+    sandbox.add_to_sandbox(user_input[4:].strip())
+    tree(console, sandbox)
+
+
+@cli_tools.tool
+def tree(console, sandbox, *args, **kwargs):
+    """
+    List contents of the sandbox
+    """
+    sandbox_contents = sandbox.list_sandbox()
+    console.print(Panel(
+        "[bold cyan]Sandbox contents:[/bold cyan]\n" + "\n".join(f"[cyan]{item}[/cyan]" for item in sandbox_contents)))
 
 
 if __name__ == "__main__":
