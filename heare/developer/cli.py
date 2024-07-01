@@ -190,13 +190,7 @@ def run(model, sandbox_dir):
                 results = handle_tool_use(sandbox, final_message)
 
                 tool_result_buffer.append({"role": "user", "content": results})
-                for result in results:
-                    console.print(
-                        Panel(
-                            f"[italic]tool: {result['tool_use_id']}\n{result['content']}[/italic]",
-                            border_style="bold green",
-                        )
-                    )
+                render_tool_use(console, final_message, results)
             elif final_message.stop_reason == 'max_tokens':
                 console.print(Panel(f"[bold red]Hit max tokens.[/bold red]"))
 
@@ -219,6 +213,30 @@ def run(model, sandbox_dir):
                 console.print("\n[bold yellow]KeyboardInterrupt detected. Press Ctrl+C again to exit, or continue typing to resume.[/bold yellow]")
 
     console.print("[bold green]Chat ended. Goodbye![/bold green]")
+
+
+def render_tool_use(console, tool_use_message, results):
+    tool_use_map = {
+        tool_use.id: tool_use
+        for tool_use in tool_use_message.content if tool_use.type == 'tool_use'
+    }
+    for result in results:
+        tool_use = tool_use_map[result['tool_use_id']]
+        tool_name = tool_use.name
+        tool_params = tool_use.input
+        
+        formatted_params = "\n".join([f"  {key}: {value}" for key, value in tool_params.items()])
+        
+        console.print(
+            Panel(
+                f"[bold blue]Tool:[/bold blue] {tool_name}\n"
+                f"[bold cyan]Parameters:[/bold cyan]\n{formatted_params}\n"
+                f"[bold green]Result:[/bold green]\n{result['content']}",
+                title="Tool Usage",
+                expand=False,
+                border_style="bold magenta",
+            )
+        )
 
 
 @cli_tools.tool
