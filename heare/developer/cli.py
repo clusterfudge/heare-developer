@@ -1,6 +1,7 @@
 import argparse
 import os
 import shutil
+import time
 from dotenv import load_dotenv
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
@@ -122,85 +123,100 @@ def run(model, sandbox_dir):
     total_tokens = 0
     total_cost = 0.0
 
-    try:
-        while True:
-            try:
-                if not tool_result_buffer:
-                    user_input = session.prompt(FormattedText([('#00FF00', ' > ')]))
-                    command_name = user_input[1:].split()[0]
+    interrupt_count = 0
+    last_interrupt_time = 0
 
-                    if user_input.startswith("!"):
-                        if user_input == "!quit":
-                            break
-                        elif user_input == "!restart":
-                            chat_history = []
-                            tool_result_buffer = []
-                            prompt_tokens = 0
-                            completion_tokens = 0
-                            total_tokens = 0
-                            console.print(Panel("[bold green]Chat history cleared. Starting over.[/bold green]"))
-                        elif command_name in cli_tools.tools.keys():
-                            cli_tool = cli_tools.tools.get(command_name)
-                            if cli_tool:
-                                cli_tool['invoke'](console=console, sandbox=sandbox, user_input=user_input)
-                        else:
-                            console.print(Panel(f"[bold red]Unknown command: {user_input}[/bold red]"))
-                        continue
+    while True:
+        try:
+            if not tool_result_buffer:
+                user_input = session.prompt(FormattedText([('#00FF00', ' > ')]))
+                command_name = user_input[1:].split()[0]
 
-                    chat_history.append({"role": "user", "content": user_input})
-                    console.print(Panel(f"[bold blue]You:[/bold blue] {user_input}", expand=False))
+                if user_input.startswith("!"):
+                    if user_input == "!quit":
+                        break
+                    elif user_input == "!restart":
+                        chat_history = []
+                        tool_result_buffer = []
+                        prompt_tokens = 0
+                        completion_tokens = 0
+                        total_tokens = 0
+                        console.print(Panel("[bold green]Chat history cleared. Starting over.[/bold green]"))
+                    elif command_name in cli_tools.tools.keys():
+                        cli_tool = cli_tools.tools.get(command_name)
+                        if cli_tool:
+                            cli_tool['invoke'](console=console, sandbox=sandbox, user_input=user_input)
+                    else:
+                        console.print(Panel(f"[bold red]Unknown command: {user_input}[/bold red]"))
+                    continue
 
-                else:
-                    chat_history.append(tool_result_buffer.pop(0))
+                chat_history.append({"role": "user", "content": user_input})
+                console.print(Panel(f"[bold blue]You:[/bold blue] {user_input}", expand=False))
 
-                system_message = create_system_message(sandbox)
-                ai_response = ""
-                with console.status("[bold green]AI is thinking...[/bold green]", spinner="dots"):
-                    with client.messages.stream(
-                            system=system_message,
-                            max_tokens=4096,
-                            messages=chat_history,
-                            model=model['title'],
-                            tools=TOOLS_SCHEMA
-                    ) as stream:
-                        for chunk in stream:
-                            if chunk.type == "text":
-                                ai_response += chunk.text
+            else:
+                chat_history.append(tool_result_buffer.pop(0))
 
-                        final_message = stream.get_final_message()
-                        chat_history.append({
-                            "role": "assistant",
-                            "content": final_message.content
-                        })
+            system_message = create_system_message(sandbox)
+            ai_response = ""
+            with console.status("[bold green]AI is thinking...[/bold green]", spinner="dots"):
+                with client.messages.stream(
+                        system=system_message,
+                        max_tokens=4096,
+                        messages=chat_history,
+                        model=model['title'],
+                        tools=TOOLS_SCHEMA
+                ) as stream:
+                    for chunk in stream:
+                        if chunk.type == "text":
+                            ai_response += chunk.text
 
-                        # Update token counts
-                        prompt_tokens += final_message.usage.input_tokens
-                        completion_tokens += final_message.usage.output_tokens
-                        total_tokens = prompt_tokens + completion_tokens
-                        total_cost += (final_message.usage.input_tokens / 1_000_000.0 * model['pricing']['input']) \
-                            + (final_message.usage.output_tokens / 1_000_000.0 * model['pricing']['output'])
+                    final_message = stream.get_final_message()
+                    chat_history.append({
+                        "role": "assistant",
+                        "content": final_message.content
+                    })
 
-                console.print(Panel(f"[bold green]AI Assistant:[/bold green]\n{ai_response}", expand=False))
-                console.print(format_token_count(prompt_tokens, completion_tokens, total_tokens, total_cost))
+                    # Update token counts
+                    prompt_tokens += final_message.usage.input_tokens
+                    completion_tokens += final_message.usage.output_tokens
+                    total_tokens = prompt_tokens + completion_tokens
+                    total_cost += (final_message.usage.input_tokens / 1_000_000.0 * model['pricing']['input']) \
+                        + (final_message.usage.output_tokens / 1_000_000.0 * model['pricing']['output'])
 
-                if final_message.stop_reason == 'tool_use':
-                    results = handle_tool_use(sandbox, final_message)
+            console.print(Panel(f"[bold green]AI Assistant:[/bold green]\n{ai_response}", expand=False))
+            console.print(format_token_count(prompt_tokens, completion_tokens, total_tokens, total_cost))
 
-                    tool_result_buffer.append({"role": "user", "content": results})
-                    for result in results:
-                        console.print(
-                            Panel(
-                                f"[italic]tool: {result['tool_use_id']}\n{result['content']}[/italic]",
-                                border_style="bold green",
-                            )
+            if final_message.stop_reason == 'tool_use':
+                results = handle_tool_use(sandbox, final_message)
+
+                tool_result_buffer.append({"role": "user", "content": results})
+                for result in results:
+                    console.print(
+                        Panel(
+                            f"[italic]tool: {result['tool_use_id']}\n{result['content']}[/italic]",
+                            border_style="bold green",
                         )
-                elif final_message.stop_reason == 'max_tokens':
-                    console.print(Panel(f"[bold red]Hit max tokens.[/bold red]"))
-            except KeyboardInterrupt:
+                    )
+            elif final_message.stop_reason == 'max_tokens':
+                console.print(Panel(f"[bold red]Hit max tokens.[/bold red]"))
+
+            # Reset interrupt count after successful interaction
+            interrupt_count = 0
+            last_interrupt_time = 0
+
+        except KeyboardInterrupt:
+            current_time = time.time()
+            if current_time - last_interrupt_time < 1:  # If less than 1 second has passed
+                interrupt_count += 1
+            else:
+                interrupt_count = 1
+            last_interrupt_time = current_time
+
+            if interrupt_count >= 2:
+                console.print("\n[bold red]Double interrupt detected. Exiting...[/bold red]")
+                break
+            else:
                 console.print("\n[bold yellow]KeyboardInterrupt detected. Press Ctrl+C again to exit, or continue typing to resume.[/bold yellow]")
-                continue
-    except KeyboardInterrupt:
-        pass
 
     console.print("[bold green]Chat ended. Goodbye![/bold green]")
 
