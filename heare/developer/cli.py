@@ -220,7 +220,7 @@ def help(console, sandbox, user_input, *args, **kwargs):
     help_text += "You can also ask the AI to run bash commands (with some restrictions)"
 
 
-    console.print(Panel())
+    console.print(Panel(help_text))
 
 
 @cli_tools.tool
