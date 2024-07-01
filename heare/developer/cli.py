@@ -43,28 +43,28 @@ class CustomCompleter(Completer):
 
 
 MODEL_MAP = {
-    "opus": "claude-3-opus-20240229",
-    "sonnet": "claude-3-sonnet-20240229",
-    "sonnet-3.5": "claude-3-5-sonnet-20240620",
-    "haiku": "claude-3-haiku-20240307",
+    "opus": {"title": "claude-3-opus-20240229", "pricing": {"input": 15.00, "output": 75.00}},
+    "sonnet": {"title": "claude-3-sonnet-20240229", "pricing": {"input": 15.00, "output": 75.00}},
+    "sonnet-3.5": {"title": "claude-3-5-sonnet-20240620", "pricing": {"input": 15.00, "output": 75.00}},
+    "haiku": {"title": "claude-3-haiku-20240307", "pricing": {"input": 15.00, "output": 75.00}},
 }
-
 
 def main():
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument('--sandbox', default=None)
-    arg_parser.add_argument('--model', default='claude-3-5-sonnet-20240620')
+    arg_parser.add_argument('--model', default='sonnet-3.5', choices=list(MODEL_MAP.keys()))
     arg_parser.add_argument('--summary-cache', default=os.path.join(os.path.expanduser('~'), '.cache/heare.summary_cache'))
     args = arg_parser.parse_args()
-    run(MODEL_MAP.get(args.model, args.model), args.sandbox)
+    run(MODEL_MAP.get(args.model), args.sandbox)
 
 
-def format_token_count(prompt_tokens, completion_tokens, total_tokens):
+def format_token_count(prompt_tokens, completion_tokens, total_tokens, total_cost):
     return Text.assemble(
         ("Token Count:\n", "bold"),
         (f"Prompt: {prompt_tokens}\n", "cyan"),
         (f"Completion: {completion_tokens}\n", "green"),
-        (f"Total: {total_tokens}", "yellow")
+        (f"Total: {total_tokens}\n", "yellow"),
+        (f"Cost: ${round(total_cost, 2)}", "orange"),
     )
 
 
@@ -117,6 +117,7 @@ def run(model, sandbox_dir):
     prompt_tokens = 0
     completion_tokens = 0
     total_tokens = 0
+    total_cost = 0.0
 
     try:
         while True:
@@ -167,7 +168,7 @@ def run(model, sandbox_dir):
                             system=system_message,
                             max_tokens=4096,
                             messages=chat_history,
-                            model=model,
+                            model=model['title'],
                             tools=TOOLS_SCHEMA
                     ) as stream:
                         for chunk in stream:
@@ -184,9 +185,11 @@ def run(model, sandbox_dir):
                         prompt_tokens += final_message.usage.input_tokens
                         completion_tokens += final_message.usage.output_tokens
                         total_tokens = prompt_tokens + completion_tokens
+                        total_cost += (final_message.usage.input_tokens / 1_000_000.0 * model['pricing']['input']) \
+                            + (final_message.usage.output_tokens / 1_000_000.0 * model['pricing']['output'])
 
                 console.print(Panel(f"[bold green]AI Assistant:[/bold green]\n{ai_response}", expand=False))
-                console.print(format_token_count(prompt_tokens, completion_tokens, total_tokens))
+                console.print(format_token_count(prompt_tokens, completion_tokens, total_tokens, total_cost))
 
                 if final_message.stop_reason == 'tool_use':
                     results = handle_tool_use(sandbox, final_message)
