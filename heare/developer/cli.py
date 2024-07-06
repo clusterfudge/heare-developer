@@ -17,17 +17,13 @@ from rich.layout import Layout
 from rich.text import Text
 import anthropic
 
-from heare.developer.sandbox import Sandbox
+from heare.developer.sandbox import Sandbox, Permission
 from heare.developer.tools import TOOLS_SCHEMA, handle_tool_use, run_bash_command
 from heare.developer.prompt import create_system_message
 from heare.developer.utils import CLITools
 
 cli_tools = CLITools()
 
-def initialize_sandbox(sandbox_dir=os.getcwd()):
-    if not os.path.exists(sandbox_dir):
-        os.makedirs(sandbox_dir)
-    return sandbox_dir
 
 class CustomCompleter(Completer):
     def __init__(self, commands, history):
@@ -52,9 +48,10 @@ MODEL_MAP = {
     "haiku": {"title": "claude-3-haiku-20240307", "pricing": {"input": 15.00, "output": 75.00}},
 }
 
+
 def main():
     arg_parser = argparse.ArgumentParser()
-    arg_parser.add_argument('--sandbox', default='.')
+    arg_parser.add_argument('sandbox', nargs='*')
     arg_parser.add_argument('--model', default='sonnet-3.5', choices=list(MODEL_MAP.keys()))
     arg_parser.add_argument('--summary-cache', default=os.path.join(os.path.expanduser('~'), '.cache/heare.summary_cache'))
     args = arg_parser.parse_args()
@@ -71,11 +68,10 @@ def format_token_count(prompt_tokens, completion_tokens, total_tokens, total_cos
     )
 
 
-def run(model, sandbox_dir):
+def run(model, sandbox_contents):
     load_dotenv()
-    if sandbox_dir:
-        os.chdir(sandbox_dir)
-        sandbox = Sandbox(sandbox_dir)
+    if sandbox_contents:
+        sandbox = Sandbox(*sandbox_contents)
     else:
         sandbox = Sandbox()
     console = Console()
@@ -268,6 +264,15 @@ def add(console, sandbox, user_input, *args, **kwargs):
 
 
 @cli_tools.tool
+def rm(console, sandbox, user_input, *args, **kwargs):
+    """
+    Remove a file or directory from sandbox
+    """
+    sandbox.remove_from_sandbox(user_input[3:].strip())
+    tree(console, sandbox)
+
+
+@cli_tools.tool
 def tree(console, sandbox, *args, **kwargs):
     """
     List contents of the sandbox
@@ -328,18 +333,19 @@ def chmod(console, sandbox, user_input, *args, **kwargs):
     path = path.strip()
 
     current_permissions = sandbox.get_permissions(path)
-    
+    new_permissions = current_permissions
+    action = None
     if operation == '+r':
-        new_permissions = current_permissions | Sandbox.Permission.READ
+        new_permissions = current_permissions | Permission.READ
         action = "granted"
     elif operation == '+w':
-        new_permissions = current_permissions | Sandbox.Permission.WRITE
+        new_permissions = current_permissions | Permission.WRITE
         action = "granted"
     elif operation == '-r':
-        new_permissions = current_permissions & ~Sandbox.Permission.READ
+        new_permissions = current_permissions & ~Permission.READ
         action = "revoked"
     elif operation == '-w':
-        new_permissions = current_permissions & ~Sandbox.Permission.WRITE
+        new_permissions = current_permissions & ~Permission.WRITE
         action = "revoked"
 
     sandbox.set_permissions(path, new_permissions)
