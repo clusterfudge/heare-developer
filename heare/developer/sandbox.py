@@ -53,22 +53,27 @@ class Sandbox:
         if excluded_directories is None:
             excluded_directories = ['.git', '.venv', 'venv', '.idea']
         files_and_permissions = []
+        cwd = pathlib.Path.cwd()
         for sandbox_path in self.sandbox_paths:
             if Permission.LIST not in self._get_permission(sandbox_path):
                 continue
             if os.path.isdir(sandbox_path):
-                files_and_permissions.append((str(sandbox_path), self._get_permission(sandbox_path)))
+                rel_sandbox_path = sandbox_path.relative_to(cwd) if not sandbox_path.is_absolute() else sandbox_path
+                files_and_permissions.append((str(rel_sandbox_path), self._get_permission(sandbox_path)))
                 for root, dirs, files in os.walk(sandbox_path):
                     dirs[:] = [d for d in dirs if d not in excluded_directories]
                     for d in dirs:
-                        path = os.path.join(root, d)
-                        files_and_permissions.append((str(pathlib.Path(path).resolve()), self._get_permission(path)))
+                        path = pathlib.Path(root) / d
+                        rel_path = path.relative_to(cwd) if not path.is_absolute() else path
+                        files_and_permissions.append((str(rel_path), self._get_permission(path)))
                     for f in files:
                         if os.path.splitext(f)[1] in allowed_extensions:
-                            path = os.path.join(root, f)
-                            files_and_permissions.append((str(pathlib.Path(path).resolve()), self._get_permission(path)))
+                            path = pathlib.Path(root) / f
+                            rel_path = path.relative_to(cwd) if not path.is_absolute() else path
+                            files_and_permissions.append((str(rel_path), self._get_permission(path)))
             elif os.path.isfile(sandbox_path) and os.path.splitext(sandbox_path)[1] in allowed_extensions:
-                files_and_permissions.append((str(sandbox_path), self._get_permission(sandbox_path)))
+                rel_sandbox_path = sandbox_path.relative_to(cwd) if not sandbox_path.is_absolute() else sandbox_path
+                files_and_permissions.append((str(rel_sandbox_path), self._get_permission(sandbox_path)))
         return files_and_permissions
 
     def create_file(self, file_path, content=''):

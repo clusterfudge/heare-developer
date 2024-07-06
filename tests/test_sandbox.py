@@ -1,7 +1,7 @@
 import unittest
 import tempfile
 import os
-from .sandbox import Sandbox, Permission
+from heare.developer.sandbox import Sandbox, Permission
 import pathlib
 
 

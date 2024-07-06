@@ -1,37 +1,47 @@
 import os
+from collections import defaultdict
 
 from heare.developer.summarize import summarize_file
 
 
-def render_sandbox_content(sandbox, summarize):
+def build_tree(sandbox):
+    tree = defaultdict(lambda: defaultdict(dict))
     cwd = os.getcwd()
 
-    result = "<sandbox_contents>\n"
     for file_path, permission in sandbox.list_sandbox():
         relative_path = os.path.relpath(file_path, cwd)
-        try:
-            file_content = sandbox.read_file(file_path)
-            if summarize:  # Limit summary to about 500 tokens
-                summary = summarize_file(file_content)
-                result += f"<file path='{relative_path}' summarized='true' permission={permission}>\n"
-                result += f"{summary}...\n"
-            else:
-                result += f"<file path='{relative_path}' summarized='false' permission={permission}>\n"
-                result += f"{file_content}\n"
-        except Exception as e:
-            result += f"<file path='{relative_path}' summarized='false' permission={permission}>\n"
-            result += f"Unable to read file: {str(e)}\n"
+        parts = relative_path.split(os.sep)
+        current = tree
+        for part in parts[:-1]:
+            current = current[part]
+        current[parts[-1]] = {"path": relative_path, "permission": permission}
 
-        result += "</file>\n"
+    return dict(tree)
+
+
+def render_tree(tree, indent=""):
+    result = ""
+    for key, value in sorted(tree.items()):
+        if isinstance(value, dict) and "path" not in value:
+            result += f"{indent}{key}/\n"
+            result += render_tree(value, indent + "  ")
+        else:
+            result += f"{indent}{key} ({value['permission']})\n"
+    return result
+
+
+def render_sandbox_content(sandbox, summarize):
+    tree = build_tree(sandbox)
+    result = "<sandbox_contents>\n"
+    result += render_tree(tree)
     result += "</sandbox_contents>\n"
     return result
 
 
 def create_system_message(sandbox, MAX_ESTIMATED_TOKENS=10_240):
     system_message = f"You are an AI assistant with access to a sandbox environment. The current contents of the sandbox are:\n"
-    cwd = os.getcwd()
     sandbox_content = render_sandbox_content(sandbox, False)
-    if estimate_token_count(sandbox_content):
+    if estimate_token_count(sandbox_content) > MAX_ESTIMATED_TOKENS:
         sandbox_content = render_sandbox_content(sandbox, True)
 
     system_message += sandbox_content
@@ -39,16 +49,12 @@ def create_system_message(sandbox, MAX_ESTIMATED_TOKENS=10_240):
     
     return system_message
 
+
 def estimate_token_count(text):
     """
     Estimate the number of tokens in a given text.
     This is a rough estimate based on word count and should not be considered exact.
     """
-    # Split the text into words
     words = text.split()
-    
-    # Estimate tokens based on word count
-    # On average, one word is about 1.3 tokens in many language models
     estimated_tokens = int(len(words) * 1.3)
-    
     return estimated_tokens
