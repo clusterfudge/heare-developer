@@ -312,6 +312,41 @@ def exec(console, sandbox, user_input, *args, **kwargs):
     else:
         console.print("[bold yellow]Command and output not added to tool result buffer.[/bold yellow]")
 
+
+@cli_tools.tool
+def chmod(console, sandbox, user_input, *args, **kwargs):
+    """
+    Modify permissions of a file or directory in the sandbox
+    Usage: !chmod (+r|+w|-r|-w) <path>
+    """
+    parts = user_input[6:].strip().split()
+    if len(parts) != 2 or parts[0] not in ['+r', '+w', '-r', '-w']:
+        console.print("[bold red]Usage: !chmod (+r|+w|-r|-w) <path>[/bold red]")
+        return
+
+    operation, path = parts
+    path = path.strip()
+
+    current_permissions = sandbox.get_permissions(path)
+    
+    if operation == '+r':
+        new_permissions = current_permissions | Sandbox.Permission.READ
+        action = "granted"
+    elif operation == '+w':
+        new_permissions = current_permissions | Sandbox.Permission.WRITE
+        action = "granted"
+    elif operation == '-r':
+        new_permissions = current_permissions & ~Sandbox.Permission.READ
+        action = "revoked"
+    elif operation == '-w':
+        new_permissions = current_permissions & ~Sandbox.Permission.WRITE
+        action = "revoked"
+
+    sandbox.set_permissions(path, new_permissions)
+    
+    permission_type = "Read" if operation.endswith('r') else "Write"
+    console.print(f"[bold green]{permission_type} permission {action} for {path}[/bold green]")
+
+
 if __name__ == "__main__":
     main()
-    

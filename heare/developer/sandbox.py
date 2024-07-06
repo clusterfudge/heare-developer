@@ -28,18 +28,24 @@ class Sandbox:
                 applicable_perms |= perm
         return applicable_perms
 
-    def grant_permission(self, path, permission):
+    def get_permissions(self, path):
+        if not self._is_in_sandbox(path):
+            raise ValueError(f"Path is not in sandbox: {path}")
+        return self._get_permission(path)
+
+    def set_permissions(self, path, permissions):
         if not self._is_in_sandbox(path):
             raise ValueError(f"Path is not in sandbox: {path}")
         resolved_path = str(pathlib.Path(path).resolve())
-        self.permissions[resolved_path] = self._get_permission(resolved_path) | permission
+        self.permissions[resolved_path] = permissions
+
+    def grant_permission(self, path, permission):
+        current_permissions = self.get_permissions(path)
+        self.set_permissions(path, current_permissions | permission)
 
     def revoke_permission(self, path, permission):
-        if not self._is_in_sandbox(path):
-            raise ValueError(f"Path is not in sandbox: {path}")
-        resolved_path = str(pathlib.Path(path).resolve())
-        if resolved_path in self.permissions:
-            self.permissions[resolved_path] &= ~permission
+        current_permissions = self.get_permissions(path)
+        self.set_permissions(path, current_permissions & ~permission)
 
     def list_sandbox(self, allowed_extensions=None, excluded_directories=None):
         if allowed_extensions is None:
