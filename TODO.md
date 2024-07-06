@@ -1,3 +1,3 @@
- - [ ] Make sandbox summarization in system prompt be a simple directory tree. Remove absolute path prefix and use relative paths.
- - [ ] Sandbox permissions with implicit hierarchy (i.e. write implies read)
+ - [X] Make sandbox summarization in system prompt be a simple directory tree. Remove absolute path prefix and use relative paths.
+ - [X] Sandbox permissions with implicit hierarchy (i.e. write implies read)
  - [ ] Archive conversations to a file (including cost information)
