@@ -7,19 +7,19 @@ def render_sandbox_content(sandbox, summarize):
     cwd = os.getcwd()
 
     result = "<sandbox_contents>\n"
-    for file_path in sandbox.list_sandbox():
+    for file_path, permission in sandbox.list_sandbox():
         relative_path = os.path.relpath(file_path, cwd)
         try:
             file_content = sandbox.read_file(file_path)
             if summarize:  # Limit summary to about 500 tokens
                 summary = summarize_file(file_content)
-                result += f"<file path='{relative_path}' summarized='true'>\n"
+                result += f"<file path='{relative_path}' summarized='true' permission={permission}>\n"
                 result += f"{summary}...\n"
             else:
-                result += f"<file path='{relative_path}' summarized='false'>\n"
+                result += f"<file path='{relative_path}' summarized='false' permission={permission}>\n"
                 result += f"{file_content}\n"
         except Exception as e:
-            result += f"<file path='{relative_path}' summarized='false'>\n"
+            result += f"<file path='{relative_path}' summarized='false' permission={permission}>\n"
             result += f"Unable to read file: {str(e)}\n"
 
         result += "</file>\n"

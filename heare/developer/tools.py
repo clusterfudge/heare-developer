@@ -2,6 +2,8 @@ import os
 import shlex
 import subprocess
 import re
+from enum import Flag, auto
+from .sandbox import Permission
 
 
 def run_bash_command(sandbox, command):
@@ -34,6 +36,8 @@ def run_bash_command(sandbox, command):
 def read_file(sandbox, path):
     try:
         return sandbox.read_file(path)
+    except PermissionError:
+        return f"Error: No read permission for {path}"
     except Exception as e:
         return f"Error reading file: {str(e)}"
 
@@ -42,13 +46,28 @@ def write_file(sandbox, path, content):
     try:
         sandbox.write_file(path, content)
         return "File written successfully"
+    except PermissionError:
+        return f"Error: No write permission for {path}"
     except Exception as e:
         return f"Error writing file: {str(e)}"
 
 
 def list_directory(sandbox, path):
     try:
-        return sandbox.list_directory(path)
+        contents = sandbox.list_sandbox()
+        relevant_contents = [
+            (p, perms) for p, perms in contents
+            if p.startswith(path) and p != path
+        ]
+        if not relevant_contents:
+            return f"No contents found for path: {path}"
+
+        result = f"Contents of {path}:\n"
+        for item_path, item_perms in relevant_contents:
+            relative_path = os.path.relpath(item_path, path)
+            perms_str = ', '.join([p.name for p in Permission if p in item_perms and p != Permission.NONE])
+            result += f"{relative_path}: {perms_str}\n"
+        return result
     except Exception as e:
         return f"Error listing directory: {str(e)}"
 
@@ -70,8 +89,29 @@ def edit_file(sandbox, path, match_text, replace_text):
             new_content = content.replace(match_text, replace_text, 1)
             sandbox.write_file(path, new_content)
             return "File edited successfully"
+    except PermissionError:
+        return f"Error: No read or write permission for {path}"
     except Exception as e:
         return f"Error editing file: {str(e)}"
+
+
+def request_permission(sandbox, path, permission):
+    try:
+        # Convert string permission to Permission enum
+        perm = Permission[permission.upper()]
+
+        # Prompt the user for approval
+        user_input = input(f"Permission request: {permission} for path {path}. Approve? (y/n): ").lower().strip()
+
+        if user_input == 'y':
+            sandbox.grant_permission(path, perm)
+            return f"Permission {permission} granted for {path}"
+        else:
+            return f"Permission {permission} denied for {path}"
+    except KeyError:
+        return f"Error: Invalid permission '{permission}'. Valid permissions are LIST, READ, WRITE."
+    except Exception as e:
+        return f"Error processing permission request: {str(e)}"
 
 
 TOOLS_SCHEMA = [
@@ -132,6 +172,18 @@ TOOLS_SCHEMA = [
             },
             "required": ["path", "match_text", "replace_text"]
         }
+    },
+    {
+        "name": "request_permission",
+        "description": "Request a specific permission for a path (requires user approval via command line). Permissions are list by default, and recursive.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Path to request permission for"},
+                "permission": {"type": "string", "description": "Permission to request (LIST, READ, or WRITE)"}
+            },
+            "required": ["path", "permission"]
+        }
     }
 ]
 
@@ -151,6 +203,8 @@ def handle_tool_use(sandbox, final_message):
             result = run_bash_command(sandbox, arguments['command'])
         elif function_name == "edit_file":
             result = edit_file(sandbox, arguments['path'], arguments['match_text'], arguments['replace_text'])
+        elif function_name == "request_permission":
+            result = request_permission(sandbox, arguments['path'], arguments['permission'])
         else:
             result = f"Unknown function: {function_name}"
         results.append({

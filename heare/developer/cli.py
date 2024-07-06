@@ -54,7 +54,7 @@ MODEL_MAP = {
 
 def main():
     arg_parser = argparse.ArgumentParser()
-    arg_parser.add_argument('--sandbox', default=None)
+    arg_parser.add_argument('--sandbox', default='.')
     arg_parser.add_argument('--model', default='sonnet-3.5', choices=list(MODEL_MAP.keys()))
     arg_parser.add_argument('--summary-cache', default=os.path.join(os.path.expanduser('~'), '.cache/heare.summary_cache'))
     args = arg_parser.parse_args()
