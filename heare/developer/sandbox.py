@@ -99,7 +99,7 @@ class Sandbox:
     def read_file(self, file_path):
         if not self._is_in_sandbox(file_path):
             raise ValueError(f"Cannot read file outside of sandbox: {file_path}")
-        if check_permission(self._get_permission(file_path), Permission.READ):
+        if not check_permission(self._get_permission(file_path), Permission.READ):
             raise PermissionError(f"No read permission for: {file_path}")
         full_path = pathlib.Path(file_path).resolve()
         with open(full_path, 'r') as f:
@@ -108,7 +108,7 @@ class Sandbox:
     def write_file(self, file_path, content):
         if not self._is_in_sandbox(file_path):
             raise ValueError(f"Cannot write file outside of sandbox: {file_path}")
-        if check_permission(self._get_permission(file_path), Permission.WRITE):
+        if not check_permission(self._get_permission(file_path), Permission.WRITE):
             raise PermissionError(f"No write permission for: {file_path}")
         full_path = pathlib.Path(file_path).resolve()
         with open(full_path, 'w') as f:
@@ -117,7 +117,7 @@ class Sandbox:
     def remove_file_or_dir(self, path):
         if not self._is_in_sandbox(path):
             raise ValueError(f"Cannot remove item outside of sandbox: {path}")
-        if check_permission(self._get_permission(path), Permission.WRITE):
+        if not check_permission(self._get_permission(path), Permission.WRITE):
             raise PermissionError(f"No write permission for: {path}")
         full_path = pathlib.Path(path).resolve()
         if full_path.is_file():
