@@ -141,3 +141,9 @@ class Sandbox:
             del self.permissions[str(resolved_path)]
         else:
             raise ValueError(f"Path is not in sandbox: {path}")
+
+    def request_permission(self, path, permission):
+        if not self._is_in_sandbox(path):
+            raise ValueError(f"Cannot request permission for path outside of sandbox: {path}")
+        permission_flag = Permission[permission]
+        self.grant_permission(path, permission_flag)
