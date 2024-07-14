@@ -88,7 +88,7 @@ def run(model, sandbox_contents):
     }
     for tool_name, spec in cli_tools.tools.items():
         commands[f"!{tool_name}"] = spec['docstring']
-    history = FileHistory("../../chat_history.txt")
+    history = FileHistory("./chat_history.txt")
     custom_completer = CustomCompleter(commands, history)
 
     session = PromptSession(
