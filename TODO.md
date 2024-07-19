@@ -1,3 +1,8 @@
  - [X] Make sandbox summarization in system prompt be a simple directory tree. Remove absolute path prefix and use relative paths.
  - [X] Sandbox permissions with implicit hierarchy (i.e. write implies read)
  - [ ] Archive conversations to a file (including cost information)
+ - [ ] rewrite sandbox
+    - [ ] read permissions by default
+    - [ ] human-in-loop permission grant on attempt, not attempt/fail/request/attempt loop by agent 
+ - [ ] file edit summarization to avoid token spiralling
+ - [ ] stable (single) file state in context to minimize token usage
