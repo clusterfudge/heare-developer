@@ -1,6 +1,7 @@
  - [X] Make sandbox summarization in system prompt be a simple directory tree. Remove absolute path prefix and use relative paths.
  - [X] Sandbox permissions with implicit hierarchy (i.e. write implies read)
  - [ ] Archive conversations to a file (including cost information)
+   - [X] archive conversation to a file
    - [ ] save to .cache/heare-developer directory (chat_history.txt as well) 
    - [ ] render chat_archive
    - [ ] resume from chat_archive
