@@ -9,6 +9,7 @@
     - [X] read permissions by default
     - [X] human-in-loop permission grant on attempt, not attempt/fail/request/attempt loop by agent
       - [X] pretty rendering of grant request, re-use render_tool_usage
-      - [ ] cli flags to set mode
+      - [X] cli flags to set mode
  - [ ] file edit summarization to avoid token spiralling
  - [ ] stable (single) file state in context to minimize token usage
+ - [ ] better separation of console and agent
