@@ -30,3 +30,5 @@ tqdm==4.66.4
 typing_extensions==4.12.2
 urllib3==2.2.1
 wcwidth==0.2.13
+pathspec==0.12.1
+pytest==8.3.1

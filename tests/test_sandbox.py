@@ -1,90 +1,82 @@
-import unittest
-import tempfile
 import os
-from heare.developer.sandbox import Sandbox, Permission
-import pathlib
+import tempfile
+import pytest
 
+from heare.developer.sandbox import Sandbox, SandboxMode
 
-class TestSandboxPermissions(unittest.TestCase):
-    def setUp(self):
-        self.temp_dir = tempfile.mkdtemp()
-        self.sandbox = Sandbox(self.temp_dir)
+@pytest.fixture
+def temp_dir():
+    with tempfile.TemporaryDirectory() as temp_dir:
+        yield temp_dir
 
-        # Create a test file structure
-        self.test_file = os.path.join(self.temp_dir, 'test.txt')
-        with open(self.test_file, 'w') as f:
-            f.write('Test content')
+def test_sandbox_init(temp_dir):
+    # Test initializing Sandbox with different modes
+    sandbox = Sandbox(temp_dir, SandboxMode.REQUEST_EVERY_TIME)
+    assert sandbox.permissions_cache is None
+    
+    sandbox = Sandbox(temp_dir, SandboxMode.REMEMBER_PER_RESOURCE)
+    assert isinstance(sandbox.permissions_cache, dict)
+    
+    sandbox = Sandbox(temp_dir, SandboxMode.REMEMBER_ALL)
+    assert isinstance(sandbox.permissions_cache, dict)
+    
+    sandbox = Sandbox(temp_dir, SandboxMode.ALLOW_ALL)
+    assert sandbox.permissions_cache is None
+            
+def test_gitignore_loading(temp_dir):
+    with open(os.path.join(temp_dir, '.gitignore'), 'w') as f:
+        f.write("ignored_dir/\n*.txt")
+        
+    sandbox = Sandbox(temp_dir, SandboxMode.ALLOW_ALL)
+    
+    os.makedirs(os.path.join(temp_dir, 'ignored_dir'))
+    os.makedirs(os.path.join(temp_dir, 'included_dir'))
+    
+    with open(os.path.join(temp_dir, 'ignored_dir/file.txt'), 'w') as f:
+        f.write("text")
+    with open(os.path.join(temp_dir, 'included_dir/file.py'), 'w') as f:
+        f.write("code")
+        
+    listing = sandbox.get_directory_listing()
+    assert 'ignored_dir/file.txt' not in listing
+    assert 'included_dir/file.py' in listing
+    
+def test_permissions(temp_dir, monkeypatch):
+    sandbox = Sandbox(temp_dir, SandboxMode.REQUEST_EVERY_TIME)
+    
+    monkeypatch.setattr('builtins.input', lambda _: "y")
+    assert sandbox.check_permissions("read", "file.txt") == True
+    
+    monkeypatch.setattr('builtins.input', lambda _: "n")
+    assert sandbox.check_permissions("write", "file.txt") == False
+    
+    sandbox = Sandbox(temp_dir, SandboxMode.ALLOW_ALL) 
+    assert sandbox.check_permissions("any_action", "any_resource") == True
 
-        self.test_dir = os.path.join(self.temp_dir, 'test_dir')
-        os.mkdir(self.test_dir)
-
-        self.test_subfile = os.path.join(self.test_dir, 'subfile.txt')
-        with open(self.test_subfile, 'w') as f:
-            f.write('Subfile content')
-
-    def tearDown(self):
-        import shutil
-        shutil.rmtree(self.temp_dir)
-
-    def test_initial_permissions(self):
-        """Test that initial permissions are set to LIST only"""
-        perms = self.sandbox._get_permission(self.temp_dir)
-        self.assertEqual(perms, Permission.LIST)
-
-    def test_grant_permission(self):
-        """Test granting a single permission"""
-        self.sandbox.grant_permission(self.test_file, Permission.READ)
-        perms = self.sandbox._get_permission(self.test_file)
-        self.assertEqual(perms, Permission.LIST | Permission.READ)
-
-    def test_grant_multiple_permissions(self):
-        """Test granting multiple permissions"""
-        self.sandbox.grant_permission(self.test_file, Permission.READ | Permission.WRITE)
-        perms = self.sandbox._get_permission(self.test_file)
-        self.assertEqual(perms, Permission.LIST | Permission.READ | Permission.WRITE)
-
-    def test_recursive_permissions(self):
-        """Test that granting permissions to a directory affects its contents"""
-        self.sandbox.grant_permission(self.test_dir, Permission.READ)
-        dir_perms = self.sandbox._get_permission(self.test_dir)
-        file_perms = self.sandbox._get_permission(self.test_subfile)
-        self.assertEqual(dir_perms, Permission.LIST | Permission.READ)
-        self.assertEqual(file_perms, Permission.LIST | Permission.READ)
-
-    def test_revoke_permission(self):
-        """Test revoking a permission"""
-        self.sandbox.grant_permission(self.test_file, Permission.READ | Permission.WRITE)
-        self.sandbox.revoke_permission(self.test_file, Permission.WRITE)
-        perms = self.sandbox._get_permission(self.test_file)
-        self.assertEqual(perms, Permission.LIST | Permission.READ)
-
-    def test_list_sandbox_with_permissions(self):
-        """Test that list_sandbox returns correct permissions"""
-        self.sandbox.grant_permission(self.test_file, Permission.READ)
-        self.sandbox.grant_permission(self.test_dir, Permission.WRITE)
-
-        sandbox_contents = self.sandbox.list_sandbox()
-
-        expected_contents = [
-            (str(pathlib.Path(self.temp_dir).resolve()), Permission.LIST),
-            (str(pathlib.Path(self.test_file).resolve()), Permission.LIST | Permission.READ),
-            (str(pathlib.Path(self.test_dir).resolve()), Permission.LIST | Permission.WRITE),
-            (str(pathlib.Path(self.test_subfile).resolve()), Permission.LIST | Permission.WRITE)
-        ]
-
-        self.assertEqual(set(sandbox_contents), set(expected_contents))
-
-    def test_permission_inheritance(self):
-        """Test that new files/directories inherit permissions from their parent"""
-        self.sandbox.grant_permission(self.test_dir, Permission.READ | Permission.WRITE)
-
-        new_file = os.path.join(self.test_dir, 'new_file.txt')
-        with open(new_file, 'w') as f:
-            f.write('New file content')
-
-        new_file_perms = self.sandbox._get_permission(new_file)
-        self.assertEqual(new_file_perms, Permission.LIST | Permission.READ | Permission.WRITE)
-
-
-if __name__ == '__main__':
-    unittest.main()
+def test_read_write_file(temp_dir):
+    sandbox = Sandbox(temp_dir, SandboxMode.ALLOW_ALL)
+    
+    file_path = "test.txt"
+    content = "test content"
+    
+    sandbox.write_file(file_path, content)
+    assert sandbox.read_file(file_path) == content
+    
+    with pytest.raises(ValueError):
+        sandbox.read_file("../outside_sandbox.txt")
+    
+    with pytest.raises(FileNotFoundError):
+        sandbox.read_file("nonexistent.txt")
+      
+def test_create_file(temp_dir):
+    sandbox = Sandbox(temp_dir, SandboxMode.ALLOW_ALL)
+    
+    file_path = "new_file.txt" 
+    sandbox.create_file(file_path)
+    assert os.path.exists(os.path.join(temp_dir, file_path))
+    
+    with pytest.raises(FileExistsError):
+        sandbox.create_file(file_path)
+  
+    with pytest.raises(ValueError):
+        sandbox.create_file("../outside_sandbox.txt")

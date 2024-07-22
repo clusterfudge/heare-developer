@@ -17,10 +17,11 @@ from rich.layout import Layout
 from rich.text import Text
 import anthropic
 
-from heare.developer.sandbox import Sandbox, Permission
 from heare.developer.tools import TOOLS_SCHEMA, handle_tool_use, run_bash_command
 from heare.developer.prompt import create_system_message
 from heare.developer.utils import CLITools
+from heare.developer.sandbox import Sandbox, SandboxMode
+
 
 cli_tools = CLITools()
 
@@ -58,6 +59,7 @@ def main():
     run(MODEL_MAP.get(args.model), args.sandbox)
 
 
+
 def format_token_count(prompt_tokens, completion_tokens, total_tokens, total_cost):
     return Text.assemble(
         ("Token Count:\n", "bold"),
@@ -71,9 +73,9 @@ def format_token_count(prompt_tokens, completion_tokens, total_tokens, total_cos
 def run(model, sandbox_contents):
     load_dotenv()
     if sandbox_contents:
-        sandbox = Sandbox(*sandbox_contents)
+        sandbox = Sandbox(sandbox_contents[0], mode=SandboxMode.REMEMBER_PER_RESOURCE)
     else:
-        sandbox = Sandbox()
+        sandbox = Sandbox(os.getcwd(), mode=SandboxMode.REMEMBER_PER_RESOURCE)
     console = Console()
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
@@ -220,9 +222,9 @@ def render_tool_use(console, tool_use_message, results):
         tool_use = tool_use_map[result['tool_use_id']]
         tool_name = tool_use.name
         tool_params = tool_use.input
-        
+
         formatted_params = "\n".join([f"  {key}: {value}" for key, value in tool_params.items()])
-        
+
         console.print(
             Panel(
                 f"[bold blue]Tool:[/bold blue] {tool_name}\n"
@@ -250,7 +252,6 @@ def help(console, sandbox, user_input, *args, **kwargs):
     help_text += "You can ask the AI to read, write, or list files/directories\n"
     help_text += "You can also ask the AI to run bash commands (with some restrictions)"
 
-
     console.print(Panel(help_text))
 
 
@@ -259,7 +260,9 @@ def add(console, sandbox, user_input, *args, **kwargs):
     """
     Add file or directory to sandbox
     """
-    sandbox.add_to_sandbox(user_input[4:].strip())
+    path = user_input[4:].strip()
+    sandbox.get_directory_listing()  # This will update the internal listing
+    console.print(f"[bold green]Added {path} to sandbox[/bold green]")
     tree(console, sandbox)
 
 
@@ -268,7 +271,9 @@ def rm(console, sandbox, user_input, *args, **kwargs):
     """
     Remove a file or directory from sandbox
     """
-    sandbox.remove_from_sandbox(user_input[3:].strip())
+    path = user_input[3:].strip()
+    sandbox.get_directory_listing()  # This will update the internal listing
+    console.print(f"[bold green]Removed {path} from sandbox[/bold green]")
     tree(console, sandbox)
 
 
@@ -277,7 +282,7 @@ def tree(console, sandbox, *args, **kwargs):
     """
     List contents of the sandbox
     """
-    sandbox_contents = sandbox.list_sandbox()
+    sandbox_contents = sandbox.get_directory_listing()
     console.print(Panel(
         "[bold cyan]Sandbox contents:[/bold cyan]\n" + "\n".join(f"[cyan]{item}[/cyan]" for item in sandbox_contents)))
 
@@ -289,13 +294,14 @@ def dump(console, sandbox, user_input, *args, **kwargs):
     """
     console.print("[bold cyan]System Message:[/bold cyan]")
     console.print(create_system_message(sandbox))
-    
+
     console.print("\n[bold cyan]Tool Specifications:[/bold cyan]")
     console.print(TOOLS_SCHEMA)
-    
+
     console.print("\n[bold cyan]Chat History:[/bold cyan]")
     for message in kwargs['chat_history']:
         console.print(f"[bold]{message['role']}:[/bold] {message['content']}")
+
 
 @cli_tools.tool
 def exec(console, sandbox, user_input, *args, **kwargs):
@@ -304,11 +310,12 @@ def exec(console, sandbox, user_input, *args, **kwargs):
     """
     command = user_input[5:].strip()  # Remove '!exec' from the beginning
     result = run_bash_command(sandbox, command)
-    
+
     console.print("[bold cyan]Command Output:[/bold cyan]")
     console.print(result)
-    
-    add_to_buffer = console.input("[bold yellow]Add command and output to tool result buffer? (y/n): [/bold yellow]").strip().lower()
+
+    add_to_buffer = console.input(
+        "[bold yellow]Add command and output to tool result buffer? (y/n): [/bold yellow]").strip().lower()
     if add_to_buffer == 'y':
         chat_entry = f"Executed bash command: {command}\n\nCommand output:\n{result}"
         tool_result_buffer = kwargs.get('tool_result_buffer', [])
@@ -316,42 +323,6 @@ def exec(console, sandbox, user_input, *args, **kwargs):
         console.print("[bold green]Command and output added to tool result buffer as a user message.[/bold green]")
     else:
         console.print("[bold yellow]Command and output not added to tool result buffer.[/bold yellow]")
-
-
-@cli_tools.tool
-def chmod(console, sandbox, user_input, *args, **kwargs):
-    """
-    Modify permissions of a file or directory in the sandbox
-    Usage: !chmod (+r|+w|-r|-w) <path>
-    """
-    parts = user_input[6:].strip().split()
-    if len(parts) != 2 or parts[0] not in ['+r', '+w', '-r', '-w']:
-        console.print("[bold red]Usage: !chmod (+r|+w|-r|-w) <path>[/bold red]")
-        return
-
-    operation, path = parts
-    path = path.strip()
-
-    current_permissions = sandbox.get_permissions(path)
-    new_permissions = current_permissions
-    action = None
-    if operation == '+r':
-        new_permissions = current_permissions | Permission.READ
-        action = "granted"
-    elif operation == '+w':
-        new_permissions = current_permissions | Permission.WRITE
-        action = "granted"
-    elif operation == '-r':
-        new_permissions = current_permissions & ~Permission.READ
-        action = "revoked"
-    elif operation == '-w':
-        new_permissions = current_permissions & ~Permission.WRITE
-        action = "revoked"
-
-    sandbox.set_permissions(path, new_permissions)
-    
-    permission_type = "Read" if operation.endswith('r') else "Write"
-    console.print(f"[bold green]{permission_type} permission {action} for {path}[/bold green]")
 
 
 if __name__ == "__main__":

@@ -1,26 +1,25 @@
-import os
-from collections import defaultdict
-
-from heare.developer.sandbox import Permission
-from heare.developer.summarize import summarize_file
+from heare.developer.sandbox import Sandbox
 
 
-def build_tree(sandbox):
-    tree = defaultdict(lambda: defaultdict(dict))
-    cwd = os.getcwd()
+def build_tree(sandbox: Sandbox):
+    root = {'is_leaf': False}
 
-    for file_path, permission in sandbox.list_sandbox():
-        relative_path = os.path.relpath(file_path, cwd)
-        parts = relative_path.split(os.sep)
-        current = tree
-        for part in parts[:-1]:
-            current = current[part]
-        current[parts[-1]] = {"path": relative_path, "permission": permission}
+    for path in sandbox.get_directory_listing():
+        parts = path.split('/')
+        current = root
 
-    return dict(tree)
+        for i, part in enumerate(parts):
+            if i == len(parts) - 1:  # It's a file
+                current[part] = {'path': path, 'is_leaf': True}
+            else:  # It's a directory
+                if part not in current:
+                    current[part] = {'is_leaf': False}
+                current = current[part]
+
+    return root
 
 
-_STRUCT_KEYS = {'path', 'permission'}
+_STRUCT_KEYS = {'path', 'is_leaf'}
 
 def render_tree(tree, indent=""):
     result = ""
@@ -28,14 +27,14 @@ def render_tree(tree, indent=""):
         if key in _STRUCT_KEYS:
             continue
         if isinstance(value, dict):
-            is_leaf = value.keys() == _STRUCT_KEYS if isinstance(value, dict) else True
+            is_leaf = value.get('is_leaf', False)
             if not is_leaf:
                 result += f"{indent}{key}/\n"
                 result += render_tree(value, indent + "  ")
             else:
-                result += f"{indent}{key} ({value['permission']})\n"
+                result += f"{indent}{key}\n"
         else:
-            result += f"{indent}{key} ({Permission.LIST})\n"
+            result += f"{indent}{key}\n"
     return result
 
 

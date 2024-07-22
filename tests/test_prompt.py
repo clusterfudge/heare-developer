@@ -6,41 +6,44 @@ class TestPrompt(unittest.TestCase):
 
     def test_build_tree(self):
         mock_sandbox = MagicMock()
-        mock_sandbox.list_sandbox.return_value = [
-            ('file1.txt', 'READ'),
-            ('dir1/file2.txt', 'WRITE'),
-            ('dir1/subdir/file3.txt', 'LIST'),
+        mock_sandbox.get_directory_listing.return_value = [
+            'file1.txt',
+            'dir1/file2.txt',
+            'dir1/subdir/file3.txt',
         ]
 
         expected_tree = {
-            'file1.txt': {'path': 'file1.txt', 'permission': 'READ'},
+            'file1.txt': {'path': 'file1.txt', 'is_leaf': True},
+            'is_leaf': False,
             'dir1': {
-                'file2.txt': {'path': 'dir1/file2.txt', 'permission': 'WRITE'},
+                'file2.txt': {'path': 'dir1/file2.txt', 'is_leaf': True},
+                'is_leaf': False,
                 'subdir': {
-                    'file3.txt': {'path': 'dir1/subdir/file3.txt', 'permission': 'LIST'}
+                    'is_leaf': False,
+                    'file3.txt': {'path': 'dir1/subdir/file3.txt', 'is_leaf': True},
                 }
             }
         }
 
         result = build_tree(mock_sandbox)
-        self.assertEqual(result, expected_tree)
+        self.assertEqual(expected_tree, result)
 
     def test_render_tree(self):
         tree = {
-            'file1.txt': {'path': 'file1.txt', 'permission': 'READ'},
+            'file1.txt': {'path': 'file1.txt', 'is_leaf': True},
             'dir1': {
-                'file2.txt': {'path': 'dir1/file2.txt', 'permission': 'WRITE'},
+                'file2.txt': {'path': 'dir1/file2.txt', 'is_leaf': True},
                 'subdir': {
-                    'file3.txt': {'path': 'dir1/subdir/file3.txt', 'permission': 'LIST'}
+                    'file3.txt': {'path': 'dir1/subdir/file3.txt', 'is_leaf': True}
                 }
             }
         }
 
         expected_output = """dir1/
-  file2.txt (WRITE)
+  file2.txt
   subdir/
-    file3.txt (LIST)
-file1.txt (READ)
+    file3.txt
+file1.txt
 """
 
         result = render_tree(tree)
@@ -48,20 +51,20 @@ file1.txt (READ)
 
     def test_render_sandbox_content(self):
         mock_sandbox = MagicMock()
-        mock_sandbox.list_sandbox.return_value = [
-            ('file1.txt', 'READ'),
-            ('dir1/file2.txt', 'WRITE'),
+        mock_sandbox.get_directory_listing.return_value = [
+            'file1.txt',
+            'dir1/file2.txt',
         ]
 
         expected_output = """<sandbox_contents>
 dir1/
-  file2.txt (WRITE)
-file1.txt (READ)
+  file2.txt
+file1.txt
 </sandbox_contents>
 """
 
         result = render_sandbox_content(mock_sandbox, False)
-        self.assertEqual(result, expected_output)
+        self.assertEqual(expected_output, result)
 
     def test_estimate_token_count(self):
         text = "This is a sample text with ten words in it."
@@ -70,17 +73,18 @@ file1.txt (READ)
 
     def test_create_system_message(self):
         mock_sandbox = MagicMock()
-        mock_sandbox.list_sandbox.return_value = [
-            ('file1.txt', 'READ'),
-            ('dir1/file2.txt', 'WRITE'),
+        mock_sandbox.get_directory_listing.return_value = [
+            'file1.txt',
+            'dir1/file2.txt',
+            'dir1/subdir/file3.txt',
         ]
 
         result = create_system_message(mock_sandbox)
         self.assertIn("You are an AI assistant with access to a sandbox environment.", result)
         self.assertIn("<sandbox_contents>", result)
-        self.assertIn("file1.txt (READ)", result)
+        self.assertIn("file1.txt", result)
         self.assertIn("dir1/", result)
-        self.assertIn("file2.txt (WRITE)", result)
+        self.assertIn("file2.txt", result)
         self.assertIn("</sandbox_contents>", result)
         self.assertIn("You can read, write, and list files/directories, as well as execute some bash commands.", result)
 
