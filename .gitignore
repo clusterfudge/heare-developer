@@ -6,3 +6,4 @@ chat_history.txt
 .idea
 .pytest_cache
 __pycache__
+chat_archive*.json
