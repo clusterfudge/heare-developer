@@ -7,3 +7,4 @@ chat_history.txt
 .pytest_cache
 __pycache__
 chat_archive*.json
+.ruff_cache
