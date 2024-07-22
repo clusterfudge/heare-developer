@@ -32,3 +32,5 @@ urllib3==2.2.1
 wcwidth==0.2.13
 pathspec==0.12.1
 pytest==8.3.1
+pre-commit==3.6.0
+autoflake==2.3.0
