@@ -76,8 +76,15 @@ def main():
         "--summary-cache",
         default=os.path.join(os.path.expanduser("~"), ".cache/heare.summary_cache"),
     )
+    arg_parser.add_argument(
+        "--sandbox-mode",
+        type=SandboxMode,
+        choices=list(SandboxMode),
+        default=SandboxMode.REMEMBER_PER_RESOURCE,
+        help="Set the sandbox mode for file operations",
+    )
     args = arg_parser.parse_args()
-    run(MODEL_MAP.get(args.model), args.sandbox)
+    run(MODEL_MAP.get(args.model), args.sandbox, args.sandbox_mode)
 
 
 def format_token_count(prompt_tokens, completion_tokens, total_tokens, total_cost):
@@ -90,7 +97,7 @@ def format_token_count(prompt_tokens, completion_tokens, total_tokens, total_cos
     )
 
 
-def run(model, sandbox_contents):
+def run(model, sandbox_contents, sandbox_mode):
     load_dotenv()
     console = Console()
 
@@ -111,13 +118,13 @@ def run(model, sandbox_contents):
     if sandbox_contents:
         sandbox = Sandbox(
             sandbox_contents[0],
-            mode=SandboxMode.REMEMBER_PER_RESOURCE,
+            mode=sandbox_mode,
             permission_check_callback=permission_check_callback,
         )
     else:
         sandbox = Sandbox(
             os.getcwd(),
-            mode=SandboxMode.REMEMBER_PER_RESOURCE,
+            mode=sandbox_mode,
             permission_check_callback=permission_check_callback,
         )
 
