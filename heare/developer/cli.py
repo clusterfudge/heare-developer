@@ -6,8 +6,7 @@ import json
 from enum import Enum
 from datetime import datetime, date
 from types import SimpleNamespace
-from typing import Any, IO
-
+from typing import Any, IO, Dict
 
 from dotenv import load_dotenv
 from prompt_toolkit import PromptSession
@@ -93,11 +92,35 @@ def format_token_count(prompt_tokens, completion_tokens, total_tokens, total_cos
 
 def run(model, sandbox_contents):
     load_dotenv()
-    if sandbox_contents:
-        sandbox = Sandbox(sandbox_contents[0], mode=SandboxMode.REMEMBER_PER_RESOURCE)
-    else:
-        sandbox = Sandbox(os.getcwd(), mode=SandboxMode.REMEMBER_PER_RESOURCE)
     console = Console()
+
+    def permission_check_callback(
+        action: str,
+        resource: str,
+        mode: SandboxMode,
+        action_arguments: Dict | None = None,
+    ) -> bool:
+        render_permission_check(console, action, resource, action_arguments)
+        response = (
+            console.input("[bold yellow]Allow this action? (Y/N): [/bold yellow]")
+            .strip()
+            .lower()
+        )
+        return response == "y"
+
+    if sandbox_contents:
+        sandbox = Sandbox(
+            sandbox_contents[0],
+            mode=SandboxMode.REMEMBER_PER_RESOURCE,
+            permission_check_callback=permission_check_callback,
+        )
+    else:
+        sandbox = Sandbox(
+            os.getcwd(),
+            mode=SandboxMode.REMEMBER_PER_RESOURCE,
+            permission_check_callback=permission_check_callback,
+        )
+
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
         console.print(
@@ -292,6 +315,24 @@ def run(model, sandbox_contents):
                 )
 
     console.print("[bold green]Chat ended. Goodbye![/bold green]")
+
+
+def render_permission_check(
+    console, action: str, resource: str, action_arguments: Dict | None = None
+):
+    formatted_args = "\n".join(
+        [f"  {key}: {value}" for key, value in (action_arguments or {}).items()]
+    )
+    console.print(
+        Panel(
+            f"[bold blue]Action:[/bold blue] {action}\n"
+            f"[bold cyan]Resource:[/bold cyan] {resource}\n"
+            f"[bold green]Arguments:[/bold green]\n{formatted_args}",
+            title="Permission Check",
+            expand=False,
+            border_style="bold yellow",
+        )
+    )
 
 
 def render_tool_use(console, tool_use_message, results):

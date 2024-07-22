@@ -1,6 +1,6 @@
 import os
 from enum import Enum, auto
-from typing import Dict
+from typing import Dict, Callable
 
 from pathspec import PathSpec
 from pathspec.patterns import GitWildMatchPattern
@@ -13,10 +13,31 @@ class SandboxMode(Enum):
     ALLOW_ALL = auto()
 
 
+PermissionCheckCallback = Callable[[str, str, SandboxMode, Dict | None], bool]
+
+
+def _default_permission_check_callback(
+    action: str, resource: str, mode: SandboxMode, action_arguments: Dict | None = None
+) -> bool:
+    # Request human input
+    response = input(
+        f"Allow {action} on {resource} with arguments {action_arguments}? (Y/N): "
+    ).lower()
+    return response == "y"
+
+
 class Sandbox:
-    def __init__(self, root_directory: str, mode: SandboxMode):
+    def __init__(
+        self,
+        root_directory: str,
+        mode: SandboxMode,
+        permission_check_callback: PermissionCheckCallback = None,
+    ):
         self.root_directory = os.path.abspath(root_directory)
         self.mode = mode
+        self._permission_check_callback = (
+            permission_check_callback or _default_permission_check_callback
+        )
         self.permissions_cache = self._initialize_cache()
         self.gitignore_spec = self._load_gitignore()
 
@@ -26,25 +47,35 @@ class Sandbox:
         return None
 
     def _load_gitignore(self):
-        gitignore_path = os.path.join(self.root_directory, '.gitignore')
-        patterns = ['.git']  # Always ignore .git directory
+        gitignore_path = os.path.join(self.root_directory, ".gitignore")
+        patterns = [".git"]  # Always ignore .git directory
         if os.path.exists(gitignore_path):
-            with open(gitignore_path, 'r') as f:
-                patterns.extend([line.strip() for line in f if line.strip() and not line.startswith('#')])
+            with open(gitignore_path, "r") as f:
+                patterns.extend(
+                    [
+                        line.strip()
+                        for line in f
+                        if line.strip() and not line.startswith("#")
+                    ]
+                )
         return PathSpec.from_lines(GitWildMatchPattern, patterns)
 
     def get_directory_listing(self):
         listing = []
         for root, dirs, files in os.walk(self.root_directory):
             # Remove ignored directories to prevent further traversal
-            dirs[:] = [d for d in dirs if not self.gitignore_spec.match_file(os.path.join(root, d))]
-            
+            dirs[:] = [
+                d
+                for d in dirs
+                if not self.gitignore_spec.match_file(os.path.join(root, d))
+            ]
+
             # Add non-ignored directories to the listing
             for d in dirs:
                 full_path = os.path.join(root, d)
                 rel_path = os.path.relpath(full_path, self.root_directory)
                 if not self.gitignore_spec.match_file(rel_path):
-                    listing.append(rel_path + '/')
+                    listing.append(rel_path + "/")
 
             for item in files:
                 full_path = os.path.join(root, item)
@@ -54,7 +85,9 @@ class Sandbox:
 
         return sorted(listing)
 
-    def check_permissions(self, action: str, resource: str, action_arguments: Dict | None = None) -> bool:
+    def check_permissions(
+        self, action: str, resource: str, action_arguments: Dict | None = None
+    ) -> bool:
         if self.mode == SandboxMode.ALLOW_ALL:
             return True
 
@@ -66,12 +99,15 @@ class Sandbox:
                 return self.permissions_cache[key]
         elif self.mode == SandboxMode.REMEMBER_PER_RESOURCE:
             assert isinstance(self.permissions_cache, dict)
-            if action in self.permissions_cache and resource in self.permissions_cache[action]:
+            if (
+                action in self.permissions_cache
+                and resource in self.permissions_cache[action]
+            ):
                 return self.permissions_cache[action][resource]
 
-        # Request human input
-        response = input(f"Allow {action} on {resource} with arguments {action_arguments}? (Y/N): ").lower()
-        allowed = response == 'y'
+        allowed = self._permission_check_callback(
+            action, resource, self.mode, action_arguments
+        )
 
         # Cache only affirmative responses based on the mode
         if allowed:
@@ -86,7 +122,9 @@ class Sandbox:
 
     def _is_path_in_sandbox(self, path):
         abs_path = os.path.abspath(path)
-        return os.path.commonpath([abs_path, self.root_directory]) == self.root_directory
+        return (
+            os.path.commonpath([abs_path, self.root_directory]) == self.root_directory
+        )
 
     def read_file(self, file_path):
         """
@@ -101,28 +139,28 @@ class Sandbox:
         if not os.path.exists(full_path):
             raise FileNotFoundError(f"File {file_path} does not exist in the sandbox")
 
-        with open(full_path, 'r') as file:
+        with open(full_path, "r") as file:
             return file.read()
 
     def write_file(self, file_path, content):
         """
         Write content to a file within the sandbox.
         """
-        if not self.check_permissions("write_file", file_path, {'content': content}):
+        if not self.check_permissions("write_file", file_path, {"content": content}):
             raise PermissionError
         full_path = os.path.join(self.root_directory, file_path)
         if not self._is_path_in_sandbox(full_path):
             raise ValueError(f"File path {file_path} is outside the sandbox")
 
         os.makedirs(os.path.dirname(full_path), exist_ok=True)
-        with open(full_path, 'w') as file:
+        with open(full_path, "w") as file:
             file.write(content)
 
-    def create_file(self, file_path, content=''):
+    def create_file(self, file_path, content=""):
         """
         Create a new file within the sandbox with optional content.
         """
-        if not self.check_permissions("write_file", file_path, {'content': content}):
+        if not self.check_permissions("write_file", file_path, {"content": content}):
             raise PermissionError
         full_path = os.path.join(self.root_directory, file_path)
         if not self._is_path_in_sandbox(full_path):
@@ -132,5 +170,5 @@ class Sandbox:
             raise FileExistsError(f"File {file_path} already exists in the sandbox")
 
         os.makedirs(os.path.dirname(full_path), exist_ok=True)
-        with open(full_path, 'w') as file:
+        with open(full_path, "w") as file:
             file.write(content)
