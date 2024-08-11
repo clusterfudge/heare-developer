@@ -1,5 +1,6 @@
 import os
 import time
+from functools import partial
 
 import anthropic
 from dotenv import load_dotenv
@@ -32,13 +33,13 @@ def run(
         sandbox = Sandbox(
             sandbox_contents[0],
             mode=sandbox_mode,
-            permission_check_callback=permission_check_callback,
+            permission_check_callback=partial(permission_check_callback, console),
         )
     else:
         sandbox = Sandbox(
             os.getcwd(),
             mode=sandbox_mode,
-            permission_check_callback=permission_check_callback,
+            permission_check_callback=partial(permission_check_callback, console),
         )
 
     api_key = os.getenv("ANTHROPIC_API_KEY")
