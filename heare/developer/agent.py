@@ -100,7 +100,20 @@ def run(
         try:
             if not tool_result_buffer:
                 user_input = session.prompt(FormattedText([("#00FF00", " > ")]))
-                command_name = user_input[1:].split()[0]
+
+                # Handle multi-line input
+                if user_input.strip() == "{":
+                    multi_line_input = []
+                    while True:
+                        line = session.prompt(FormattedText([("#00FF00", "... ")]))
+                        if line.strip() == "}":
+                            break
+                        multi_line_input.append(line)
+                    user_input = "\n".join(multi_line_input)
+
+                command_name = (
+                    user_input.split()[0] if user_input.startswith("!") else ""
+                )
 
                 if user_input.startswith("!"):
                     if user_input == "!quit":

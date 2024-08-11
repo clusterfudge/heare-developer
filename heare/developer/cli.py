@@ -50,6 +50,16 @@ def main():
         help="Set the sandbox mode for file operations",
     )
     args = arg_parser.parse_args()
+
+    console = Console()
+    console.print(
+        Panel(
+            "[bold green]Welcome to the Heare Developer CLI, your personal coding assistant.[/bold green]\n"
+            "[bold yellow]For multi-line input, start with '{' on a new line, enter your content, and end with '}' on a new line.[/bold yellow]",
+            expand=False,
+        )
+    )
+
     run(
         MODEL_MAP.get(args.model),
         args.sandbox,
