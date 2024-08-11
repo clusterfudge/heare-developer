@@ -1,28 +1,34 @@
 import unittest
 from unittest.mock import MagicMock
-from heare.developer.prompt import build_tree, render_tree, render_sandbox_content, estimate_token_count, create_system_message
+from heare.developer.prompt import (
+    build_tree,
+    render_tree,
+    render_sandbox_content,
+    estimate_token_count,
+    create_system_message,
+)
+
 
 class TestPrompt(unittest.TestCase):
-
     def test_build_tree(self):
         mock_sandbox = MagicMock()
         mock_sandbox.get_directory_listing.return_value = [
-            'file1.txt',
-            'dir1/file2.txt',
-            'dir1/subdir/file3.txt',
+            "file1.txt",
+            "dir1/file2.txt",
+            "dir1/subdir/file3.txt",
         ]
 
         expected_tree = {
-            'file1.txt': {'path': 'file1.txt', 'is_leaf': True},
-            'is_leaf': False,
-            'dir1': {
-                'file2.txt': {'path': 'dir1/file2.txt', 'is_leaf': True},
-                'is_leaf': False,
-                'subdir': {
-                    'is_leaf': False,
-                    'file3.txt': {'path': 'dir1/subdir/file3.txt', 'is_leaf': True},
-                }
-            }
+            "file1.txt": {"path": "file1.txt", "is_leaf": True},
+            "is_leaf": False,
+            "dir1": {
+                "file2.txt": {"path": "dir1/file2.txt", "is_leaf": True},
+                "is_leaf": False,
+                "subdir": {
+                    "is_leaf": False,
+                    "file3.txt": {"path": "dir1/subdir/file3.txt", "is_leaf": True},
+                },
+            },
         }
 
         result = build_tree(mock_sandbox)
@@ -30,13 +36,13 @@ class TestPrompt(unittest.TestCase):
 
     def test_render_tree(self):
         tree = {
-            'file1.txt': {'path': 'file1.txt', 'is_leaf': True},
-            'dir1': {
-                'file2.txt': {'path': 'dir1/file2.txt', 'is_leaf': True},
-                'subdir': {
-                    'file3.txt': {'path': 'dir1/subdir/file3.txt', 'is_leaf': True}
-                }
-            }
+            "file1.txt": {"path": "file1.txt", "is_leaf": True},
+            "dir1": {
+                "file2.txt": {"path": "dir1/file2.txt", "is_leaf": True},
+                "subdir": {
+                    "file3.txt": {"path": "dir1/subdir/file3.txt", "is_leaf": True}
+                },
+            },
         }
 
         expected_output = """dir1/
@@ -52,8 +58,8 @@ file1.txt
     def test_render_sandbox_content(self):
         mock_sandbox = MagicMock()
         mock_sandbox.get_directory_listing.return_value = [
-            'file1.txt',
-            'dir1/file2.txt',
+            "file1.txt",
+            "dir1/file2.txt",
         ]
 
         expected_output = """<sandbox_contents>
@@ -74,19 +80,25 @@ file1.txt
     def test_create_system_message(self):
         mock_sandbox = MagicMock()
         mock_sandbox.get_directory_listing.return_value = [
-            'file1.txt',
-            'dir1/file2.txt',
-            'dir1/subdir/file3.txt',
+            "file1.txt",
+            "dir1/file2.txt",
+            "dir1/subdir/file3.txt",
         ]
 
         result = create_system_message(mock_sandbox)
-        self.assertIn("You are an AI assistant with access to a sandbox environment.", result)
+        self.assertIn(
+            "You are an AI assistant with access to a sandbox environment.", result
+        )
         self.assertIn("<sandbox_contents>", result)
         self.assertIn("file1.txt", result)
         self.assertIn("dir1/", result)
         self.assertIn("file2.txt", result)
         self.assertIn("</sandbox_contents>", result)
-        self.assertIn("You can read, write, and list files/directories, as well as execute some bash commands.", result)
+        self.assertIn(
+            "You can read, write, and list files/directories, as well as execute some bash commands.",
+            result,
+        )
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

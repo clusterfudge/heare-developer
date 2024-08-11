@@ -10,7 +10,17 @@ def run_bash_command(sandbox: Sandbox, command):
         args = shlex.split(command)
 
         # Check for potentially dangerous commands
-        dangerous_commands = ['rm', 'mv', 'cp', 'chmod', 'chown', 'sudo', '>', '>>', '|']
+        dangerous_commands = [
+            "rm",
+            "mv",
+            "cp",
+            "chmod",
+            "chown",
+            "sudo",
+            ">",
+            ">>",
+            "|",
+        ]
         if any(cmd in args for cmd in dangerous_commands):
             return "Error: This command is not allowed for safety reasons."
 
@@ -57,8 +67,7 @@ def list_directory(sandbox: Sandbox, path):
     try:
         contents = sandbox.get_directory_listing()
         relevant_contents = [
-            (p, perms) for p, perms in contents
-            if p.startswith(path) and p != path
+            (p, perms) for p, perms in contents if p.startswith(path) and p != path
         ]
         if not relevant_contents:
             return f"No contents found for path: {path}"
@@ -81,7 +90,7 @@ def edit_file(sandbox, path, match_text, replace_text):
             return "Error: The text to match is not unique in the file."
         elif content.count(match_text) == 0:
             # If match_text is not found, append replace_text to the end of the file
-            new_content = content + '\n' + replace_text
+            new_content = content + "\n" + replace_text
             sandbox.write_file(path, new_content)
             return "Text not found. Content added to the end of the file."
         else:
@@ -104,8 +113,8 @@ TOOLS_SCHEMA = [
             "properties": {
                 "path": {"type": "string", "description": "Path to the file"}
             },
-            "required": ["path"]
-        }
+            "required": ["path"],
+        },
     },
     {
         "name": "write_file",
@@ -114,10 +123,10 @@ TOOLS_SCHEMA = [
             "type": "object",
             "properties": {
                 "path": {"type": "string", "description": "Path to the file"},
-                "content": {"type": "string", "description": "Content to write"}
+                "content": {"type": "string", "description": "Content to write"},
             },
-            "required": ["path", "content"]
-        }
+            "required": ["path", "content"],
+        },
     },
     {
         "name": "list_directory",
@@ -127,8 +136,8 @@ TOOLS_SCHEMA = [
             "properties": {
                 "path": {"type": "string", "description": "Path to the directory"}
             },
-            "required": ["path"]
-        }
+            "required": ["path"],
+        },
     },
     {
         "name": "run_bash_command",
@@ -138,8 +147,8 @@ TOOLS_SCHEMA = [
             "properties": {
                 "command": {"type": "string", "description": "Bash command to execute"}
             },
-            "required": ["command"]
-        }
+            "required": ["command"],
+        },
     },
     {
         "name": "edit_file",
@@ -149,34 +158,42 @@ TOOLS_SCHEMA = [
             "properties": {
                 "path": {"type": "string", "description": "Path to the file"},
                 "match_text": {"type": "string", "description": "Text to match"},
-                "replace_text": {"type": "string", "description": "Text to replace the matched text with"}
+                "replace_text": {
+                    "type": "string",
+                    "description": "Text to replace the matched text with",
+                },
             },
-            "required": ["path", "match_text", "replace_text"]
-        }
-    }
+            "required": ["path", "match_text", "replace_text"],
+        },
+    },
 ]
 
 
 def handle_tool_use(sandbox, final_message):
     results = []
-    for tool_use in [block for block in final_message.content if block.type == "tool_use"]:
+    for tool_use in [
+        block for block in final_message.content if block.type == "tool_use"
+    ]:
         function_name = tool_use.name
         arguments = tool_use.input
         if function_name == "read_file":
-            result = read_file(sandbox, arguments['path'])
+            result = read_file(sandbox, arguments["path"])
         elif function_name == "write_file":
-            result = write_file(sandbox, arguments['path'], arguments['content'])
+            result = write_file(sandbox, arguments["path"], arguments["content"])
         elif function_name == "list_directory":
-            result = list_directory(sandbox, arguments['path'])
+            result = list_directory(sandbox, arguments["path"])
         elif function_name == "run_bash_command":
-            result = run_bash_command(sandbox, arguments['command'])
+            result = run_bash_command(sandbox, arguments["command"])
         elif function_name == "edit_file":
-            result = edit_file(sandbox, arguments['path'], arguments['match_text'], arguments['replace_text'])
+            result = edit_file(
+                sandbox,
+                arguments["path"],
+                arguments["match_text"],
+                arguments["replace_text"],
+            )
         else:
             result = f"Unknown function: {function_name}"
-        results.append({
-            "type": "tool_result",
-            "tool_use_id": tool_use.id,
-            "content": result
-        })
+        results.append(
+            {"type": "tool_result", "tool_use_id": tool_use.id, "content": result}
+        )
     return results

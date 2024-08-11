@@ -2,24 +2,25 @@ from heare.developer.sandbox import Sandbox
 
 
 def build_tree(sandbox: Sandbox):
-    root = {'is_leaf': False}
+    root = {"is_leaf": False}
 
     for path in sandbox.get_directory_listing():
-        parts = path.split('/')
+        parts = path.split("/")
         current = root
 
         for i, part in enumerate(parts):
             if i == len(parts) - 1:  # It's a file
-                current[part] = {'path': path, 'is_leaf': True}
+                current[part] = {"path": path, "is_leaf": True}
             else:  # It's a directory
                 if part not in current:
-                    current[part] = {'is_leaf': False}
+                    current[part] = {"is_leaf": False}
                 current = current[part]
 
     return root
 
 
-_STRUCT_KEYS = {'path', 'is_leaf'}
+_STRUCT_KEYS = {"path", "is_leaf"}
+
 
 def render_tree(tree, indent=""):
     result = ""
@@ -27,7 +28,7 @@ def render_tree(tree, indent=""):
         if key in _STRUCT_KEYS:
             continue
         if isinstance(value, dict):
-            is_leaf = value.get('is_leaf', False)
+            is_leaf = value.get("is_leaf", False)
             if not is_leaf:
                 result += f"{indent}{key}/\n"
                 result += render_tree(value, indent + "  ")
@@ -47,14 +48,14 @@ def render_sandbox_content(sandbox, summarize):
 
 
 def create_system_message(sandbox, MAX_ESTIMATED_TOKENS=10_240):
-    system_message = f"You are an AI assistant with access to a sandbox environment. The current contents of the sandbox are:\n"
+    system_message = "You are an AI assistant with access to a sandbox environment. The current contents of the sandbox are:\n"
     sandbox_content = render_sandbox_content(sandbox, False)
     if estimate_token_count(sandbox_content) > MAX_ESTIMATED_TOKENS:
         sandbox_content = render_sandbox_content(sandbox, True)
 
     system_message += sandbox_content
     system_message += "\nYou can read, write, and list files/directories, as well as execute some bash commands."
-    
+
     return system_message
 
 
