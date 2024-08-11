@@ -13,3 +13,4 @@
  - [ ] file edit summarization to avoid token spiralling
  - [ ] stable (single) file state in context to minimize token usage
  - [ ] better separation of console and agent
+ - [ ] support multi-line input
