@@ -66,14 +66,9 @@ def write_file(sandbox: Sandbox, path, content):
 def list_directory(sandbox: Sandbox, path):
     try:
         contents = sandbox.get_directory_listing()
-        relevant_contents = [
-            (p, perms) for p, perms in contents if p.startswith(path) and p != path
-        ]
-        if not relevant_contents:
-            return f"No contents found for path: {path}"
 
         result = f"Contents of {path}:\n"
-        for item_path, item_perms in relevant_contents:
+        for item_path in contents:
             relative_path = os.path.relpath(item_path, path)
             result += f"{relative_path}\n"
         return result

@@ -3,6 +3,7 @@ import time
 from functools import partial
 
 import anthropic
+from anthropic.types import TextBlock
 from dotenv import load_dotenv
 from prompt_toolkit import PromptSession
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
@@ -186,9 +187,23 @@ def run(
                             ai_response += chunk.text
 
                     final_message = stream.get_final_message()
-                    chat_history.append(
-                        {"role": "assistant", "content": final_message.content}
-                    )
+
+                    final_content = final_message.content
+                    filtered = []
+                    if isinstance(final_content, list):
+                        for message in final_content:
+                            if isinstance(message, TextBlock):
+                                message.text = message.text.strip()
+
+                                # skipping empty text block from llm
+                                if not message.text:
+                                    continue
+
+                            filtered.append(message)
+                    else:
+                        filtered = final_content
+
+                    chat_history.append({"role": "assistant", "content": filtered})
 
                     # Update token counts
                     prompt_tokens += final_message.usage.input_tokens
