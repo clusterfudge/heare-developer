@@ -1,5 +1,6 @@
 import os
 import time
+import random
 from functools import partial
 
 import anthropic
@@ -16,6 +17,25 @@ from heare.developer.utils import archive_chat, CustomCompleter
 from heare.developer.prompt import create_system_message
 from heare.developer.sandbox import Sandbox
 from heare.developer.tools import TOOLS_SCHEMA, handle_tool_use
+
+
+def retry_with_exponential_backoff(func, max_retries=5, base_delay=1, max_delay=60):
+    def wrapper(*args, **kwargs):
+        retries = 0
+        while retries < max_retries:
+            try:
+                return func(*args, **kwargs)
+            except anthropic.RateLimitError as e:
+                if e.status_code not in [429, 500, 529]:
+                    raise
+                retries += 1
+                if retries == max_retries:
+                    raise
+                delay = min(base_delay * (2**retries) + random.uniform(0, 1), max_delay)
+                time.sleep(delay)
+        return func(*args, **kwargs)
+
+    return wrapper
 
 
 def run(
@@ -176,13 +196,18 @@ def run(
             with console.status(
                 "[bold green]AI is thinking...[/bold green]", spinner="dots"
             ):
-                with client.messages.stream(
-                    system=system_message,
-                    max_tokens=4096,
-                    messages=chat_history,
-                    model=model["title"],
-                    tools=TOOLS_SCHEMA,
-                ) as stream:
+
+                @retry_with_exponential_backoff
+                def stream_messages():
+                    return client.messages.stream(
+                        system=system_message,
+                        max_tokens=4096,
+                        messages=chat_history,
+                        model=model["title"],
+                        tools=TOOLS_SCHEMA,
+                    )
+
+                with stream_messages() as stream:
                     for chunk in stream:
                         if chunk.type == "text":
                             ai_response += chunk.text
