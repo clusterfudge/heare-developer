@@ -52,7 +52,7 @@ def test_permissions(temp_dir, monkeypatch):
     assert sandbox.check_permissions("read", "file.txt")
 
     monkeypatch.setattr("builtins.input", lambda _: "n")
-    assert sandbox.check_permissions("write", "file.txt")
+    assert not sandbox.check_permissions("write", "file.txt")
 
     sandbox = Sandbox(temp_dir, SandboxMode.ALLOW_ALL)
     assert sandbox.check_permissions("any_action", "any_resource")

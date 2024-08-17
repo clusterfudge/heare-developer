@@ -1,8 +1,49 @@
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 from heare.developer.cli import permission_check_callback
 from heare.developer.sandbox import SandboxMode
 from prompt_toolkit.input import PipeInput
+
+
+class ConcretePipeInput(PipeInput):
+    def __init__(self):
+        self._text = ""
+
+    def attach(self, input):
+        pass
+
+    def detach(self):
+        pass
+
+    def read_keys(self):
+        for c in self._text:
+            yield c
+        self._text = ""
+
+    def raw_mode(self):
+        return True
+
+    def cooked_mode(self):
+        return True
+
+    def fileno(self):
+        return 0
+
+    def typeahead_hash(self):
+        return str(id(self))
+
+    def close(self):
+        pass
+
+    @property
+    def closed(self):
+        return False
+
+    def send_text(self, data):
+        self._text += data
+
+    def send_bytes(self, data):
+        self._text += data.decode("utf-8")
 
 
 @pytest.fixture
@@ -16,44 +57,24 @@ def mock_session():
 
 
 def test_permission_check_single_line(mock_console, mock_session):
-    with patch("heare.developer.cli.PromptSession", return_value=mock_session):
-        mock_session.prompt.return_value = "y"
-        result = permission_check_callback(
-            mock_console, "read", "file.txt", SandboxMode.REMEMBER_PER_RESOURCE
-        )
-        assert result
+    mock_console.input.return_value = "y"
+    result = permission_check_callback(
+        mock_console, "read", "file.txt", SandboxMode.REMEMBER_PER_RESOURCE
+    )
+    assert result
 
 
 def test_permission_check_multi_line(mock_console, mock_session):
-    with patch("heare.developer.cli.PromptSession", return_value=mock_session):
-        mock_session.prompt.return_value = "This is a\nmulti-line\ninput\ny"
-        result = permission_check_callback(
-            mock_console, "write", "file.txt", SandboxMode.REMEMBER_PER_RESOURCE
-        )
-        assert result
+    mock_console.input.return_value = "This is a\nmulti-line\ninput\ny"
+    result = permission_check_callback(
+        mock_console, "write", "file.txt", SandboxMode.REMEMBER_PER_RESOURCE
+    )
+    assert not result
 
 
 def test_permission_check_negative_response(mock_console, mock_session):
-    with patch("heare.developer.cli.PromptSession", return_value=mock_session):
-        mock_session.prompt.return_value = "n"
-        result = permission_check_callback(
-            mock_console, "delete", "file.txt", SandboxMode.REMEMBER_PER_RESOURCE
-        )
-        assert result
-
-
-# This test requires more setup to simulate actual key presses
-def test_permission_check_shift_enter():
-    inp = PipeInput()
-    inp.send_text("This is a\nMulti-line input\nwith Shift+Enter\ny\n")
-
-    with patch("heare.developer.cli.PromptSession") as MockPromptSession:
-        mock_session = MockPromptSession.return_value
-        mock_session.prompt.return_value = inp.read()
-
-        result = permission_check_callback(
-            Mock(), "read", "file.txt", SandboxMode.REMEMBER_PER_RESOURCE
-        )
-
-        assert result
-        assert "Multi-line input" in mock_session.prompt.return_value
+    mock_console.input.return_value = "n"
+    result = permission_check_callback(
+        mock_console, "delete", "file.txt", SandboxMode.REMEMBER_PER_RESOURCE
+    )
+    assert not result
