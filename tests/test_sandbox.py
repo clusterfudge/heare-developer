@@ -86,3 +86,39 @@ def test_create_file(temp_dir):
 
     with pytest.raises(ValueError):
         sandbox.create_file("../outside_sandbox.txt")
+
+
+def test_get_directory_listing(temp_dir):
+    sandbox = Sandbox(temp_dir, SandboxMode.ALLOW_ALL)
+
+    # Create a directory structure
+    os.makedirs(os.path.join(temp_dir, "dir1/subdir"))
+    os.makedirs(os.path.join(temp_dir, "dir2"))
+
+    with open(os.path.join(temp_dir, "file1.txt"), "w") as f:
+        f.write("content")
+    with open(os.path.join(temp_dir, "dir1/file2.txt"), "w") as f:
+        f.write("content")
+    with open(os.path.join(temp_dir, "dir1/subdir/file3.txt"), "w") as f:
+        f.write("content")
+    with open(os.path.join(temp_dir, "dir2/file4.txt"), "w") as f:
+        f.write("content")
+
+    # Test current behavior (listing all files)
+    listing = sandbox.get_directory_listing()
+    assert set(listing) == {
+        "file1.txt",
+        "dir1/file2.txt",
+        "dir1/subdir/file3.txt",
+        "dir2/file4.txt",
+    }
+
+    # Test desired behavior (listing files only under a specific path)
+    listing = sandbox.get_directory_listing("dir1")
+    assert set(listing) == {"file2.txt", "subdir/file3.txt"}
+
+    listing = sandbox.get_directory_listing("dir2")
+    assert set(listing) == {"file4.txt"}
+
+    listing = sandbox.get_directory_listing("nonexistent")
+    assert listing == []

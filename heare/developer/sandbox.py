@@ -60,9 +60,17 @@ class Sandbox:
                 )
         return PathSpec.from_lines(GitWildMatchPattern, patterns)
 
-    def get_directory_listing(self):
+    def get_directory_listing(self, path=""):
         listing = []
-        for root, dirs, files in os.walk(self.root_directory):
+        target_dir = os.path.join(self.root_directory, path)
+
+        if not self._is_path_in_sandbox(target_dir):
+            raise ValueError(f"Path {path} is outside the sandbox")
+
+        if not os.path.exists(target_dir):
+            return []
+
+        for root, dirs, files in os.walk(target_dir):
             # Remove ignored directories to prevent further traversal
             dirs[:] = [
                 d
@@ -70,17 +78,10 @@ class Sandbox:
                 if not self.gitignore_spec.match_file(os.path.join(root, d))
             ]
 
-            # Add non-ignored directories to the listing
-            for d in dirs:
-                full_path = os.path.join(root, d)
-                rel_path = os.path.relpath(full_path, self.root_directory)
-                if not self.gitignore_spec.match_file(rel_path):
-                    listing.append(rel_path + "/")
-
             for item in files:
                 full_path = os.path.join(root, item)
-                rel_path = os.path.relpath(full_path, self.root_directory)
-                if not self.gitignore_spec.match_file(rel_path):
+                rel_path = os.path.relpath(full_path, target_dir)
+                if not self.gitignore_spec.match_file(os.path.join(path, rel_path)):
                     listing.append(rel_path)
 
         return sorted(listing)
