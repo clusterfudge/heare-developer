@@ -113,7 +113,7 @@ def run(
                     user_input = "\n".join(multi_line_input)
 
                 command_name = (
-                    user_input.split()[0] if user_input.startswith("!") else ""
+                    user_input.split()[0][1:] if user_input.startswith("!") else ""
                 )
 
                 if user_input.startswith("!"):
