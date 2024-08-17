@@ -16,23 +16,42 @@ class CLITools:
     def __init__(self):
         self.tools = {}
 
-    def tool(self, func):
-        tool_name = func.__name__
-        tool_args = inspect.signature(func).parameters
-        tool_docstring = inspect.getdoc(func)
-        self.tools[tool_name] = {
-            "name": tool_name,
-            "args": tool_args,
-            "docstring": tool_docstring,
-            "invoke": func,
-        }
-        return func
+    def tool(self, *aliases):
+        def decorator(func):
+            tool_name = func.__name__
+            tool_args = inspect.signature(func).parameters
+            tool_docstring = inspect.getdoc(func)
+            tool_info = {
+                "name": tool_name,
+                "args": tool_args,
+                "docstring": tool_docstring,
+                "invoke": func,
+                "aliases": list(aliases) if aliases else [tool_name],
+            }
+            self.tools[tool_name] = tool_info
+            for alias in aliases or [tool_name]:
+                self.tools[alias] = tool_info
+            return func
+
+        return decorator
+
+    def get_tool(self, name_or_alias):
+        """
+        Get a tool by its name or alias.
+
+        Args:
+            name_or_alias (str): The name or alias of the tool to retrieve.
+
+        Returns:
+            dict: The tool information if found, None otherwise.
+        """
+        return self.tools.get(name_or_alias)
 
 
 cli_tools = CLITools()
 
 
-@cli_tools.tool
+@cli_tools.tool("help", "h")
 def help(console, sandbox, user_input, *args, **kwargs):
     """
     Show help
@@ -41,8 +60,18 @@ def help(console, sandbox, user_input, *args, **kwargs):
     help_text += "!restart - Clear chat history and start over\n"
     help_text += "!quit - Quit the chat\n"
 
+    displayed_tools = set()
     for tool_name, spec in cli_tools.tools.items():
-        help_text += f"!{tool_name} - {spec['docstring']} - {spec['args']}\n"
+        if tool_name not in displayed_tools:
+            aliases = ", ".join(
+                [f"!{alias}" for alias in spec["aliases"] if alias != tool_name]
+            )
+            alias_text = f" (aliases: {aliases})" if aliases else ""
+            help_text += (
+                f"!{tool_name}{alias_text} - {spec['docstring']} - {spec['args']}\n"
+            )
+            displayed_tools.add(tool_name)
+            displayed_tools.update(spec["aliases"])
 
     help_text += "You can ask the AI to read, write, or list files/directories\n"
     help_text += "You can also ask the AI to run bash commands (with some restrictions)"
@@ -50,7 +79,7 @@ def help(console, sandbox, user_input, *args, **kwargs):
     console.print(Panel(help_text))
 
 
-@cli_tools.tool
+@cli_tools.tool("a")
 def add(console, sandbox, user_input, *args, **kwargs):
     """
     Add file or directory to sandbox
@@ -61,7 +90,7 @@ def add(console, sandbox, user_input, *args, **kwargs):
     tree(console, sandbox)
 
 
-@cli_tools.tool
+@cli_tools.tool("remove", "delete")
 def rm(console, sandbox, user_input, *args, **kwargs):
     """
     Remove a file or directory from sandbox
@@ -72,7 +101,7 @@ def rm(console, sandbox, user_input, *args, **kwargs):
     tree(console, sandbox)
 
 
-@cli_tools.tool
+@cli_tools.tool("ls", "list")
 def tree(console, sandbox, *args, **kwargs):
     """
     List contents of the sandbox
@@ -86,7 +115,7 @@ def tree(console, sandbox, *args, **kwargs):
     )
 
 
-@cli_tools.tool
+@cli_tools.tool("dump")
 def dump(console, sandbox, user_input, *args, **kwargs):
     """
     Render the system message, tool specs, and chat history
@@ -102,7 +131,7 @@ def dump(console, sandbox, user_input, *args, **kwargs):
         console.print(f"[bold]{message['role']}:[/bold] {message['content']}")
 
 
-@cli_tools.tool
+@cli_tools.tool("exec")
 def exec(console, sandbox, user_input, *args, **kwargs):
     """
     Execute a bash command and optionally add it to tool result buffer

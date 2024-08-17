@@ -54,6 +54,7 @@ def run(
 
     commands = {
         "!quit": "Quit the chat",
+        "!exit": "Quit the chat",
         "!restart": "Clear chat history and start over",
     }
     for tool_name, spec in cli_tools.tools.items():
@@ -82,7 +83,7 @@ def run(
             row += f" - {spec['docstring']}"
         row += "[/bold yellow]"
         console.print(row)
-    console.print("[bold yellow]!quit - Quit the chat[/bold yellow]")
+    console.print("[bold yellow]!quit, !exit - Quit the chat[/bold yellow]")
     console.print(
         "[bold yellow]!restart - Clear chat history and start over[/bold yellow]"
     )
@@ -117,7 +118,7 @@ def run(
                 )
 
                 if user_input.startswith("!"):
-                    if user_input == "!quit":
+                    if user_input in ["!quit", "!exit"]:
                         break
                     elif user_input == "!restart":
                         chat_history = []
@@ -143,7 +144,7 @@ def run(
                             total_cost=total_cost,
                         )
                     elif command_name in cli_tools.tools.keys():
-                        cli_tool = cli_tools.tools.get(command_name)
+                        cli_tool = cli_tools.get_tool(command_name)
                         if cli_tool:
                             cli_tool["invoke"](
                                 console=console,
