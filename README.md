@@ -9,10 +9,12 @@ Heare Developer CLI is a powerful and interactive coding assistant that leverage
 3. **File Management**: Read, write, and list files/directories within the sandbox.
 4. **Bash Command Execution**: Run bash commands with some restrictions for security.
 5. **Permission Management**: Control access to files and directories with granular permissions.
-6. **Tool Integration**: Use built-in tools for various tasks like adding/removing files, modifying permissions, and more.
-7. **Syntax Highlighting**: Enjoy syntax highlighting and autocompletion for a better user experience.
+6. **Tool Integration**: Use built-in tools for various tasks.
+7. **Syntax Highlighting**: Enjoy syntax highlighting for a better user experience.
 8. **Chat History**: Maintain and review chat history for context preservation.
 9. **Token Usage Tracking**: Monitor token usage and associated costs for each interaction.
+10. **Multiple AI Models**: Choose from different Claude AI models.
+11. **Customizable Sandbox Mode**: Set different sandbox modes for file operations.
 
 ## Installation
 
@@ -41,20 +43,15 @@ python -m heare.developer.cli [sandbox_path]
 
 Optional arguments:
 - `sandbox_path`: Specify the path to initialize the sandbox (default is the current directory).
-- `--model`: Choose the Claude AI model to use (default is 'sonnet-3.5').
+- `--model`: Choose the Claude AI model to use (default is 'sonnet-3.5'). Available options: opus, sonnet, sonnet-3.5, haiku.
+- `--summary-cache`: Specify the path for the summary cache (default is ~/.cache/heare.summary_cache).
+- `--sandbox-mode`: Set the sandbox mode for file operations. Choices are: REMEMBER_PER_RESOURCE, FORGET_IMMEDIATELY, REMEMBER_FOREVER.
 
 Once the CLI is running, you can:
 
 1. Ask questions or request assistance from the AI.
-2. Use built-in commands (prefixed with `!`) for various operations:
-   - `!help`: Show available commands
-   - `!add`: Add a file or directory to the sandbox
-   - `!rm`: Remove a file or directory from the sandbox
-   - `!tree`: List contents of the sandbox
-   - `!chmod`: Modify permissions of a file or directory
-   - `!exec`: Execute a bash command
-   - `!restart`: Clear chat history and start over
-   - `!quit`: Exit the CLI
+2. Use built-in tools for various operations (specific commands may vary, refer to the CLI output for available tools).
+3. Enter multi-line input by starting with '{' on a new line, entering your content, and ending with '}' on a new line.
 
 ## Examples
 
@@ -63,24 +60,28 @@ Once the CLI is running, you can:
    > Can you explain how to use list comprehensions in Python?
    ```
 
-2. Add a file to the sandbox:
+2. Use a built-in tool (example may vary based on available tools):
    ```
    > !add myfile.py
    ```
 
-3. Read a file's content:
+3. Request file content:
    ```
    > Can you show me the contents of myfile.py?
    ```
 
-4. Execute a bash command:
+4. Execute a bash command (if available):
    ```
    > !exec ls -l
    ```
 
-5. Modify file permissions:
+5. Enter multi-line input:
    ```
-   > !chmod +w myfile.py
+   > {
+   Here's my multi-line
+   input for the AI
+   assistant to process.
+   }
    ```
 
 ## Contributing
