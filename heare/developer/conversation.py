@@ -3,7 +3,6 @@ from typing import List, Dict, Tuple, Any
 
 class Conversation:
     def __init__(self):
-        self.files: Dict[str, str] = {}  # Dictionary to store file states
         self.edits: List[Tuple[str, Any]] = []  # List to store structured edits
         self.messages: List[Dict[str, str]] = []  # List to store chat messages
         self.file_read_order: List[str] = []  # List to store the order of file reads
@@ -21,11 +20,11 @@ class Conversation:
         for message in self.messages:
             if message["role"] == "file_read":
                 file_path = message["content"]
-                if file_path in self.files and file_path not in included_files:
+                if file_path not in included_files:
                     rendered_messages.append(
                         {
-                            "role": "file_content",
-                            "content": f"File: {file_path}\nContent:\n{self.files[file_path]}",
+                            "role": "assistant",
+                            "content": f"I've read the contents of the file: {file_path}. You can reference this file using the pointer '{file_path}'.",
                         }
                     )
                     included_files.add(file_path)
@@ -34,11 +33,11 @@ class Conversation:
                 diff = self._generate_diff(file_path, edit_operation)
                 rendered_messages.append(
                     {
-                        "role": "file_edit",
-                        "content": f"Edit to file: {file_path}\nDiff:\n{diff}",
+                        "role": "assistant",
+                        "content": f"I've made the following edit to the file {file_path}:\n{diff}",
                     }
                 )
-            else:
+            elif message["role"] in ["user", "assistant"]:
                 rendered_messages.append(message)
         return rendered_messages
 
@@ -54,64 +53,66 @@ class Conversation:
             str: A human-readable diff of the changes.
         """
         operation_type = edit_operation.get("operation")
-        old_content = self.files.get(file_path, "")
-        self._apply_edit(old_content, edit_operation)
 
-        if operation_type == "replace":
-            old_text = edit_operation.get("old", "")
-            new_text = edit_operation.get("new", "")
-            return f"- {old_text}\n+ {new_text}"
-        elif operation_type == "insert":
-            position = edit_operation.get("position", 0)
-            new_text = edit_operation.get("text", "")
-            return f"+ {new_text} (inserted at position {position})"
-        elif operation_type == "delete":
-            start = edit_operation.get("start", 0)
-            end = edit_operation.get("end", len(old_content))
-            deleted_text = old_content[start:end]
-            return f"- {deleted_text} (deleted from position {start} to {end})"
-        else:
-            return f"Unsupported edit operation: {operation_type}"
+        try:
+            if operation_type == "replace":
+                old_text = edit_operation.get("old", "")
+                new_text = edit_operation.get("new", "")
+                return f"- {old_text}\n+ {new_text}"
+            elif operation_type == "insert":
+                position = edit_operation.get("position", 0)
+                new_text = edit_operation.get("text", "")
+                return f"+ {new_text} (inserted at position {position})"
+            elif operation_type == "delete":
+                start = edit_operation.get("start", 0)
+                end = edit_operation.get("end", 0)
+                file_content = self._read_file_content(file_path)
+                deleted_text = file_content[start:end]
+                return f"- {deleted_text} (deleted from position {start} to {end})"
+            else:
+                return f"Unsupported edit operation: {operation_type}"
+        except Exception as e:
+            return f"Error generating diff: {str(e)}"
 
-    def add_file_read(self, file_path: str, content: str) -> None:
+    def add_file_read(self, file_path: str) -> None:
         """
         Add a file read operation to the conversation.
 
         Args:
             file_path (str): The path of the file that was read.
-            content (str): The content of the file.
         """
-        self.files[file_path] = content
         self.messages.append({"role": "file_read", "content": file_path})
         if file_path not in self.file_read_order:
             self.file_read_order.append(file_path)
 
     def add_file_edit(self, file_path: str, edit_operation: Any) -> None:
         """
-        Add a file edit operation to the conversation and update the file state.
+        Add a file edit operation to the conversation.
 
         Args:
             file_path (str): The path of the file that was edited.
             edit_operation (Any): The edit operation to apply to the file.
         """
         self.edits.append((file_path, edit_operation))
-        # Update the file content based on the edit operation
-        self.files[file_path] = self._apply_edit(self.files[file_path], edit_operation)
         self.messages.append(
             {"role": "file_edit", "content": (file_path, edit_operation)}
         )
 
-    def get_latest_file_state(self, file_path: str) -> str:
+    def _read_file_content(self, file_path: str) -> str:
         """
-        Get the latest state of a file.
+        Read the current content of a file from disk.
 
         Args:
-            file_path (str): The path of the file.
+            file_path (str): The path of the file to read.
 
         Returns:
-            str: The latest content of the file, or None if the file doesn't exist.
+            str: The content of the file, or an empty string if the file doesn't exist.
         """
-        return self.files.get(file_path, None)
+        try:
+            with open(file_path, "r") as file:
+                return file.read()
+        except FileNotFoundError:
+            return ""
 
     def add_message(self, role: str, content: str) -> None:
         """
@@ -121,6 +122,8 @@ class Conversation:
             role (str): The role of the message sender (e.g., 'user', 'assistant').
             content (str): The content of the message.
         """
+        if role not in ["user", "assistant"]:
+            raise ValueError("Invalid role. Must be 'user' or 'assistant'.")
         self.messages.append({"role": role, "content": content})
 
     def get_chat_history(self) -> List[Dict[str, str]]:
@@ -132,33 +135,47 @@ class Conversation:
         """
         return self.messages
 
-    def _apply_edit(self, content: str, edit_operation: Dict[str, Any]) -> str:
+    def verify_edits(self) -> List[str]:
         """
-        Apply an edit operation to the content of a file.
-
-        Args:
-            content (str): The current content of the file.
-            edit_operation (Dict[str, Any]): The edit operation to apply.
+        Verify that recorded edits match the current state of files on disk.
 
         Returns:
-            str: The updated content after applying the edit operation.
+            List[str]: A list of inconsistencies found, if any.
         """
-        operation_type = edit_operation.get("operation")
+        inconsistencies = []
+        for file_path, edit_operation in self.edits:
+            try:
+                current_content = self._read_file_content(file_path)
+                operation_type = edit_operation.get("operation")
 
-        if operation_type == "replace":
-            old_text = edit_operation.get("old", "")
-            new_text = edit_operation.get("new", "")
-            return content.replace(old_text, new_text)
+                if operation_type == "replace":
+                    old_text = edit_operation.get("old", "")
+                    new_text = edit_operation.get("new", "")
+                    if old_text in current_content:
+                        inconsistencies.append(
+                            f"File {file_path}: Expected replacement not found"
+                        )
+                    elif new_text not in current_content:
+                        inconsistencies.append(
+                            f"File {file_path}: Replacement text not found"
+                        )
+                elif operation_type == "insert":
+                    new_text = edit_operation.get("text", "")
+                    if new_text not in current_content:
+                        inconsistencies.append(
+                            f"File {file_path}: Inserted text not found"
+                        )
+                elif operation_type == "delete":
+                    start = edit_operation.get("start", 0)
+                    end = edit_operation.get("end", 0)
+                    deleted_text = current_content[start:end]
+                    if deleted_text:
+                        inconsistencies.append(
+                            f"File {file_path}: Deleted text still present"
+                        )
+            except Exception as e:
+                inconsistencies.append(
+                    f"Error verifying edits for {file_path}: {str(e)}"
+                )
 
-        elif operation_type == "insert":
-            position = edit_operation.get("position", 0)
-            new_text = edit_operation.get("text", "")
-            return content[:position] + new_text + content[position:]
-
-        elif operation_type == "delete":
-            start = edit_operation.get("start", 0)
-            end = edit_operation.get("end", len(content))
-            return content[:start].rstrip() + " " + content[end:].lstrip()
-
-        else:
-            raise ValueError(f"Unsupported edit operation: {operation_type}")
+        return inconsistencies
