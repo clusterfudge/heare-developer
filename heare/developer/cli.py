@@ -108,7 +108,7 @@ def permission_check_callback(
 ) -> bool:
     render_permission_check(console, action, resource, action_arguments)
     response = (
-        str(console.input("[bold yellow]Allow this action? (Y/N): [/bold yellow]"))
+        str(console.input("[bold yellow]Allow this action? (y/N): [/bold yellow]"))
         .strip()
         .lower()
     )

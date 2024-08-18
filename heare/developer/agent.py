@@ -26,7 +26,7 @@ def retry_with_exponential_backoff(func, max_retries=5, base_delay=1, max_delay=
             try:
                 return func(*args, **kwargs)
             except anthropic.RateLimitError as e:
-                if e.status_code not in [429, 500, 529]:
+                if e.status_code not in [429, 500, 503, 529]:
                     raise
                 retries += 1
                 if retries == max_retries:
