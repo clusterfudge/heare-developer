@@ -8,3 +8,4 @@ chat_history.txt
 __pycache__
 chat_archive*.json
 .ruff_cache
+dist/
