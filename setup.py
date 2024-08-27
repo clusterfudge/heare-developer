@@ -1,14 +1,16 @@
-from setuptools import setup, find_packages
+from setuptools import find_packages
+from setuptools_scm import setup
 
 with open("requirements.txt") as f:
     requirements = f.read().splitlines()
 
 setup(
     name="heare-developer",
-    version="0.1.0",
+    use_scm_version=True,
     packages=find_packages(),
     include_package_data=True,
     install_requires=requirements,
+    setup_requires=["setuptools_scm"],
     entry_points={
         "console_scripts": [
             "heare-developer=heare.developer.cli:main",

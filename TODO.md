@@ -14,3 +14,7 @@
  - [ ] stable (single) file state in context to minimize token usage
  - [ ] better separation of console and agent
  - [ ] support multi-line input
+ - [ ] Projects concept
+   - [ ] Project descriptions, with task breakdown
+   - [ ] feature branches
+ - [ ] conversation summarization
