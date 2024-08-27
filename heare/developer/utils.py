@@ -1,7 +1,9 @@
 import inspect
 import json
+import os
 from datetime import datetime, date
 from enum import Enum
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, IO
 
@@ -10,6 +12,42 @@ from rich.panel import Panel
 
 from heare.developer.prompt import create_system_message
 from heare.developer.tools import TOOLS_SCHEMA, run_bash_command
+
+# Constants for app name and directories
+APP_NAME = "heare"
+DEFAULT_CONFIG_DIR = Path.home() / ".config" / APP_NAME
+DEFAULT_DATA_DIR = Path.home() / ".local" / "share" / APP_NAME
+
+
+def get_config_dir() -> Path:
+    """Get the configuration directory for the application."""
+    config_dir = os.environ.get("XDG_CONFIG_HOME", DEFAULT_CONFIG_DIR)
+    return Path(config_dir)
+
+
+def get_data_dir() -> Path:
+    """Get the data directory for the application."""
+    data_dir = os.environ.get("XDG_DATA_HOME", DEFAULT_DATA_DIR)
+    return Path(data_dir)
+
+
+def ensure_dir_exists(directory: Path) -> None:
+    """Ensure that the given directory exists."""
+    directory.mkdir(parents=True, exist_ok=True)
+
+
+def get_config_file(filename: str) -> Path:
+    """Get the path to a configuration file."""
+    config_dir = get_config_dir()
+    ensure_dir_exists(config_dir)
+    return config_dir / filename
+
+
+def get_data_file(filename: str) -> Path:
+    """Get the path to a data file."""
+    data_dir = get_data_dir()
+    ensure_dir_exists(data_dir)
+    return data_dir / filename
 
 
 class CLITools:
@@ -183,10 +221,47 @@ def serialize_to_file(obj: Any, fp: IO[str], indent: int = None) -> None:
     json.dump(obj, fp, cls=CustomJSONEncoder, indent=indent)
 
 
+def load_config(filename: str = "config.json") -> dict:
+    """
+    Load a configuration file from the config directory
+    """
+    config_file = get_config_file(filename)
+    if config_file.exists():
+        with open(config_file, "r") as f:
+            return json.load(f)
+    return {}
+
+
+def save_config(config: dict, filename: str = "config.json") -> None:
+    """
+    Save a configuration file to the config directory
+    """
+    config_file = get_config_file(filename)
+    with open(config_file, "w") as f:
+        serialize_to_file(config, f, indent=2)
+
+
+@cli_tools.tool
+def update_config(console, sandbox, user_input, *args, **kwargs):
+    """
+    Update the configuration file with a new key-value pair
+    """
+    parts = user_input.split(maxsplit=3)
+    if len(parts) != 4:
+        console.print("[bold red]Usage: !update_config <key> <value>[/bold red]")
+        return
+
+    _, key, value = parts[1:]
+    config = load_config()
+    config[key] = value
+    save_config(config)
+    console.print(f"[bold green]Updated config: {key} = {value}[/bold green]")
+
+
 @cli_tools.tool
 def archive_chat(console, sandbox, user_input, *args, **kwargs):
     """
-    Archive the current chat history to a JSON file
+    Archive the current chat history to a JSON file in the application data directory
     """
     from datetime import datetime
 
@@ -208,11 +283,12 @@ def archive_chat(console, sandbox, user_input, *args, **kwargs):
     }
 
     filename = f"chat_archive_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    archive_file = get_data_file(filename)
 
-    with open(filename, "w") as f:
+    with open(archive_file, "w") as f:
         serialize_to_file(archive_data, f, indent=2)
 
-    console.print(f"[bold green]Chat history archived to {filename}[/bold green]")
+    console.print(f"[bold green]Chat history archived to {archive_file}[/bold green]")
 
 
 class CustomCompleter(Completer):
