@@ -1,34 +1,33 @@
 import os
-import shlex
 import subprocess
 from .sandbox import Sandbox
 
 
 def run_bash_command(sandbox: Sandbox, command):
     try:
-        # Split the command string into a list of arguments
-        args = shlex.split(command)
-
         # Check for potentially dangerous commands
         dangerous_commands = [
-            "rm",
-            "mv",
-            "cp",
-            "chmod",
-            "chown",
-            "sudo",
-            ">",
-            ">>",
-            "|",
+            r"\brm\b",
+            r"\bmv\b",
+            r"\bcp\b",
+            r"\bchmod\b",
+            r"\bchown\b",
+            r"\bsudo\b",
+            r">",
+            r">>",
         ]
-        if any(cmd in args for cmd in dangerous_commands):
+        import re
+
+        if any(re.search(cmd, command) for cmd in dangerous_commands):
             return "Error: This command is not allowed for safety reasons."
 
         if not sandbox.check_permissions("shell", command):
             return "Error: Operator denied permission."
 
         # Run the command and capture output
-        result = subprocess.run(args, capture_output=True, text=True, timeout=10)
+        result = subprocess.run(
+            command, shell=True, capture_output=True, text=True, timeout=10
+        )
 
         # Prepare the output
         output = f"Exit code: {result.returncode}\n"
