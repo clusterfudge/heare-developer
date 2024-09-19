@@ -11,7 +11,6 @@ from heare.developer.agent import run
 from heare.developer.utils import cli_tools
 from heare.developer.sandbox import SandboxMode
 
-
 MODEL_MAP = {
     "opus": {
         "title": "claude-3-opus-20240229",
@@ -131,11 +130,17 @@ def render_tool_use(console, tool_use_message, results):
             [f"  {key}: {value}" for key, value in tool_params.items()]
         )
 
+        renderable = (
+            f"[bold blue]Tool:[/bold blue] {tool_name}\n"
+            f"[bold cyan]Parameters:[/bold cyan]\n{formatted_params}\n"
+        )
+
+        if tool_name not in ["read_file", "write_file", "edit_file"]:
+            renderable += f"[bold green]Result:[/bold green]\n{result['content']}"
+
         console.print(
             Panel(
-                f"[bold blue]Tool:[/bold blue] {tool_name}\n"
-                f"[bold cyan]Parameters:[/bold cyan]\n{formatted_params}\n"
-                f"[bold green]Result:[/bold green]\n{result['content']}",
+                renderable,
                 title="Tool Usage",
                 expand=False,
                 border_style="bold magenta",
