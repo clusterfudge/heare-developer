@@ -10,6 +10,7 @@ from typing import Any, IO
 from prompt_toolkit.completion import Completer, WordCompleter, Completion
 from rich.panel import Panel
 
+from heare.developer.commit import run_commit
 from heare.developer.prompt import create_system_message
 from heare.developer.tools import TOOLS_SCHEMA, run_bash_command
 
@@ -307,3 +308,19 @@ class CustomCompleter(Completer):
             for history_item in reversed(self.history.get_strings()):
                 if history_item.startswith(text):
                     yield Completion(history_item, start_position=-len(text))
+
+
+@cli_tools.tool()
+def commit(console, sandbox, user_input, *args, **kwargs):
+    # Stage all unstaged changes
+    stage_result = run_bash_command(sandbox, "git add -A")
+    console.print("[bold green]Staged all changes:[/bold green]")
+    console.print(stage_result)
+
+    # Commit the changes
+    result = run_commit()
+    panel = Panel(
+        result,
+        title="Commit",
+    )
+    console.print(panel)
