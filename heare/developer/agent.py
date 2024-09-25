@@ -25,13 +25,21 @@ def retry_with_exponential_backoff(func, max_retries=5, base_delay=1, max_delay=
         while retries < max_retries:
             try:
                 return func(*args, **kwargs)
-            except anthropic.RateLimitError as e:
-                if e.status_code not in [429, 500, 503, 529]:
+            except (anthropic.RateLimitError, anthropic.APIError) as e:
+                if isinstance(e, anthropic.APIError) and e.status_code not in [
+                    429,
+                    500,
+                    503,
+                    529,
+                ]:
                     raise
                 retries += 1
                 if retries == max_retries:
                     raise
                 delay = min(base_delay * (2**retries) + random.uniform(0, 1), max_delay)
+                print(
+                    f"Rate limit or server error encountered. Retrying in {delay:.2f} seconds..."
+                )
                 time.sleep(delay)
         return func(*args, **kwargs)
 
