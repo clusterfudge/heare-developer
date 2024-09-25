@@ -208,54 +208,72 @@ def run(
             with console.status(
                 "[bold green]AI is thinking...[/bold green]", spinner="dots"
             ):
+                max_retries = 5
+                base_delay = 1
+                max_delay = 60
 
-                @retry_with_exponential_backoff
-                def stream_messages():
-                    return client.messages.stream(
-                        system=system_message,
-                        max_tokens=4096,
-                        messages=chat_history,
-                        model=model["title"],
-                        tools=TOOLS_SCHEMA,
-                    )
+                for attempt in range(max_retries):
+                    try:
+                        with client.messages.stream(
+                            system=system_message,
+                            max_tokens=4096,
+                            messages=chat_history,
+                            model=model["title"],
+                            tools=TOOLS_SCHEMA,
+                        ) as stream:
+                            for chunk in stream:
+                                if chunk.type == "text":
+                                    ai_response += chunk.text
 
-                with stream_messages() as stream:
-                    for chunk in stream:
-                        if chunk.type == "text":
-                            ai_response += chunk.text
+                            final_message = stream.get_final_message()
 
-                    final_message = stream.get_final_message()
+                        # If we get here, the stream completed successfully
+                        break
+                    except anthropic.APIStatusError as e:
+                        if attempt == max_retries - 1:  # If this was the last attempt
+                            raise  # Re-raise the exception if all retries failed
+                        if "Overloaded" in str(e):
+                            delay = min(
+                                base_delay * (2**attempt) + random.uniform(0, 1),
+                                max_delay,
+                            )
+                            console.print(
+                                f"API overloaded. Retrying in {delay:.2f} seconds..."
+                            )
+                            time.sleep(delay)
+                        else:
+                            raise  # Re-raise if it's not an overloaded error
 
-                    final_content = final_message.content
-                    filtered = []
-                    if isinstance(final_content, list):
-                        for message in final_content:
-                            if isinstance(message, TextBlock):
-                                message.text = message.text.strip()
+                final_content = final_message.content
+                filtered = []
+                if isinstance(final_content, list):
+                    for message in final_content:
+                        if isinstance(message, TextBlock):
+                            message.text = message.text.strip()
 
-                                # skipping empty text block from llm
-                                if not message.text:
-                                    continue
+                            # skipping empty text block from llm
+                            if not message.text:
+                                continue
 
-                            filtered.append(message)
-                    else:
-                        filtered = final_content
+                        filtered.append(message)
+                else:
+                    filtered = final_content
 
-                    chat_history.append({"role": "assistant", "content": filtered})
+                chat_history.append({"role": "assistant", "content": filtered})
 
-                    # Update token counts
-                    prompt_tokens += final_message.usage.input_tokens
-                    completion_tokens += final_message.usage.output_tokens
-                    total_tokens = prompt_tokens + completion_tokens
-                    total_cost += (
-                        final_message.usage.input_tokens
-                        / 1_000_000.0
-                        * model["pricing"]["input"]
-                    ) + (
-                        final_message.usage.output_tokens
-                        / 1_000_000.0
-                        * model["pricing"]["output"]
-                    )
+                # Update token counts
+                prompt_tokens += final_message.usage.input_tokens
+                completion_tokens += final_message.usage.output_tokens
+                total_tokens = prompt_tokens + completion_tokens
+                total_cost += (
+                    final_message.usage.input_tokens
+                    / 1_000_000.0
+                    * model["pricing"]["input"]
+                ) + (
+                    final_message.usage.output_tokens
+                    / 1_000_000.0
+                    * model["pricing"]["output"]
+                )
 
             console.print(
                 Panel(
