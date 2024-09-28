@@ -30,6 +30,15 @@ MODEL_MAP = {
     },
 }
 
+SANDBOX_MODE_MAP = {mode.name.lower(): mode for mode in SandboxMode}
+
+
+def parse_sandbox_mode(value: str) -> SandboxMode:
+    canonicalized = value.lower().replace("-", "_")
+    if canonicalized in SANDBOX_MODE_MAP:
+        return SANDBOX_MODE_MAP[canonicalized]
+    raise argparse.ArgumentTypeError(f"Invalid sandbox mode: {value}")
+
 
 def main():
     arg_parser = argparse.ArgumentParser()
@@ -43,9 +52,9 @@ def main():
     )
     arg_parser.add_argument(
         "--sandbox-mode",
-        type=SandboxMode,
-        choices=list(SandboxMode),
-        default=SandboxMode.REMEMBER_PER_RESOURCE,
+        type=parse_sandbox_mode,
+        choices=list(SANDBOX_MODE_MAP.values()),
+        default="remember_per_resource",
         help="Set the sandbox mode for file operations",
     )
     args = arg_parser.parse_args()

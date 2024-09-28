@@ -19,6 +19,32 @@ from heare.developer.sandbox import Sandbox
 from heare.developer.tools import TOOLS_SCHEMA, handle_tool_use
 
 
+class RateLimiter:
+    def __init__(self, tokens_per_minute=80000):
+        self.tokens_per_minute = tokens_per_minute
+        self.tokens_used = 0
+        self.last_reset = time.time()
+
+    def check_and_wait(self, tokens):
+        current_time = time.time()
+        elapsed_time = current_time - self.last_reset
+
+        if elapsed_time >= 60:
+            self.tokens_used = 0
+            self.last_reset = current_time
+
+        if self.tokens_used + tokens > self.tokens_per_minute:
+            sleep_time = 60 - elapsed_time
+            print(
+                f"Rate limit approached. Sleeping for {sleep_time:.2f} seconds until the next minute boundary."
+            )
+            time.sleep(sleep_time)
+            self.tokens_used = 0
+            self.last_reset = time.time()
+
+        self.tokens_used += tokens
+
+
 def retry_with_exponential_backoff(func, max_retries=5, base_delay=1, max_delay=60):
     def wrapper(*args, **kwargs):
         retries = 0
@@ -83,6 +109,7 @@ def run(
         return
 
     client = anthropic.Client(api_key=api_key)
+    rate_limiter = RateLimiter()
 
     commands = {
         "!quit": "Quit the chat",
@@ -214,6 +241,12 @@ def run(
 
                 for attempt in range(max_retries):
                     try:
+                        # Estimate tokens for the request
+                        estimated_tokens = sum(
+                            len(msg["content"].split()) for msg in chat_history
+                        ) + len(system_message.split())
+                        rate_limiter.check_and_wait(estimated_tokens)
+
                         with client.messages.stream(
                             system=system_message,
                             max_tokens=4096,
@@ -273,6 +306,11 @@ def run(
                     final_message.usage.output_tokens
                     / 1_000_000.0
                     * model["pricing"]["output"]
+                )
+
+                # Update rate limiter with actual token usage
+                rate_limiter.check_and_wait(
+                    final_message.usage.input_tokens + final_message.usage.output_tokens
                 )
 
             console.print(
