@@ -1,6 +1,7 @@
 import os
 import time
 import random
+from datetime import datetime
 from functools import partial
 
 import anthropic
@@ -19,30 +20,42 @@ from heare.developer.sandbox import Sandbox
 from heare.developer.tools import TOOLS_SCHEMA, handle_tool_use
 
 
+from datetime import timezone
+
+
 class RateLimiter:
-    def __init__(self, tokens_per_minute=80000):
-        self.tokens_per_minute = tokens_per_minute
-        self.tokens_used = 0
-        self.last_reset = time.time()
+    def __init__(self):
+        self.tokens_remaining = None
+        self.reset_time = None
 
-    def check_and_wait(self, tokens):
-        current_time = time.time()
-        elapsed_time = current_time - self.last_reset
-
-        if elapsed_time >= 60:
-            self.tokens_used = 0
-            self.last_reset = current_time
-
-        if self.tokens_used + tokens > self.tokens_per_minute:
-            sleep_time = 60 - elapsed_time
-            print(
-                f"Rate limit approached. Sleeping for {sleep_time:.2f} seconds until the next minute boundary."
+    def update(self, headers):
+        self.tokens_remaining = int(
+            headers.get("anthropic-ratelimit-tokens-remaining", 0)
+        )
+        reset_time_str = headers.get("anthropic-ratelimit-tokens-reset")
+        if reset_time_str:
+            # Assume the reset time is in UTC
+            self.reset_time = datetime.fromisoformat(reset_time_str).replace(
+                tzinfo=timezone.utc
             )
-            time.sleep(sleep_time)
-            self.tokens_used = 0
-            self.last_reset = time.time()
 
-        self.tokens_used += tokens
+    def check_and_wait(self):
+        if (
+            self.tokens_remaining is not None and self.tokens_remaining < 1000
+        ):  # You can adjust this threshold
+            if self.reset_time:
+                # Use UTC for current time to match reset_time
+                current_time = datetime.now(timezone.utc)
+                wait_time = max(0, (self.reset_time - current_time).total_seconds())
+                if wait_time > 0:
+                    print(
+                        f"Rate limit approaching. Waiting for {wait_time:.2f} seconds until reset."
+                    )
+                    time.sleep(wait_time)
+            else:
+                # If we don't have a reset time, wait for a default period
+                print("Rate limit approaching. Waiting for 60 seconds.")
+                time.sleep(60)
 
 
 def retry_with_exponential_backoff(func, max_retries=5, base_delay=1, max_delay=60):
@@ -241,11 +254,8 @@ def run(
 
                 for attempt in range(max_retries):
                     try:
-                        # Estimate tokens for the request
-                        estimated_tokens = sum(
-                            len(msg["content"].split()) for msg in chat_history
-                        ) + len(system_message.split())
-                        rate_limiter.check_and_wait(estimated_tokens)
+                        # Check rate limit before making the API call
+                        rate_limiter.check_and_wait()
 
                         with client.messages.stream(
                             system=system_message,
@@ -259,6 +269,9 @@ def run(
                                     ai_response += chunk.text
 
                             final_message = stream.get_final_message()
+
+                        # Update rate limiter with response headers
+                        rate_limiter.update(stream.response.headers)
 
                         # If we get here, the stream completed successfully
                         break
@@ -308,10 +321,7 @@ def run(
                     * model["pricing"]["output"]
                 )
 
-                # Update rate limiter with actual token usage
-                rate_limiter.check_and_wait(
-                    final_message.usage.input_tokens + final_message.usage.output_tokens
-                )
+                # Rate limiting is now handled based on the response headers
 
             console.print(
                 Panel(
