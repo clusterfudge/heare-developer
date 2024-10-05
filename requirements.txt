@@ -37,3 +37,4 @@ autoflake==2.3.0
 ruff==0.1.8
 setuptools==71.1.0
 setuptools_scm==8.0.4
+textual==0.82.0

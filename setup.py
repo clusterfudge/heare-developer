@@ -13,6 +13,7 @@ setup(
     entry_points={
         "console_scripts": [
             "heare-developer=heare.developer.cli:main",
+            "heare-console=heare.developer.terminal:main",
         ],
     },
     author="Sean Fitzgerald",
