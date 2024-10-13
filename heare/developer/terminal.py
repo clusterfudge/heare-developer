@@ -1,9 +1,14 @@
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal
-from textual.widgets import Header, Footer, TextArea, Button, Static, Input
+from textual.widgets import Header, Footer, TextArea, Button, Static
 from textual.reactive import reactive
 from textual.binding import Binding
 from textual.widgets import ListItem, ListView
+from heare.developer.terminal_user_interface import (
+    TerminalUserInterface,
+    Sidebar as ToolSidebar,
+)
+from heare.developer.sandbox import SandboxMode
 
 
 class ChatMessage(Static):
@@ -53,16 +58,6 @@ class ChatHistory(ListView):
             self.clear_highlight()
 
 
-class Sidebar(Container):
-    """An interactive sidebar."""
-
-    def compose(self) -> ComposeResult:
-        yield Button("Clear History", id="clear-history")
-        yield Button("Inject Assistant Message", id="inject-assistant")
-        yield Button("Inject Tool Usage", id="inject-tool")
-        yield Input(placeholder="Content", id="inject-content")
-
-
 class MainContent(Container):
     """The main content area with chat history and sidebar."""
 
@@ -71,13 +66,13 @@ class MainContent(Container):
     def compose(self) -> ComposeResult:
         with Horizontal():
             yield ChatHistory(id="chat-history", classes="pane")
-            yield Sidebar(classes="sidebar")
+            yield ToolSidebar(classes="sidebar")
 
     def on_mount(self) -> None:
         self.update_layout()
 
     def update_layout(self) -> None:
-        sidebar = self.query_one(Sidebar)
+        sidebar = self.query_one(ToolSidebar)
         sidebar.set_class(not self.show_sidebar, "hidden")
         self.query_one(ChatHistory).clear_highlight()
 
@@ -159,6 +154,9 @@ class ChatbotApp(App):
     def __init__(self):
         super().__init__()
         self.multiline_mode = False
+        self.user_interface = TerminalUserInterface(
+            self, SandboxMode.REMEMBER_PER_RESOURCE
+        )
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -168,6 +166,7 @@ class ChatbotApp(App):
 
     def on_mount(self) -> None:
         self.query_one(TextArea).focus()
+        self.user_interface.display_welcome_message()
 
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
         input_area = event.text_area
@@ -186,9 +185,16 @@ class ChatbotApp(App):
             self.send_message(current_text.strip())
             input_area.clear()
 
+        # Check if we're waiting for user input
+        if self.user_interface.waiting_for_input:
+            self.user_interface.user_input = current_text.strip()
+            self.user_interface.waiting_for_input = False
+
     def send_message(self, message: str) -> None:
         if message:
-            self.append_to_conversation("human", message)
+            self.user_interface.handle_user_input(message)
+            # Here you would typically call your agent to process the message
+            # For example: response = run_agent(message, self.user_interface)
 
     def append_to_conversation(self, message_type: str, content: str) -> None:
         chat_history = self.query_one("#chat-history", ChatHistory)
@@ -201,31 +207,27 @@ class ChatbotApp(App):
         main_content.toggle_sidebar()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "clear-history":
-            self.clear_history()
-        elif event.button.id == "inject-assistant":
-            content = self.query_one("#inject-content", Input).value
-            if content:
-                self.inject_message("assistant", content)
-                self.query_one("#inject-content", Input).value = ""
-        elif event.button.id == "inject-tool":
-            content = self.query_one("#inject-content", Input).value
-            if content:
-                self.inject_message("tool_usage", content)
-                self.query_one("#inject-content", Input).value = ""
+        if event.button.id == "confirm-tool-usage":
+            self.user_interface.permission_result = True
+            self.user_interface.waiting_for_permission = False
+        elif event.button.id == "deny-tool-usage":
+            self.user_interface.permission_result = False
+            self.user_interface.waiting_for_permission = False
 
-    def clear_history(self) -> None:
-        chat_history = self.query_one("#chat-history", ChatHistory)
-        chat_history.clear()
+    def update_tool_usage(self, content: str) -> None:
+        tool_usage_area = self.query_one("#tool-usage-area")
+        tool_usage_area.load_text(content)
 
-    def inject_message(self, message_type: str, content: str) -> None:
-        self.append_to_conversation(message_type, content)
+    def update_tool_result(self, content: str) -> None:
+        tool_result_content = self.query_one("#tool-result-content")
+        tool_result_content.update(content)
 
-    def override_history(self, messages: list[tuple[str, str]]) -> None:
-        chat_history = self.query_one("#chat-history", ChatHistory)
-        chat_history.clear()
-        for message_type, content in messages:
-            self.append_to_conversation(message_type, content)
+    def show_sidebar(self, tab: str = "Tool Usage") -> None:
+        main_content = self.query_one(MainContent)
+        main_content.show_sidebar = True
+        main_content.update_layout()
+        tabbed_content = self.query_one(ToolSidebar).query_one("TabbedContent")
+        tabbed_content.active = tab
 
 
 def main():
