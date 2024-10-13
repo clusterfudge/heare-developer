@@ -99,7 +99,7 @@ def run(
 
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
-        user_interface.handle_assistant_message(
+        user_interface.handle_system_message(
             "[bold red]Error: ANTHROPIC_API_KEY environment variable not set[/bold red]"
         )
         return
@@ -115,19 +115,20 @@ def run(
     for tool_name, spec in cli_tools.tools.items():
         commands[f"/{tool_name}"] = spec["docstring"]
 
-    user_interface.handle_assistant_message(
-        "[bold yellow]Available commands:[/bold yellow]"
-    )
+    command_message = "[bold yellow]Available commands:[/bold yellow]\n"
+
     for tool_name, spec in cli_tools.tools.items():
-        user_interface.handle_assistant_message(
-            f"/[bold yellow]{tool_name} - {spec['docstring']}[/bold yellow]"
+        command_message += (
+            f"[bold yellow]/{tool_name}: {spec['docstring']}[/bold yellow]\n"
         )
-    user_interface.handle_assistant_message(
-        "[bold yellow]/quit, /exit - Quit the chat[/bold yellow]"
+
+    command_message += "[bold yellow]/quit, /exit - Quit the chat[/bold yellow]\n"
+
+    command_message += (
+        "[bold yellow]/restart - Clear chat history and start over[/bold yellow]\n"
     )
-    user_interface.handle_assistant_message(
-        "[bold yellow]/restart - Clear chat history and start over[/bold yellow]"
-    )
+
+    user_interface.handle_system_message(command_message)
 
     chat_history = []
     tool_result_buffer = []
@@ -205,7 +206,7 @@ def run(
 
             system_message = create_system_message(sandbox)
             ai_response = ""
-            user_interface.handle_assistant_message(
+            user_interface.handle_system_message(
                 "[bold green]AI is thinking...[/bold green]"
             )
 
