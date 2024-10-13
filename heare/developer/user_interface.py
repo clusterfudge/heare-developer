@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Any
 
+from heare.developer.sandbox import SandboxMode
+
 
 class UserInterface(ABC):
     @abstractmethod
@@ -12,28 +14,49 @@ class UserInterface(ABC):
         """
 
     @abstractmethod
+    def handle_system_message(self, message: str) -> None:
+        """
+        Handle and display a new system message.
+
+        :param message: The message
+        """
+
+    @abstractmethod
+    def permission_callback(
+        self,
+        action: str,
+        resource: str,
+        sandbox_mode: SandboxMode,
+        action_arguments: Dict | None,
+    ) -> bool:
+        """
+        :param action:
+        :param resource:
+        :param sandbox_mode:
+        :param action_arguments:
+        :return:
+        """
+
+    @abstractmethod
     def handle_tool_use(
         self,
         tool_name: str,
         tool_params: Dict[str, Any],
-        requires_permission: bool = False,
     ) -> bool:
         """
         Handle and display information about a tool being used, optionally check for permissions.
 
         :param tool_name: The name of the tool being used
         :param tool_params: The parameters passed to the tool
-        :param requires_permission: Whether this tool use requires permission
-        :return: If requires_permission is True, return True if permission granted, False otherwise.
-                 If requires_permission is False, return True (assume caller treats result as "should_invoke_tool").
+        :return: True if permission granted, False otherwise.
         """
 
     @abstractmethod
-    def handle_tool_result(self, tool_name: str, result: Any) -> None:
+    def handle_tool_result(self, name: str, result: Dict[str, Any]) -> None:
         """
         Handle and display the result of a tool use.
 
-        :param tool_name: The name of the tool that was used
+        :param name:  The name of the original tool invocation
         :param result: The result returned by the tool
         """
 
@@ -44,6 +67,14 @@ class UserInterface(ABC):
 
         :param prompt: An optional prompt to display to the user
         :return: The user's input as a string
+        """
+
+    @abstractmethod
+    def handle_user_input(self, user_input: str) -> str:
+        """
+        Handle and display input from the user
+
+        :param user_input: the input from the user
         """
 
     @abstractmethod

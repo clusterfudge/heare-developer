@@ -1,26 +1,17 @@
 import os
 import time
 import random
-from datetime import datetime
-from functools import partial
+from datetime import datetime, timezone
 
 import anthropic
 from anthropic.types import TextBlock
 from dotenv import load_dotenv
-from prompt_toolkit import PromptSession
-from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
-from prompt_toolkit.formatted_text import FormattedText
-from prompt_toolkit.history import FileHistory
-from rich.console import Console
-from rich.panel import Panel
 
-from heare.developer.utils import archive_chat, CustomCompleter
+from heare.developer.utils import archive_chat
 from heare.developer.prompt import create_system_message
 from heare.developer.sandbox import Sandbox
-from heare.developer.tools import TOOLS_SCHEMA, handle_tool_use
-
-
-from datetime import timezone
+from heare.developer.tools import TOOLS_SCHEMA, invoke_took
+from heare.developer.user_interface import UserInterface
 
 
 class RateLimiter:
@@ -34,17 +25,13 @@ class RateLimiter:
         )
         reset_time_str = headers.get("anthropic-ratelimit-tokens-reset")
         if reset_time_str:
-            # Assume the reset time is in UTC
             self.reset_time = datetime.fromisoformat(reset_time_str).replace(
                 tzinfo=timezone.utc
             )
 
     def check_and_wait(self):
-        if (
-            self.tokens_remaining is not None and self.tokens_remaining < 1000
-        ):  # You can adjust this threshold
+        if self.tokens_remaining is not None and self.tokens_remaining < 1000:
             if self.reset_time:
-                # Use UTC for current time to match reset_time
                 current_time = datetime.now(timezone.utc)
                 wait_time = max(0, (self.reset_time - current_time).total_seconds())
                 if wait_time > 0:
@@ -53,7 +40,6 @@ class RateLimiter:
                     )
                     time.sleep(wait_time)
             else:
-                # If we don't have a reset time, wait for a default period
                 print("Rate limit approaching. Waiting for 60 seconds.")
                 time.sleep(60)
 
@@ -94,29 +80,26 @@ def run(
     sandbox_contents,
     sandbox_mode,
     cli_tools,
-    permission_check_callback,
-    render_tool_use,
-    format_token_count,
+    user_interface: UserInterface,
 ):
     load_dotenv()
-    console = Console()
 
     if sandbox_contents:
         sandbox = Sandbox(
             sandbox_contents[0],
             mode=sandbox_mode,
-            permission_check_callback=partial(permission_check_callback, console),
+            permission_check_callback=user_interface.permission_callback,
         )
     else:
         sandbox = Sandbox(
             os.getcwd(),
             mode=sandbox_mode,
-            permission_check_callback=partial(permission_check_callback, console),
+            permission_check_callback=user_interface.permission_callback,
         )
 
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
-        console.print(
+        user_interface.handle_assistant_message(
             "[bold red]Error: ANTHROPIC_API_KEY environment variable not set[/bold red]"
         )
         return
@@ -131,32 +114,18 @@ def run(
     }
     for tool_name, spec in cli_tools.tools.items():
         commands[f"/{tool_name}"] = spec["docstring"]
-    history = FileHistory("./chat_history.txt")
-    custom_completer = CustomCompleter(commands, history)
 
-    session = PromptSession(
-        history=history,
-        auto_suggest=AutoSuggestFromHistory(),
-        enable_history_search=True,
-        completer=custom_completer,
-        complete_while_typing=True,
+    user_interface.handle_assistant_message(
+        "[bold yellow]Available commands:[/bold yellow]"
     )
-
-    console.print(
-        Panel(
-            "[bold green]Welcome to the Heare Developer CLI, your personal coding assistant.[/bold green]",
-            expand=False,
-        )
-    )
-    console.print("[bold yellow]Available commands:[/bold yellow]")
     for tool_name, spec in cli_tools.tools.items():
-        row = f"[bold yellow]/{tool_name}"
-        if spec["docstring"]:
-            row += f" - {spec['docstring']}"
-        row += "[/bold yellow]"
-        console.print(row)
-    console.print("[bold yellow]/quit, /exit - Quit the chat[/bold yellow]")
-    console.print(
+        user_interface.handle_assistant_message(
+            f"/[bold yellow]{tool_name} - {spec['docstring']}[/bold yellow]"
+        )
+    user_interface.handle_assistant_message(
+        "[bold yellow]/quit, /exit - Quit the chat[/bold yellow]"
+    )
+    user_interface.handle_assistant_message(
         "[bold yellow]/restart - Clear chat history and start over[/bold yellow]"
     )
 
@@ -173,17 +142,7 @@ def run(
     while True:
         try:
             if not tool_result_buffer:
-                user_input = session.prompt(FormattedText([("#00FF00", " > ")]))
-
-                # Handle multi-line input
-                if user_input.strip() == "{":
-                    multi_line_input = []
-                    while True:
-                        line = session.prompt(FormattedText([("#00FF00", "... ")]))
-                        if line.strip() == "}":
-                            break
-                        multi_line_input.append(line)
-                    user_input = "\n".join(multi_line_input)
+                user_input = user_interface.get_user_input(" > ")
 
                 command_name = (
                     user_input.split()[0][1:] if user_input.startswith("/") else ""
@@ -199,14 +158,12 @@ def run(
                         completion_tokens = 0
                         total_tokens = 0
                         total_cost = 0.0
-                        console.print(
-                            Panel(
-                                "[bold green]Chat history cleared. Starting over.[/bold green]"
-                            )
+                        user_interface.handle_assistant_message(
+                            "[bold green]Chat history cleared. Starting over.[/bold green]"
                         )
                     elif user_input.startswith("/archive"):
                         archive_chat(
-                            console=console,
+                            user_interface=user_interface,
                             sandbox=sandbox,
                             user_input=user_input,
                             chat_history=chat_history,
@@ -219,7 +176,7 @@ def run(
                         cli_tool = cli_tools.get_tool(command_name)
                         if cli_tool:
                             cli_tool["invoke"](
-                                console=console,
+                                user_interface=user_interface,
                                 sandbox=sandbox,
                                 user_input=user_input,
                                 chat_history=chat_history,
@@ -230,139 +187,131 @@ def run(
                                 total_cost=total_cost,
                             )
                     else:
-                        console.print(
-                            Panel(f"[bold red]Unknown command: {user_input}[/bold red]")
+                        user_interface.handle_assistant_message(
+                            f"[bold red]Unknown command: {user_input}[/bold red]"
                         )
                     continue
 
                 chat_history.append({"role": "user", "content": user_input})
-                console.print(
-                    Panel(f"[bold blue]You:[/bold blue] {user_input}", expand=False)
+                user_interface.handle_assistant_message(
+                    f"[bold blue]You:[/bold blue] {user_input}"
                 )
 
             else:
-                chat_history.append(tool_result_buffer.pop(0))
+                chat_history.append(
+                    {"role": "user", "content": tool_result_buffer.copy()}
+                )
+                tool_result_buffer.clear()
 
             system_message = create_system_message(sandbox)
             ai_response = ""
-            with console.status(
-                "[bold green]AI is thinking...[/bold green]", spinner="dots"
-            ):
-                max_retries = 5
-                base_delay = 1
-                max_delay = 60
-
-                for attempt in range(max_retries):
-                    try:
-                        # Check rate limit before making the API call
-                        rate_limiter.check_and_wait()
-
-                        with client.messages.stream(
-                            system=system_message,
-                            max_tokens=4096,
-                            messages=chat_history,
-                            model=model["title"],
-                            tools=TOOLS_SCHEMA,
-                        ) as stream:
-                            for chunk in stream:
-                                if chunk.type == "text":
-                                    ai_response += chunk.text
-
-                            final_message = stream.get_final_message()
-
-                        # Update rate limiter with response headers
-                        rate_limiter.update(stream.response.headers)
-
-                        # If we get here, the stream completed successfully
-                        break
-                    except anthropic.APIStatusError as e:
-                        if attempt == max_retries - 1:  # If this was the last attempt
-                            raise  # Re-raise the exception if all retries failed
-                        if "Overloaded" in str(e):
-                            delay = min(
-                                base_delay * (2**attempt) + random.uniform(0, 1),
-                                max_delay,
-                            )
-                            console.print(
-                                f"API overloaded. Retrying in {delay:.2f} seconds..."
-                            )
-                            time.sleep(delay)
-                        else:
-                            raise  # Re-raise if it's not an overloaded error
-
-                final_content = final_message.content
-                filtered = []
-                if isinstance(final_content, list):
-                    for message in final_content:
-                        if isinstance(message, TextBlock):
-                            message.text = message.text.strip()
-
-                            # skipping empty text block from llm
-                            if not message.text:
-                                continue
-
-                        filtered.append(message)
-                else:
-                    filtered = final_content
-
-                chat_history.append({"role": "assistant", "content": filtered})
-
-                # Update token counts
-                prompt_tokens += final_message.usage.input_tokens
-                completion_tokens += final_message.usage.output_tokens
-                total_tokens = prompt_tokens + completion_tokens
-                total_cost += (
-                    final_message.usage.input_tokens
-                    / 1_000_000.0
-                    * model["pricing"]["input"]
-                ) + (
-                    final_message.usage.output_tokens
-                    / 1_000_000.0
-                    * model["pricing"]["output"]
-                )
-
-                # Rate limiting is now handled based on the response headers
-
-            console.print(
-                Panel(
-                    f"[bold green]AI Assistant:[/bold green]\n{ai_response}",
-                    expand=False,
-                )
+            user_interface.handle_assistant_message(
+                "[bold green]AI is thinking...[/bold green]"
             )
-            console.print(
-                format_token_count(
-                    prompt_tokens, completion_tokens, total_tokens, total_cost
-                )
+
+            max_retries = 5
+            base_delay = 1
+            max_delay = 60
+
+            for attempt in range(max_retries):
+                try:
+                    rate_limiter.check_and_wait()
+
+                    with client.messages.stream(
+                        system=system_message,
+                        max_tokens=4096,
+                        messages=chat_history,
+                        model=model["title"],
+                        tools=TOOLS_SCHEMA,
+                    ) as stream:
+                        for chunk in stream:
+                            if chunk.type == "text":
+                                ai_response += chunk.text
+
+                        final_message = stream.get_final_message()
+
+                    rate_limiter.update(stream.response.headers)
+                    break
+                except anthropic.APIStatusError as e:
+                    if attempt == max_retries - 1:
+                        raise
+                    if "Overloaded" in str(e):
+                        delay = min(
+                            base_delay * (2**attempt) + random.uniform(0, 1),
+                            max_delay,
+                        )
+                        user_interface.handle_assistant_message(
+                            f"API overloaded. Retrying in {delay:.2f} seconds..."
+                        )
+                        time.sleep(delay)
+                    else:
+                        raise
+
+            final_content = final_message.content
+            filtered = []
+            if isinstance(final_content, list):
+                for message in final_content:
+                    if isinstance(message, TextBlock):
+                        message.text = message.text.strip()
+                        if not message.text:
+                            continue
+                    filtered.append(message)
+            else:
+                filtered = final_content
+
+            chat_history.append({"role": "assistant", "content": filtered})
+
+            prompt_tokens += final_message.usage.input_tokens
+            completion_tokens += final_message.usage.output_tokens
+            total_tokens = prompt_tokens + completion_tokens
+            total_cost += (
+                final_message.usage.input_tokens
+                / 1_000_000.0
+                * model["pricing"]["input"]
+            ) + (
+                final_message.usage.output_tokens
+                / 1_000_000.0
+                * model["pricing"]["output"]
+            )
+
+            user_interface.handle_assistant_message(
+                f"[bold green]AI Assistant:[/bold green]\n{ai_response}"
+            )
+            user_interface.display_token_count(
+                prompt_tokens, completion_tokens, total_tokens, total_cost
             )
 
             if final_message.stop_reason == "tool_use":
-                results = handle_tool_use(sandbox, final_message)
-
-                tool_result_buffer.append({"role": "user", "content": results})
-                render_tool_use(console, final_message, results)
+                for part in final_message.content:
+                    if part.type == "tool_use":
+                        tool_use = part
+                        result = invoke_took(sandbox, tool_use)
+                        tool_result_buffer.append(result)
+                        user_interface.handle_tool_result(tool_use.name, tool_use.name)
             elif final_message.stop_reason == "max_tokens":
-                console.print(Panel("[bold red]Hit max tokens.[/bold red]"))
+                user_interface.handle_assistant_message(
+                    "[bold red]Hit max tokens.[/bold red]"
+                )
 
-            # Reset interrupt count after successful interaction
             interrupt_count = 0
             last_interrupt_time = 0
 
         except KeyboardInterrupt:
             current_time = time.time()
-            if (
-                current_time - last_interrupt_time < 1
-            ):  # If less than 1 second has passed
+            if current_time - last_interrupt_time < 1:
                 interrupt_count += 1
             else:
                 interrupt_count = 1
             last_interrupt_time = current_time
 
             if interrupt_count >= 2:
-                console.print(
-                    "\n[bold red]Double interrupt detected. Exiting...[/bold red]"
+                user_interface.handle_system_message(
+                    "[bold red]Double interrupt detected. Exiting...[/bold red]"
                 )
                 break
             else:
-                console.print(
-                    "\n[bold yellow]KeyboardInterrupt detected. Press Ctrl+C again to exit, or continue typing to resume.[/bold yellow]"
+                user_interface.handle_system_message(
+                    "[bold yellow]"
+                    "KeyboardInterrupt detected. Press Ctrl+C again to exit, or continue typing to resume."
+                    "[/bold yellow]"
                 )

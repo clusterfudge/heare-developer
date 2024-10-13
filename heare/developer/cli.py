@@ -1,15 +1,19 @@
 import argparse
 import os
-
-from typing import Dict
+from typing import Dict, Any
 
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
+from prompt_toolkit import PromptSession
+from prompt_toolkit.history import FileHistory
+from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
+
 from heare.developer.agent import run
-from heare.developer.utils import cli_tools
+from heare.developer.utils import cli_tools, CustomCompleter
 from heare.developer.sandbox import SandboxMode
+from heare.developer.user_interface import UserInterface
 
 MODEL_MAP = {
     "opus": {
@@ -40,6 +44,176 @@ def parse_sandbox_mode(value: str) -> SandboxMode:
     raise argparse.ArgumentTypeError(f"Invalid sandbox mode: {value}")
 
 
+class CLIUserInterface(UserInterface):
+    def __init__(self, console: Console, sandbox_mode: SandboxMode):
+        self.console = console
+        self.sandbox_mode = sandbox_mode
+
+        commands = {
+            "!quit": "Quit the chat",
+            "!exit": "Quit the chat",
+            "!restart": "Clear chat history and start over",
+        }
+        for tool_name, spec in cli_tools.tools.items():
+            commands[f"!{tool_name}"] = spec["docstring"]
+
+        history = FileHistory("./chat_history.txt")
+        custom_completer = CustomCompleter(commands, history)
+
+        self.session = PromptSession(
+            history=history,
+            auto_suggest=AutoSuggestFromHistory(),
+            enable_history_search=True,
+            completer=custom_completer,
+            complete_while_typing=True,
+        )
+
+    def handle_system_message(self, message: str) -> None:
+        self.console.print("\n")
+        self.console.print(
+            Panel(
+                f"[bold yellow]{message}[/bold yellow]",
+                title="System Message",
+                expand=False,
+                border_style="bold yellow",
+            )
+        )
+
+    def handle_assistant_message(self, message: str) -> None:
+        self.console.print(
+            Panel(
+                f"[bold green]{message}[/bold green]",
+                title="AI Assistant",
+                expand=False,
+                border_style="bold green",
+            )
+        )
+
+    def permission_callback(
+        self,
+        action: str,
+        resource: str,
+        sandbox_mode: SandboxMode,
+        action_arguments: Dict | None,
+    ) -> bool:
+        formatted_params = (
+            "\n".join([f"  {key}: {value}" for key, value in action_arguments.items()])
+            if action_arguments
+            else ""
+        )
+        self.console.print(
+            Panel(
+                f"[bold blue]Action:[/bold blue] {action}\n"
+                f"[bold cyan]Resource:[/bold cyan] {resource}\n"
+                f"[bold green]Arguments:[/bold green]\n{formatted_params}",
+                title="Permission Check",
+                expand=False,
+                border_style="bold yellow",
+            )
+        )
+
+        response = (
+            str(
+                self.console.input(
+                    "[bold yellow]Allow this action? (y/N): [/bold yellow]"
+                )
+            )
+            .strip()
+            .lower()
+        )
+        return response == "y"
+
+    def handle_tool_use(
+        self,
+        tool_name: str,
+        tool_params: Dict[str, Any],
+    ):
+        formatted_params = "\n".join(
+            [f"  {key}: {value}" for key, value in tool_params.items()]
+        )
+
+        self.console.print(
+            Panel(
+                f"[bold blue]Action:[/bold blue] {tool_name}\n"
+                f"[bold cyan]Resource:[/bold cyan] {tool_params.get('path', 'N/A')}\n"
+                f"[bold green]Arguments:[/bold green]\n{formatted_params}",
+                title="Permission Check",
+                expand=False,
+                border_style="bold yellow",
+            )
+        )
+
+    def handle_tool_result(self, name: str, result: Dict[str, Any]) -> None:
+        content = (
+            result["content"]
+            if name not in ["read_file", "write_file", "edit_file"]
+            else "File operation completed"
+        )
+        self.console.print(
+            Panel(
+                f"[bold green]Result:[/bold green]\n{content}",
+                title=f"Tool Result: {name}",
+                expand=False,
+                border_style="bold magenta",
+            )
+        )
+
+    def get_user_input(self, prompt: str = "") -> str:
+        user_input = self.session.prompt(prompt)
+
+        # Handle multi-line input
+        if user_input.strip() == "{":
+            multi_line_input = []
+            while True:
+                line = self.session.prompt("... ")
+                if line.strip() == "}":
+                    break
+                multi_line_input.append(line)
+            user_input = "\n".join(multi_line_input)
+
+        return user_input
+
+    def handle_user_input(self, user_input: str):
+        """
+        Get input from the user.
+
+        :param user_input: the input from the user
+        """
+        self.console.print(
+            Panel(
+                user_input,
+                title="You",
+                expand=False,
+                border_style="bold green",
+            )
+        )
+
+    def display_token_count(
+        self,
+        prompt_tokens: int,
+        completion_tokens: int,
+        total_tokens: int,
+        total_cost: float,
+    ) -> None:
+        token_count = Text.assemble(
+            ("Token Count:\n", "bold"),
+            (f"Prompt: {prompt_tokens}\n", "cyan"),
+            (f"Completion: {completion_tokens}\n", "green"),
+            (f"Total: {total_tokens}\n", "yellow"),
+            (f"Cost: ${round(total_cost, 2)}", "orange"),
+        )
+        self.console.print(token_count)
+
+    def display_welcome_message(self) -> None:
+        self.console.print(
+            Panel(
+                "[bold green]Welcome to the Heare Developer CLI, your personal coding assistant.[/bold green]\n"
+                "[bold yellow]For multi-line input, start with '{' on a new line, enter your content, and end with '}' on a new line.[/bold yellow]",
+                expand=False,
+            )
+        )
+
+
 def main():
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument("sandbox", nargs="*")
@@ -60,101 +234,16 @@ def main():
     args = arg_parser.parse_args()
 
     console = Console()
-    console.print(
-        Panel(
-            "[bold green]Welcome to the Heare Developer CLI, your personal coding assistant.[/bold green]\n"
-            "[bold yellow]For multi-line input, start with '{' on a new line, enter your content, and end with '}' on a new line.[/bold yellow]",
-            expand=False,
-        )
-    )
+    user_interface = CLIUserInterface(console, args.sandbox_mode)
+    user_interface.display_welcome_message()
 
     run(
         MODEL_MAP.get(args.model),
         args.sandbox,
         args.sandbox_mode,
         cli_tools,
-        permission_check_callback,
-        render_tool_use,
-        format_token_count,
+        user_interface,
     )
-
-
-def format_token_count(prompt_tokens, completion_tokens, total_tokens, total_cost):
-    return Text.assemble(
-        ("Token Count:\n", "bold"),
-        (f"Prompt: {prompt_tokens}\n", "cyan"),
-        (f"Completion: {completion_tokens}\n", "green"),
-        (f"Total: {total_tokens}\n", "yellow"),
-        (f"Cost: ${round(total_cost, 2)}", "orange"),
-    )
-
-
-def render_permission_check(
-    console, action: str, resource: str, action_arguments: Dict | None = None
-):
-    formatted_args = "\n".join(
-        [f"  {key}: {value}" for key, value in (action_arguments or {}).items()]
-    )
-    console.print(
-        Panel(
-            f"[bold blue]Action:[/bold blue] {action}\n"
-            f"[bold cyan]Resource:[/bold cyan] {resource}\n"
-            f"[bold green]Arguments:[/bold green]\n{formatted_args}",
-            title="Permission Check",
-            expand=False,
-            border_style="bold yellow",
-        )
-    )
-
-
-def permission_check_callback(
-    console: Console,
-    action: str,
-    resource: str,
-    mode: SandboxMode,
-    action_arguments: Dict | None = None,
-) -> bool:
-    render_permission_check(console, action, resource, action_arguments)
-    response = (
-        str(console.input("[bold yellow]Allow this action? (y/N): [/bold yellow]"))
-        .strip()
-        .lower()
-    )
-
-    return response == "y"
-
-
-def render_tool_use(console, tool_use_message, results):
-    tool_use_map = {
-        tool_use.id: tool_use
-        for tool_use in tool_use_message.content
-        if tool_use.type == "tool_use"
-    }
-    for result in results:
-        tool_use = tool_use_map[result["tool_use_id"]]
-        tool_name = tool_use.name
-        tool_params = tool_use.input
-
-        formatted_params = "\n".join(
-            [f"  {key}: {value}" for key, value in tool_params.items()]
-        )
-
-        renderable = (
-            f"[bold blue]Tool:[/bold blue] {tool_name}\n"
-            f"[bold cyan]Parameters:[/bold cyan]\n{formatted_params}\n"
-        )
-
-        if tool_name not in ["read_file", "write_file", "edit_file"]:
-            renderable += f"[bold green]Result:[/bold green]\n{result['content']}"
-
-        console.print(
-            Panel(
-                renderable,
-                title="Tool Usage",
-                expand=False,
-                border_style="bold magenta",
-            )
-        )
 
 
 if __name__ == "__main__":

@@ -163,31 +163,24 @@ TOOLS_SCHEMA = [
 ]
 
 
-def handle_tool_use(sandbox, final_message):
-    results = []
-    for tool_use in [
-        block for block in final_message.content if block.type == "tool_use"
-    ]:
-        function_name = tool_use.name
-        arguments = tool_use.input
-        if function_name == "read_file":
-            result = read_file(sandbox, arguments["path"])
-        elif function_name == "write_file":
-            result = write_file(sandbox, arguments["path"], arguments["content"])
-        elif function_name == "list_directory":
-            result = list_directory(sandbox, arguments["path"])
-        elif function_name == "run_bash_command":
-            result = run_bash_command(sandbox, arguments["command"])
-        elif function_name == "edit_file":
-            result = edit_file(
-                sandbox,
-                arguments["path"],
-                arguments["match_text"],
-                arguments["replace_text"],
-            )
-        else:
-            result = f"Unknown function: {function_name}"
-        results.append(
-            {"type": "tool_result", "tool_use_id": tool_use.id, "content": result}
+def invoke_took(sandbox, tool_use):
+    function_name = tool_use.name
+    arguments = tool_use.input
+    if function_name == "read_file":
+        result = read_file(sandbox, arguments["path"])
+    elif function_name == "write_file":
+        result = write_file(sandbox, arguments["path"], arguments["content"])
+    elif function_name == "list_directory":
+        result = list_directory(sandbox, arguments["path"])
+    elif function_name == "run_bash_command":
+        result = run_bash_command(sandbox, arguments["command"])
+    elif function_name == "edit_file":
+        result = edit_file(
+            sandbox,
+            arguments["path"],
+            arguments["match_text"],
+            arguments["replace_text"],
         )
-    return results
+    else:
+        result = f"Unknown function: {function_name}"
+    return {"type": "tool_result", "tool_use_id": tool_use.id, "content": result}
