@@ -96,18 +96,18 @@ def help(console, sandbox, user_input, *args, **kwargs):
     Show help
     """
     help_text = "[bold yellow]Available commands:[/bold yellow]\n"
-    help_text += "!restart - Clear chat history and start over\n"
-    help_text += "!quit - Quit the chat\n"
+    help_text += "/restart - Clear chat history and start over\n"
+    help_text += "/quit - Quit the chat\n"
 
     displayed_tools = set()
     for tool_name, spec in cli_tools.tools.items():
         if tool_name not in displayed_tools:
             aliases = ", ".join(
-                [f"!{alias}" for alias in spec["aliases"] if alias != tool_name]
+                [f"/{alias}" for alias in spec["aliases"] if alias != tool_name]
             )
             alias_text = f" (aliases: {aliases})" if aliases else ""
             help_text += (
-                f"!{tool_name}{alias_text} - {spec['docstring']} - {spec['args']}\n"
+                f"/{tool_name}{alias_text} - {spec['docstring']} - {spec['args']}\n"
             )
             displayed_tools.add(tool_name)
             displayed_tools.update(spec["aliases"])
@@ -175,7 +175,7 @@ def exec(console, sandbox, user_input, *args, **kwargs):
     """
     Execute a bash command and optionally add it to tool result buffer
     """
-    command = user_input[5:].strip()  # Remove '!exec' from the beginning
+    command = user_input[5:].strip()  # Remove '/exec' from the beginning
     result = run_bash_command(sandbox, command)
 
     console.print("[bold cyan]Command Output:[/bold cyan]")
@@ -249,7 +249,7 @@ def update_config(console, sandbox, user_input, *args, **kwargs):
     """
     parts = user_input.split(maxsplit=3)
     if len(parts) != 4:
-        console.print("[bold red]Usage: !update_config <key> <value>[/bold red]")
+        console.print("[bold red]Usage: /update_config <key> <value>[/bold red]")
         return
 
     _, key, value = parts[1:]
@@ -302,7 +302,7 @@ class CustomCompleter(Completer):
 
     def get_completions(self, document, complete_event):
         text = document.text_before_cursor.lstrip()
-        if text.startswith("!"):
+        if text.startswith("/"):
             yield from self.word_completer.get_completions(document, complete_event)
         else:
             for history_item in reversed(self.history.get_strings()):

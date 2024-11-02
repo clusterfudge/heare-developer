@@ -21,7 +21,7 @@ MODEL_MAP = {
         "pricing": {"input": 15.00, "output": 75.00},
     },
     "sonnet-3.5": {
-        "title": "claude-3-5-sonnet-20240620",
+        "title": "claude-3-5-sonnet-latest",
         "pricing": {"input": 15.00, "output": 75.00},
     },
     "haiku": {

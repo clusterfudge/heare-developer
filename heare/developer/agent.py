@@ -125,12 +125,12 @@ def run(
     rate_limiter = RateLimiter()
 
     commands = {
-        "!quit": "Quit the chat",
-        "!exit": "Quit the chat",
-        "!restart": "Clear chat history and start over",
+        "/quit": "Quit the chat",
+        "/exit": "Quit the chat",
+        "/restart": "Clear chat history and start over",
     }
     for tool_name, spec in cli_tools.tools.items():
-        commands[f"!{tool_name}"] = spec["docstring"]
+        commands[f"/{tool_name}"] = spec["docstring"]
     history = FileHistory("./chat_history.txt")
     custom_completer = CustomCompleter(commands, history)
 
@@ -150,14 +150,14 @@ def run(
     )
     console.print("[bold yellow]Available commands:[/bold yellow]")
     for tool_name, spec in cli_tools.tools.items():
-        row = f"![bold yellow]{tool_name}"
+        row = f"[bold yellow]/{tool_name}"
         if spec["docstring"]:
             row += f" - {spec['docstring']}"
         row += "[/bold yellow]"
         console.print(row)
-    console.print("[bold yellow]!quit, !exit - Quit the chat[/bold yellow]")
+    console.print("[bold yellow]/quit, /exit - Quit the chat[/bold yellow]")
     console.print(
-        "[bold yellow]!restart - Clear chat history and start over[/bold yellow]"
+        "[bold yellow]/restart - Clear chat history and start over[/bold yellow]"
     )
 
     chat_history = []
@@ -186,13 +186,13 @@ def run(
                     user_input = "\n".join(multi_line_input)
 
                 command_name = (
-                    user_input.split()[0][1:] if user_input.startswith("!") else ""
+                    user_input.split()[0][1:] if user_input.startswith("/") else ""
                 )
 
-                if user_input.startswith("!"):
-                    if user_input in ["!quit", "!exit"]:
+                if user_input.startswith("/"):
+                    if user_input in ["/quit", "/exit"]:
                         break
-                    elif user_input == "!restart":
+                    elif user_input == "/restart":
                         chat_history = []
                         tool_result_buffer = []
                         prompt_tokens = 0
@@ -204,7 +204,7 @@ def run(
                                 "[bold green]Chat history cleared. Starting over.[/bold green]"
                             )
                         )
-                    elif user_input.startswith("!archive"):
+                    elif user_input.startswith("/archive"):
                         archive_chat(
                             console=console,
                             sandbox=sandbox,
@@ -366,5 +366,3 @@ def run(
                 console.print(
                     "\n[bold yellow]KeyboardInterrupt detected. Press Ctrl+C again to exit, or continue typing to resume.[/bold yellow]"
                 )
-
-    console.print("[bold green]Chat ended. Goodbye![/bold green]")
