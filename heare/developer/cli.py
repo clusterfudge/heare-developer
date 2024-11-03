@@ -179,14 +179,8 @@ class CLIUserInterface(UserInterface):
 
         :param user_input: the input from the user
         """
-        self.console.print(
-            Panel(
-                user_input,
-                title="You",
-                expand=False,
-                border_style="bold green",
-            )
-        )
+        # in the CLI, we don't have a good mechanism to remove the input box.
+        # instead, we just won't re-render the user's input
 
     def display_token_count(
         self,
@@ -212,6 +206,9 @@ class CLIUserInterface(UserInterface):
                 expand=False,
             )
         )
+
+    def status(self, message, spinner=None):
+        return self.console.status(message, spinner=spinner)
 
 
 def main():

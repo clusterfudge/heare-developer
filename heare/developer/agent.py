@@ -194,7 +194,7 @@ def run(
                     continue
 
                 chat_history.append({"role": "user", "content": user_input})
-                user_interface.handle_assistant_message(
+                user_interface.handle_user_input(
                     f"[bold blue]You:[/bold blue] {user_input}"
                 )
 
@@ -206,47 +206,46 @@ def run(
 
             system_message = create_system_message(sandbox)
             ai_response = ""
-            user_interface.handle_system_message(
-                "[bold green]AI is thinking...[/bold green]"
-            )
+            with user_interface.status(
+                "[bold green]AI is thinking...[/bold green]", spinner="dots"
+            ):
+                max_retries = 5
+                base_delay = 1
+                max_delay = 60
 
-            max_retries = 5
-            base_delay = 1
-            max_delay = 60
+                for attempt in range(max_retries):
+                    try:
+                        rate_limiter.check_and_wait()
 
-            for attempt in range(max_retries):
-                try:
-                    rate_limiter.check_and_wait()
+                        with client.messages.stream(
+                            system=system_message,
+                            max_tokens=4096,
+                            messages=chat_history,
+                            model=model["title"],
+                            tools=TOOLS_SCHEMA,
+                        ) as stream:
+                            for chunk in stream:
+                                if chunk.type == "text":
+                                    ai_response += chunk.text
 
-                    with client.messages.stream(
-                        system=system_message,
-                        max_tokens=4096,
-                        messages=chat_history,
-                        model=model["title"],
-                        tools=TOOLS_SCHEMA,
-                    ) as stream:
-                        for chunk in stream:
-                            if chunk.type == "text":
-                                ai_response += chunk.text
+                            final_message = stream.get_final_message()
 
-                        final_message = stream.get_final_message()
-
-                    rate_limiter.update(stream.response.headers)
-                    break
-                except anthropic.APIStatusError as e:
-                    if attempt == max_retries - 1:
-                        raise
-                    if "Overloaded" in str(e):
-                        delay = min(
-                            base_delay * (2**attempt) + random.uniform(0, 1),
-                            max_delay,
-                        )
-                        user_interface.handle_assistant_message(
-                            f"API overloaded. Retrying in {delay:.2f} seconds..."
-                        )
-                        time.sleep(delay)
-                    else:
-                        raise
+                        rate_limiter.update(stream.response.headers)
+                        break
+                    except anthropic.APIStatusError as e:
+                        if attempt == max_retries - 1:
+                            raise
+                        if "Overloaded" in str(e):
+                            delay = min(
+                                base_delay * (2**attempt) + random.uniform(0, 1),
+                                max_delay,
+                            )
+                            user_interface.handle_system_message(
+                                f"API overloaded. Retrying in {delay:.2f} seconds..."
+                            )
+                            time.sleep(delay)
+                        else:
+                            raise
 
             final_content = final_message.content
             filtered = []
@@ -275,9 +274,7 @@ def run(
                 * model["pricing"]["output"]
             )
 
-            user_interface.handle_assistant_message(
-                f"[bold green]AI Assistant:[/bold green]\n{ai_response}"
-            )
+            user_interface.handle_assistant_message(ai_response)
             user_interface.display_token_count(
                 prompt_tokens, completion_tokens, total_tokens, total_cost
             )

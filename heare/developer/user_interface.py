@@ -1,3 +1,4 @@
+import contextlib
 from abc import ABC, abstractmethod
 from typing import Dict, Any
 
@@ -98,4 +99,15 @@ class UserInterface(ABC):
     def display_welcome_message(self) -> None:
         """
         Display a welcome message to the user.
+        """
+
+    @abstractmethod
+    def status(
+        self, message: str, spinner: str = None
+    ) -> contextlib.AbstractContextManager:
+        """
+        Display a status message to the user.
+        :param message:
+        :param spinner:
+        :return:
         """

@@ -8,7 +8,6 @@ from types import SimpleNamespace
 from typing import Any, IO
 
 from prompt_toolkit.completion import Completer, WordCompleter, Completion
-from rich.panel import Panel
 
 from heare.developer.commit import run_commit
 from heare.developer.prompt import create_system_message
@@ -60,11 +59,16 @@ class CLITools:
             tool_name = func.__name__
             tool_args = inspect.signature(func).parameters
             tool_docstring = inspect.getdoc(func)
+
+            # Wrap the function to take user_interface instead of console
+            def wrapped_func(user_interface, *args, **kwargs):
+                return func(user_interface=user_interface, *args, **kwargs)
+
             tool_info = {
                 "name": tool_name,
                 "args": tool_args,
                 "docstring": tool_docstring,
-                "invoke": func,
+                "invoke": wrapped_func,
                 "aliases": list(aliases) if aliases else [tool_name],
             }
             self.tools[tool_name] = tool_info
@@ -91,7 +95,7 @@ cli_tools = CLITools()
 
 
 @cli_tools.tool("help", "h")
-def help(console, sandbox, user_input, *args, **kwargs):
+def help(user_interface, sandbox, user_input, *args, **kwargs):
     """
     Show help
     """
@@ -115,74 +119,73 @@ def help(console, sandbox, user_input, *args, **kwargs):
     help_text += "You can ask the AI to read, write, or list files/directories\n"
     help_text += "You can also ask the AI to run bash commands (with some restrictions)"
 
-    console.print(Panel(help_text))
+    user_interface.handle_system_message(help_text)
 
 
 @cli_tools.tool("a")
-def add(console, sandbox, user_input, *args, **kwargs):
+def add(user_interface, sandbox, user_input, *args, **kwargs):
     """
     Add file or directory to sandbox
     """
     path = user_input[4:].strip()
     sandbox.get_directory_listing()  # This will update the internal listing
-    console.print(f"[bold green]Added {path} to sandbox[/bold green]")
-    tree(console, sandbox)
+    user_interface.handle_system_message(f"Added {path} to sandbox")
+    tree(user_interface, sandbox)
 
 
 @cli_tools.tool("remove", "delete")
-def rm(console, sandbox, user_input, *args, **kwargs):
+def rm(user_interface, sandbox, user_input, *args, **kwargs):
     """
     Remove a file or directory from sandbox
     """
     path = user_input[3:].strip()
     sandbox.get_directory_listing()  # This will update the internal listing
-    console.print(f"[bold green]Removed {path} from sandbox[/bold green]")
-    tree(console, sandbox)
+    user_interface.handle_system_message(f"Removed {path} from sandbox")
+    tree(user_interface, sandbox)
 
 
 @cli_tools.tool("ls", "list")
-def tree(console, sandbox, *args, **kwargs):
+def tree(user_interface, sandbox, *args, **kwargs):
     """
     List contents of the sandbox
     """
     sandbox_contents = sandbox.get_directory_listing()
-    console.print(
-        Panel(
-            "[bold cyan]Sandbox contents:[/bold cyan]\n"
-            + "\n".join(f"[cyan]{item}[/cyan]" for item in sandbox_contents)
-        )
+    content = "[bold cyan]Sandbox contents:[/bold cyan]\n" + "\n".join(
+        f"[cyan]{item}[/cyan]" for item in sandbox_contents
     )
+    user_interface.handle_system_message(content)
 
 
 @cli_tools.tool("dump")
-def dump(console, sandbox, user_input, *args, **kwargs):
+def dump(user_interface, sandbox, user_input, *args, **kwargs):
     """
     Render the system message, tool specs, and chat history
     """
-    console.print("[bold cyan]System Message:[/bold cyan]")
-    console.print(create_system_message(sandbox))
-
-    console.print("\n[bold cyan]Tool Specifications:[/bold cyan]")
-    console.print(TOOLS_SCHEMA)
-
-    console.print("\n[bold cyan]Chat History:[/bold cyan]")
+    content = "[bold cyan]System Message:[/bold cyan]\n"
+    content += create_system_message(sandbox)
+    content += "\n\n[bold cyan]Tool Specifications:[/bold cyan]\n"
+    content += TOOLS_SCHEMA
+    content += "\n\n[bold cyan]Chat History:[/bold cyan]\n"
     for message in kwargs["chat_history"]:
-        console.print(f"[bold]{message['role']}:[/bold] {message['content']}")
+        content += f"\n[bold]{message['role']}:[/bold] {message['content']}"
+
+    user_interface.handle_system_message(content)
 
 
 @cli_tools.tool("exec")
-def exec(console, sandbox, user_input, *args, **kwargs):
+def exec(user_interface, sandbox, user_input, *args, **kwargs):
     """
     Execute a bash command and optionally add it to tool result buffer
     """
     command = user_input[5:].strip()  # Remove '/exec' from the beginning
     result = run_bash_command(sandbox, command)
 
-    console.print("[bold cyan]Command Output:[/bold cyan]")
-    console.print(result)
+    user_interface.handle_system_message(
+        f"[bold cyan]Command Output:[/bold cyan]\n{result}"
+    )
 
     add_to_buffer = (
-        console.input(
+        user_interface.get_user_input(
             "[bold yellow]Add command and output to tool result buffer? (y/n): [/bold yellow]"
         )
         .strip()
@@ -192,11 +195,11 @@ def exec(console, sandbox, user_input, *args, **kwargs):
         chat_entry = f"Executed bash command: {command}\n\nCommand output:\n{result}"
         tool_result_buffer = kwargs.get("tool_result_buffer", [])
         tool_result_buffer.append({"role": "user", "content": chat_entry})
-        console.print(
+        user_interface.handle_system_message(
             "[bold green]Command and output added to tool result buffer as a user message.[/bold green]"
         )
     else:
-        console.print(
+        user_interface.handle_system_message(
             "[bold yellow]Command and output not added to tool result buffer.[/bold yellow]"
         )
 
@@ -243,24 +246,28 @@ def save_config(config: dict, filename: str = "config.json") -> None:
 
 
 @cli_tools.tool
-def update_config(console, sandbox, user_input, *args, **kwargs):
+def update_config(user_interface, sandbox, user_input, *args, **kwargs):
     """
     Update the configuration file with a new key-value pair
     """
     parts = user_input.split(maxsplit=3)
     if len(parts) != 4:
-        console.print("[bold red]Usage: /update_config <key> <value>[/bold red]")
+        user_interface.handle_system_message(
+            "[bold red]Usage: /update_config <key> <value>[/bold red]"
+        )
         return
 
     _, key, value = parts[1:]
     config = load_config()
     config[key] = value
     save_config(config)
-    console.print(f"[bold green]Updated config: {key} = {value}[/bold green]")
+    user_interface.handle_system_message(
+        f"[bold green]Updated config: {key} = {value}[/bold green]"
+    )
 
 
 @cli_tools.tool
-def archive_chat(console, sandbox, user_input, *args, **kwargs):
+def archive_chat(user_interface, sandbox, user_input, *args, **kwargs):
     """
     Archive the current chat history to a JSON file in the application data directory
     """
@@ -289,7 +296,9 @@ def archive_chat(console, sandbox, user_input, *args, **kwargs):
     with open(archive_file, "w") as f:
         serialize_to_file(archive_data, f, indent=2)
 
-    console.print(f"[bold green]Chat history archived to {archive_file}[/bold green]")
+    user_interface.handle_system_message(
+        f"[bold green]Chat history archived to {archive_file}[/bold green]"
+    )
 
 
 class CustomCompleter(Completer):
@@ -311,16 +320,13 @@ class CustomCompleter(Completer):
 
 
 @cli_tools.tool()
-def commit(console, sandbox, user_input, *args, **kwargs):
+def commit(user_interface, sandbox, user_input, *args, **kwargs):
     # Stage all unstaged changes
     stage_result = run_bash_command(sandbox, "git add -A")
-    console.print("[bold green]Staged all changes:[/bold green]")
-    console.print(stage_result)
+    user_interface.handle_system_message(
+        "[bold green]Staged all changes:[/bold green]\n" + stage_result
+    )
 
     # Commit the changes
     result = run_commit()
-    panel = Panel(
-        result,
-        title="Commit",
-    )
-    console.print(panel)
+    user_interface.handle_system_message(result)

@@ -1,3 +1,4 @@
+import contextlib
 from typing import Dict, Any
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import TextArea, Button, TabPane, TabbedContent, Static
@@ -114,6 +115,11 @@ class TerminalUserInterface(UserInterface):
 
     def handle_user_input(self, user_input: str):
         self.app.append_to_conversation("human", user_input)
+
+    def status(
+        self, message: str, spinner: str = None
+    ) -> contextlib.AbstractContextManager:
+        return contextlib.AbstractContextManager()
 
     def display_token_count(
         self,
