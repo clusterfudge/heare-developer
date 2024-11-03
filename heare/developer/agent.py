@@ -288,7 +288,7 @@ def run(
                         tool_use = part
                         result = invoke_took(sandbox, tool_use)
                         tool_result_buffer.append(result)
-                        user_interface.handle_tool_result(tool_use.name, tool_use.name)
+                        user_interface.handle_tool_result(tool_use.name, result)
             elif final_message.stop_reason == "max_tokens":
                 user_interface.handle_assistant_message(
                     "[bold red]Hit max tokens.[/bold red]"
