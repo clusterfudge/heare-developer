@@ -79,7 +79,8 @@ def run_commit():
         return "Error: Pre-commit hooks failed. Please fix the issues and try again."
     elif pre_commit_result is True:
         print("Pre-commit hooks ran successfully.")
-    # If pre_commit_result is None, pre-commit is not installed, so we continue without it
+    elif pre_commit_result is None:
+        print("Note: pre-commit is not installed. Skipping pre-commit hooks.")
 
     commit_message = generate_commit_message(diff)
     if commit_message.startswith("Error"):
