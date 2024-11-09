@@ -1,5 +1,6 @@
 import subprocess
 import os
+import shutil
 from anthropic import Anthropic
 
 
@@ -57,13 +58,15 @@ def commit_changes(message):
 
 
 def run_pre_commit_hooks():
+    # Check if pre-commit is available in PATH
+    if not shutil.which("pre-commit"):
+        return None  # pre-commit is not installed
+
     try:
         subprocess.run(["pre-commit", "run", "--all-files"], check=True)
         return True
     except subprocess.CalledProcessError:
         return False
-    except FileNotFoundError:
-        return None  # pre-commit is not installed
 
 
 def run_commit():
