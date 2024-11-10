@@ -1,4 +1,6 @@
 import os
+import tempfile
+import subprocess
 from enum import Enum, auto
 from typing import Dict, Callable
 
@@ -146,16 +148,51 @@ class Sandbox:
     def write_file(self, file_path, content):
         """
         Write content to a file within the sandbox.
+        If the file already exists, generates a diff in patch format.
         """
-        if not self.check_permissions("write_file", file_path, {"content": content}):
-            raise PermissionError
         full_path = os.path.join(self.root_directory, file_path)
         if not self._is_path_in_sandbox(full_path):
             raise ValueError(f"File path {file_path} is outside the sandbox")
 
-        os.makedirs(os.path.dirname(full_path), exist_ok=True)
-        with open(full_path, "w") as file:
-            file.write(content)
+        if os.path.exists(full_path):
+            # Create a temporary file with the new content
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".tmp", delete=False
+            ) as tmp_file:
+                tmp_file.write(content)
+                tmp_path = tmp_file.name
+
+            try:
+                # Generate diff between the existing file and new content
+                result = subprocess.run(
+                    ["diff", "-u", full_path, tmp_path], capture_output=True, text=True
+                )
+                diff_output = result.stdout
+                if not diff_output:  # No differences
+                    diff_output = "(no changes)"
+
+                # Update action_arguments with the diff instead of full content
+                if not self.check_permissions(
+                    "write_file", file_path, {"diff": diff_output}
+                ):
+                    raise PermissionError
+
+                # Write the new content if permissions were granted
+                with open(full_path, "w") as file:
+                    file.write(content)
+            finally:
+                # Clean up temporary file
+                os.unlink(tmp_path)
+        else:
+            # For new files, show full content in permissions check
+            if not self.check_permissions(
+                "write_file", file_path, {"content": content}
+            ):
+                raise PermissionError
+
+            os.makedirs(os.path.dirname(full_path), exist_ok=True)
+            with open(full_path, "w") as file:
+                file.write(content)
 
     def create_file(self, file_path, content=""):
         """
