@@ -228,11 +228,33 @@ def main():
         default="remember_per_resource",
         help="Set the sandbox mode for file operations",
     )
+    arg_parser.add_argument(
+        "--prompt",
+        help="Initial prompt for the assistant. If starts with @, will read from file",
+    )
     args = arg_parser.parse_args()
 
     console = Console()
     user_interface = CLIUserInterface(console, args.sandbox_mode)
-    user_interface.display_welcome_message()
+
+    initial_prompt = None
+    if args.prompt:
+        if args.prompt.startswith("@"):
+            filename = args.prompt[1:]
+            try:
+                with open(filename, "r") as f:
+                    initial_prompt = f.read().strip()
+            except FileNotFoundError:
+                console.print(f"[red]Error: Could not find file {filename}[/red]")
+                return
+            except Exception as e:
+                console.print(f"[red]Error reading file {filename}: {str(e)}[/red]")
+                return
+        else:
+            initial_prompt = args.prompt
+
+    if not initial_prompt:
+        user_interface.display_welcome_message()
 
     run(
         MODEL_MAP.get(args.model),
@@ -240,6 +262,8 @@ def main():
         args.sandbox_mode,
         cli_tools,
         user_interface,
+        initial_prompt=initial_prompt,
+        single_response=bool(initial_prompt),
     )
 
 

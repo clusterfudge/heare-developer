@@ -81,6 +81,8 @@ def run(
     sandbox_mode,
     cli_tools,
     user_interface: UserInterface,
+    initial_prompt: str = None,
+    single_response: bool = False,
 ):
     load_dotenv()
 
@@ -107,28 +109,29 @@ def run(
     client = anthropic.Client(api_key=api_key)
     rate_limiter = RateLimiter()
 
-    commands = {
-        "/quit": "Quit the chat",
-        "/exit": "Quit the chat",
-        "/restart": "Clear chat history and start over",
-    }
-    for tool_name, spec in cli_tools.tools.items():
-        commands[f"/{tool_name}"] = spec["docstring"]
+    if not single_response:
+        commands = {
+            "/quit": "Quit the chat",
+            "/exit": "Quit the chat",
+            "/restart": "Clear chat history and start over",
+        }
+        for tool_name, spec in cli_tools.tools.items():
+            commands[f"/{tool_name}"] = spec["docstring"]
 
-    command_message = "[bold yellow]Available commands:[/bold yellow]\n"
+        command_message = "[bold yellow]Available commands:[/bold yellow]\n"
 
-    for tool_name, spec in cli_tools.tools.items():
+        for tool_name, spec in cli_tools.tools.items():
+            command_message += (
+                f"[bold yellow]/{tool_name}: {spec['docstring']}[/bold yellow]\n"
+            )
+
+        command_message += "[bold yellow]/quit, /exit - Quit the chat[/bold yellow]\n"
+
         command_message += (
-            f"[bold yellow]/{tool_name}: {spec['docstring']}[/bold yellow]\n"
+            "[bold yellow]/restart - Clear chat history and start over[/bold yellow]\n"
         )
 
-    command_message += "[bold yellow]/quit, /exit - Quit the chat[/bold yellow]\n"
-
-    command_message += (
-        "[bold yellow]/restart - Clear chat history and start over[/bold yellow]\n"
-    )
-
-    user_interface.handle_system_message(command_message)
+        user_interface.handle_system_message(command_message)
 
     chat_history = []
     tool_result_buffer = []
@@ -140,9 +143,16 @@ def run(
     interrupt_count = 0
     last_interrupt_time = 0
 
+    # Handle initial prompt if provided
+    if initial_prompt:
+        chat_history.append({"role": "user", "content": initial_prompt})
+        user_interface.handle_user_input(
+            f"[bold blue]You:[/bold blue] {initial_prompt}"
+        )
+
     while True:
         try:
-            if not tool_result_buffer:
+            if not tool_result_buffer and not initial_prompt:
                 user_input = user_interface.get_user_input(" > ")
 
                 command_name = (
@@ -199,10 +209,12 @@ def run(
                 )
 
             else:
-                chat_history.append(
-                    {"role": "user", "content": tool_result_buffer.copy()}
-                )
-                tool_result_buffer.clear()
+                if tool_result_buffer:
+                    chat_history.append(
+                        {"role": "user", "content": tool_result_buffer.copy()}
+                    )
+                    tool_result_buffer.clear()
+                initial_prompt = None
 
             system_message = create_system_message(sandbox)
             ai_response = ""
@@ -293,6 +305,10 @@ def run(
 
             interrupt_count = 0
             last_interrupt_time = 0
+
+            # Exit after one response if in single-response mode
+            if single_response and not tool_result_buffer:
+                break
 
         except KeyboardInterrupt:
             current_time = time.time()
