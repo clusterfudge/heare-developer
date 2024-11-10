@@ -1,4 +1,4 @@
-from setuptools import find_packages, setup
+from setuptools import find_namespace_packages, setup
 
 with open("requirements.txt") as f:
     requirements = f.read().splitlines()
@@ -6,7 +6,7 @@ with open("requirements.txt") as f:
 setup(
     name="heare-developer",
     use_scm_version=True,
-    packages=find_packages(),
+    packages=find_namespace_packages(include=["heare*"]),
     include_package_data=True,
     install_requires=requirements,
     setup_requires=["setuptools_scm"],
