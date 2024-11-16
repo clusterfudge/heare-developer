@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from heare.developer.utils import archive_chat
 from heare.developer.prompt import create_system_message
 from heare.developer.sandbox import Sandbox
-from heare.developer.tools import TOOLS_SCHEMA, invoke_took
+from heare.developer.toolbox import Toolbox
 from heare.developer.user_interface import UserInterface
 
 
@@ -86,18 +86,12 @@ def run(
 ):
     load_dotenv()
 
-    if sandbox_contents:
-        sandbox = Sandbox(
-            sandbox_contents[0],
-            mode=sandbox_mode,
-            permission_check_callback=user_interface.permission_callback,
-        )
-    else:
-        sandbox = Sandbox(
-            os.getcwd(),
-            mode=sandbox_mode,
-            permission_check_callback=user_interface.permission_callback,
-        )
+    sandbox = Sandbox(
+        sandbox_contents[0] if sandbox_contents else os.getcwd(),
+        mode=sandbox_mode,
+        permission_check_callback=user_interface.permission_callback,
+    )
+    toolbox = Toolbox(sandbox)
 
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
@@ -115,12 +109,12 @@ def run(
             "/exit": "Quit the chat",
             "/restart": "Clear chat history and start over",
         }
-        for tool_name, spec in cli_tools.tools.items():
+        for tool_name, spec in toolbox.local.items():
             commands[f"/{tool_name}"] = spec["docstring"]
 
         command_message = "[bold yellow]Available commands:[/bold yellow]\n"
 
-        for tool_name, spec in cli_tools.tools.items():
+        for tool_name, spec in toolbox.local.items():
             command_message += (
                 f"[bold yellow]/{tool_name}: {spec['docstring']}[/bold yellow]\n"
             )
@@ -183,10 +177,10 @@ def run(
                             total_tokens=total_tokens,
                             total_cost=total_cost,
                         )
-                    elif command_name in cli_tools.tools.keys():
-                        cli_tool = cli_tools.get_tool(command_name)
-                        if cli_tool:
-                            cli_tool["invoke"](
+                    elif command_name in toolbox.local:
+                        tool = toolbox.local.get(command_name)
+                        if tool:
+                            tool["invoke"](
                                 user_interface=user_interface,
                                 sandbox=sandbox,
                                 user_input=user_input,
@@ -234,7 +228,7 @@ def run(
                             max_tokens=4096,
                             messages=chat_history,
                             model=model["title"],
-                            tools=TOOLS_SCHEMA,
+                            tools=toolbox.agent_schema,
                         ) as stream:
                             for chunk in stream:
                                 if chunk.type == "text":
@@ -294,10 +288,9 @@ def run(
             if final_message.stop_reason == "tool_use":
                 for part in final_message.content:
                     if part.type == "tool_use":
-                        tool_use = part
-                        result = invoke_took(sandbox, tool_use)
+                        result = toolbox.invoke_agent_tool(part)
                         tool_result_buffer.append(result)
-                        user_interface.handle_tool_result(tool_use.name, result)
+                        user_interface.handle_tool_result(part.name, result)
             elif final_message.stop_reason == "max_tokens":
                 user_interface.handle_assistant_message(
                     "[bold red]Hit max tokens.[/bold red]"

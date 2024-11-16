@@ -112,6 +112,15 @@ class MockUserInterface(UserInterface):
         return NoOpContextManager()
 
 
+class MockToolbox:
+    def __init__(self, local_tools=None):
+        self.local = local_tools or {}
+        self.agent_schema = []
+
+    def invoke_agent_tool(self, tool_use):
+        return {"type": "tool_result", "tool_use_id": "test", "content": "test result"}
+
+
 @pytest.fixture
 def mock_anthropic():
     with patch("anthropic.Client") as mock:
@@ -145,17 +154,24 @@ def mock_system_message():
         yield mock
 
 
+@pytest.fixture
+def mock_toolbox():
+    with patch("heare.developer.agent.Toolbox") as mock:
+        mock_instance = MockToolbox()
+        mock.return_value = mock_instance
+        yield mock_instance
+
+
 def test_single_response_mode(
-    mock_anthropic, mock_environment, model_config, mock_system_message
+    mock_anthropic, mock_environment, model_config, mock_system_message, mock_toolbox
 ):
     ui = MockUserInterface()
-    mock_tools = Mock(tools={})
 
     run(
         model_config,
         {},
         "remember_per_resource",
-        mock_tools,
+        mock_toolbox,
         ui,
         initial_prompt="Hello",
         single_response=True,
@@ -172,17 +188,16 @@ def test_single_response_mode(
 
 
 def test_initial_prompt_without_single_response(
-    mock_anthropic, mock_environment, model_config, mock_system_message
+    mock_anthropic, mock_environment, model_config, mock_system_message, mock_toolbox
 ):
     ui = MockUserInterface()
     ui.inputs = ["/quit"]  # Add quit command to end the session
-    mock_tools = Mock(tools={})
 
     run(
         model_config,
         {},
         "remember_per_resource",
-        mock_tools,
+        mock_toolbox,
         ui,
         initial_prompt="Hello",
         single_response=False,
@@ -197,16 +212,15 @@ def test_initial_prompt_without_single_response(
 
 
 def test_command_display_with_single_response(
-    mock_anthropic, mock_environment, model_config, mock_system_message
+    mock_anthropic, mock_environment, model_config, mock_system_message, mock_toolbox
 ):
     ui = MockUserInterface()
-    mock_tools = Mock(tools={})
 
     run(
         model_config,
         {},
         "remember_per_resource",
-        mock_tools,
+        mock_toolbox,
         ui,
         initial_prompt="Hello",
         single_response=True,
@@ -221,13 +235,14 @@ def test_command_display_without_single_response(
 ):
     ui = MockUserInterface()
     ui.inputs = ["/quit"]
-    mock_tools = Mock(tools={"test": {"docstring": "Test command"}})
+
+    mock_toolbox = MockToolbox({"test": {"docstring": "Test command"}})
 
     run(
         model_config,
         {},
         "remember_per_resource",
-        mock_tools,
+        mock_toolbox,
         ui,
         initial_prompt=None,
         single_response=False,
