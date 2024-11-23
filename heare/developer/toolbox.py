@@ -6,10 +6,14 @@ import inspect
 from .commit import run_commit
 
 
+from .tools import ALL_TOOLS
+
+
 class Toolbox:
-    def __init__(self, sandbox: Sandbox):
+    def __init__(self, sandbox: Sandbox, agent_tools: List[Callable] = ALL_TOOLS):
         self.sandbox = sandbox
         self.local = {}  # CLI tools
+        self.agent_tools = agent_tools
 
         self.register_cli_tool(
             "archive",
@@ -47,89 +51,12 @@ class Toolbox:
 
         # Agent tools (used by the LLM)
         self.agent = {
-            "read_file": self._read_file,
-            "write_file": self._write_file,
-            "list_directory": self._list_directory,
-            "run_bash_command": self._run_bash_command,
-            "edit_file": self._edit_file,
+            tool.__name__: getattr(self, f"_{tool.__name__}")
+            for tool in self.agent_tools
         }
 
         # Schema for agent tools
-        self.agent_schema = [
-            {
-                "name": "read_file",
-                "description": "Read the contents of a file",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "path": {"type": "string", "description": "Path to the file"}
-                    },
-                    "required": ["path"],
-                },
-            },
-            {
-                "name": "write_file",
-                "description": "Write content to a file",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "path": {"type": "string", "description": "Path to the file"},
-                        "content": {
-                            "type": "string",
-                            "description": "Content to write",
-                        },
-                    },
-                    "required": ["path", "content"],
-                },
-            },
-            {
-                "name": "list_directory",
-                "description": "List contents of a directory",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "path": {
-                            "type": "string",
-                            "description": "Path to the directory",
-                        }
-                    },
-                    "required": ["path"],
-                },
-            },
-            {
-                "name": "run_bash_command",
-                "description": "Run a bash command",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "command": {
-                            "type": "string",
-                            "description": "Bash command to execute",
-                        }
-                    },
-                    "required": ["command"],
-                },
-            },
-            {
-                "name": "edit_file",
-                "description": "Make a targeted edit to a file",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "path": {"type": "string", "description": "Path to the file"},
-                        "match_text": {
-                            "type": "string",
-                            "description": "Text to match",
-                        },
-                        "replace_text": {
-                            "type": "string",
-                            "description": "Text to replace the matched text with",
-                        },
-                    },
-                    "required": ["path", "match_text", "replace_text"],
-                },
-            },
-        ]
+        self.agent_schema = self.schemas()
 
     def register_cli_tool(
         self,
@@ -152,18 +79,10 @@ class Toolbox:
 
     def invoke_agent_tool(self, tool_use):
         """Invoke an agent tool based on the tool use object."""
-        function_name = tool_use.name
-        arguments = tool_use.input
+        from .tools import invoke_tool
 
-        if function_name not in self.agent:
-            return {
-                "type": "tool_result",
-                "tool_use_id": tool_use.id,
-                "content": f"Unknown function: {function_name}",
-            }
-
-        result = self.agent[function_name](**arguments)
-        return {"type": "tool_result", "tool_use_id": tool_use.id, "content": result}
+        # Convert agent tools to a list matching tools format
+        return invoke_tool(self.sandbox, tool_use, tools=self.agent_tools)
 
     # CLI Tools
     def _help(self, user_interface, sandbox, user_input, *args, **kwargs):
@@ -390,3 +309,15 @@ class Toolbox:
             return f"Error: No read or write permission for {path}"
         except Exception as e:
             return f"Error editing file: {str(e)}"
+
+    def schemas(self) -> List[dict]:
+        """Generate schemas for all tools in the toolbox.
+
+        Returns a list of schema dictionaries matching the format of TOOLS_SCHEMA.
+        Each schema has name, description, and input_schema with properties and required fields.
+        """
+        schemas = []
+        for tool in self.agent_tools:
+            if hasattr(tool, "schema"):
+                schemas.append(tool.schema())
+        return schemas

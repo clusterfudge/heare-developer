@@ -1,9 +1,100 @@
 import os
 import subprocess
+import inspect
+from functools import wraps
+from typing import Optional, Union, get_origin, get_args, List, Callable
 from .sandbox import Sandbox
 
 
-def run_bash_command(sandbox: Sandbox, command):
+def tool(func):
+    """Decorator that adds a schema method to a function and validates sandbox parameter"""
+    # Validate that first parameter is sandbox: Sandbox
+    sig = inspect.signature(func)
+    params = list(sig.parameters.items())
+    if not params or params[0][0] != "sandbox":
+        raise ValueError(f"First parameter of {func.__name__} must be 'sandbox'")
+
+    type_hints = inspect.get_annotations(func)
+    if type_hints.get("sandbox") != Sandbox:
+        raise ValueError(
+            f"First parameter of {func.__name__} must be annotated with 'Sandbox' type"
+        )
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        return func(*args, **kwargs)
+
+    def schema():
+        # Parse the docstring to get description and param docs
+        docstring = inspect.getdoc(func)
+        if docstring:
+            # Split into description and param sections
+            parts = docstring.split("\n\nArgs:")
+            description = parts[0].strip()
+
+            param_docs = {}
+            if len(parts) > 1:
+                param_section = parts[1].strip()
+                # Parse each parameter description
+                for line in param_section.split("\n"):
+                    line = line.strip()
+                    if line and ":" in line:
+                        param_name, param_desc = line.split(":", 1)
+                        param_docs[param_name.strip()] = param_desc.strip()
+        else:
+            description = ""
+            param_docs = {}
+
+        # Get type hints
+        type_hints = inspect.get_annotations(func)
+
+        # Create schema
+        schema = {
+            "name": func.__name__,
+            "description": description,
+            "input_schema": {"type": "object", "properties": {}, "required": []},
+        }
+
+        # Process parameters
+        sig = inspect.signature(func)
+        for param_name, param in sig.parameters.items():
+            if param_name == "sandbox":  # Skip sandbox parameter
+                continue
+
+            # Check if parameter is optional
+            type_hint = type_hints.get(param_name)
+            is_optional = False
+            if type_hint is not None:
+                origin = get_origin(type_hint)
+                if origin is Union:
+                    args = get_args(type_hint)
+                    is_optional = type(None) in args
+
+            if not is_optional:
+                schema["input_schema"]["required"].append(param_name)
+
+            # Get parameter description from docstring
+            param_desc = param_docs.get(param_name, "")
+
+            # Add to properties
+            schema["input_schema"]["properties"][param_name] = {
+                "type": "string",  # Default to string, could be enhanced to detect other types
+                "description": param_desc,
+            }
+
+        return schema
+
+    wrapper.schema = schema
+    return wrapper
+
+
+@tool
+def run_bash_command(sandbox: Sandbox, command: str):
+    """Run a bash command in a sandboxed environment with safety checks.
+
+    Args:
+        command: The bash command to execute
+    """
     try:
         # Check for potentially dangerous commands
         dangerous_commands = [
@@ -43,7 +134,13 @@ def run_bash_command(sandbox: Sandbox, command):
         return f"Error executing command: {str(e)}"
 
 
-def read_file(sandbox: Sandbox, path):
+@tool
+def read_file(sandbox: Sandbox, path: str):
+    """Read and return the contents of a file from the sandbox.
+
+    Args:
+        path: Path to the file to read
+    """
     try:
         return sandbox.read_file(path)
     except PermissionError:
@@ -52,7 +149,14 @@ def read_file(sandbox: Sandbox, path):
         return f"Error reading file: {str(e)}"
 
 
-def write_file(sandbox: Sandbox, path, content):
+@tool
+def write_file(sandbox: Sandbox, path: str, content: str):
+    """Write content to a file in the sandbox.
+
+    Args:
+        path: Path where the file should be written
+        content: Content to write to the file
+    """
     try:
         sandbox.write_file(path, content)
         return "File written successfully"
@@ -62,7 +166,14 @@ def write_file(sandbox: Sandbox, path, content):
         return f"Error writing file: {str(e)}"
 
 
-def list_directory(sandbox: Sandbox, path):
+@tool
+def list_directory(sandbox: Sandbox, path: str, recursive: Optional[bool] = None):
+    """List contents of a directory in the sandbox.
+
+    Args:
+        path: Path to the directory to list
+        recursive: If True, list contents recursively (optional)
+    """
     try:
         contents = sandbox.get_directory_listing()
 
@@ -75,7 +186,15 @@ def list_directory(sandbox: Sandbox, path):
         return f"Error listing directory: {str(e)}"
 
 
-def edit_file(sandbox, path, match_text, replace_text):
+@tool
+def edit_file(sandbox: Sandbox, path: str, match_text: str, replace_text: str):
+    """Make a targeted edit to a file in the sandbox by replacing specific text.
+
+    Args:
+        path: Path to the file to edit
+        match_text: Text to find in the file
+        replace_text: Text to replace the matched text with
+    """
     try:
         content = sandbox.read_file(path)
 
@@ -98,89 +217,34 @@ def edit_file(sandbox, path, match_text, replace_text):
         return f"Error editing file: {str(e)}"
 
 
-TOOLS_SCHEMA = [
-    {
-        "name": "read_file",
-        "description": "Read the contents of a file",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "path": {"type": "string", "description": "Path to the file"}
-            },
-            "required": ["path"],
-        },
-    },
-    {
-        "name": "write_file",
-        "description": "Write content to a file",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "path": {"type": "string", "description": "Path to the file"},
-                "content": {"type": "string", "description": "Content to write"},
-            },
-            "required": ["path", "content"],
-        },
-    },
-    {
-        "name": "list_directory",
-        "description": "List contents of a directory",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "path": {"type": "string", "description": "Path to the directory"}
-            },
-            "required": ["path"],
-        },
-    },
-    {
-        "name": "run_bash_command",
-        "description": "Run a bash command",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "command": {"type": "string", "description": "Bash command to execute"}
-            },
-            "required": ["command"],
-        },
-    },
-    {
-        "name": "edit_file",
-        "description": "Make a targeted edit to a file",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "path": {"type": "string", "description": "Path to the file"},
-                "match_text": {"type": "string", "description": "Text to match"},
-                "replace_text": {
-                    "type": "string",
-                    "description": "Text to replace the matched text with",
-                },
-            },
-            "required": ["path", "match_text", "replace_text"],
-        },
-    },
-]
+# List of all available tools
+ALL_TOOLS = [read_file, write_file, list_directory, run_bash_command, edit_file]
 
 
-def invoke_took(sandbox, tool_use):
+def invoke_tool(sandbox: Sandbox, tool_use, tools: List[Callable] = ALL_TOOLS):
+    """Invoke a tool based on the tool_use specification.
+
+    Args:
+        sandbox: The sandbox environment
+        tool_use: The tool use specification containing name, input, and id
+        tools: List of tool functions to use. Defaults to ALL_TOOLS.
+    """
     function_name = tool_use.name
     arguments = tool_use.input
-    if function_name == "read_file":
-        result = read_file(sandbox, arguments["path"])
-    elif function_name == "write_file":
-        result = write_file(sandbox, arguments["path"], arguments["content"])
-    elif function_name == "list_directory":
-        result = list_directory(sandbox, arguments["path"])
-    elif function_name == "run_bash_command":
-        result = run_bash_command(sandbox, arguments["command"])
-    elif function_name == "edit_file":
-        result = edit_file(
-            sandbox,
-            arguments["path"],
-            arguments["match_text"],
-            arguments["replace_text"],
-        )
-    else:
-        result = f"Unknown function: {function_name}"
+
+    # Create a mapping of tool names to functions
+    tool_map = {func.__name__: func for func in tools}
+
+    # Look up the tool function
+    tool_func = tool_map.get(function_name)
+    if tool_func is None:
+        return {
+            "type": "tool_result",
+            "tool_use_id": tool_use.id,
+            "content": f"Unknown function: {function_name}",
+        }
+
+    # Call the tool function with the sandbox and arguments
+    result = tool_func(sandbox, **arguments)
+
     return {"type": "tool_result", "tool_use_id": tool_use.id, "content": result}
