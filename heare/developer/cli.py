@@ -11,9 +11,10 @@ from prompt_toolkit.history import FileHistory
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 
 from heare.developer.agent import run
-from heare.developer.utils import cli_tools, CustomCompleter
 from heare.developer.sandbox import SandboxMode
 from heare.developer.user_interface import UserInterface
+from heare.developer.toolbox import Toolbox
+from prompt_toolkit.completion import Completer, WordCompleter, Completion
 
 MODEL_MAP = {
     "opus": {
@@ -48,25 +49,29 @@ class CLIUserInterface(UserInterface):
     def __init__(self, console: Console, sandbox_mode: SandboxMode):
         self.console = console
         self.sandbox_mode = sandbox_mode
+        self.toolbox = None  # Will be set after Sandbox is created
+
+        history = FileHistory("./chat_history.txt")
+        self.session = PromptSession(
+            history=history,
+            auto_suggest=AutoSuggestFromHistory(),
+            enable_history_search=True,
+            complete_while_typing=True,
+        )
+
+    def set_toolbox(self, toolbox: Toolbox):
+        """Set the toolbox and initialize the completer with its commands"""
+        self.toolbox = toolbox
 
         commands = {
             "!quit": "Quit the chat",
             "!exit": "Quit the chat",
             "!restart": "Clear chat history and start over",
         }
-        for tool_name, spec in cli_tools.tools.items():
+        for tool_name, spec in toolbox.local.items():
             commands[f"!{tool_name}"] = spec["docstring"]
 
-        history = FileHistory("./chat_history.txt")
-        custom_completer = CustomCompleter(commands, history)
-
-        self.session = PromptSession(
-            history=history,
-            auto_suggest=AutoSuggestFromHistory(),
-            enable_history_search=True,
-            completer=custom_completer,
-            complete_while_typing=True,
-        )
+        self.session.completer = CustomCompleter(commands, self.session.history)
 
     def handle_system_message(self, message: str) -> None:
         self.console.print("\n")
@@ -211,6 +216,24 @@ class CLIUserInterface(UserInterface):
         return self.console.status(message, spinner=spinner)
 
 
+class CustomCompleter(Completer):
+    def __init__(self, commands, history):
+        self.commands = commands
+        self.history = history
+        self.word_completer = WordCompleter(
+            list(commands.keys()), ignore_case=True, sentence=True, meta_dict=commands
+        )
+
+    def get_completions(self, document, complete_event):
+        text = document.text_before_cursor.lstrip()
+        if text.startswith("/"):
+            yield from self.word_completer.get_completions(document, complete_event)
+        else:
+            for history_item in reversed(self.history.get_strings()):
+                if history_item.startswith(text):
+                    yield Completion(history_item, start_position=-len(text))
+
+
 def main():
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument("sandbox", nargs="*")
@@ -260,7 +283,7 @@ def main():
         MODEL_MAP.get(args.model),
         args.sandbox,
         args.sandbox_mode,
-        cli_tools,
+        None,  # Toolbox will be created in run()
         user_interface,
         initial_prompt=initial_prompt,
         single_response=bool(initial_prompt),

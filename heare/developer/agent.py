@@ -7,7 +7,6 @@ import anthropic
 from anthropic.types import TextBlock
 from dotenv import load_dotenv
 
-from heare.developer.utils import archive_chat
 from heare.developer.prompt import create_system_message
 from heare.developer.sandbox import Sandbox
 from heare.developer.toolbox import Toolbox
@@ -92,6 +91,8 @@ def run(
         permission_check_callback=user_interface.permission_callback,
     )
     toolbox = Toolbox(sandbox)
+    if hasattr(user_interface, "set_toolbox"):
+        user_interface.set_toolbox(toolbox)
 
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
@@ -167,16 +168,18 @@ def run(
                             "[bold green]Chat history cleared. Starting over.[/bold green]"
                         )
                     elif user_input.startswith("/archive"):
-                        archive_chat(
-                            user_interface=user_interface,
-                            sandbox=sandbox,
-                            user_input=user_input,
-                            chat_history=chat_history,
-                            prompt_tokens=prompt_tokens,
-                            completion_tokens=completion_tokens,
-                            total_tokens=total_tokens,
-                            total_cost=total_cost,
-                        )
+                        tool = toolbox.local.get("archive")
+                        if tool:
+                            tool["invoke"](
+                                user_interface=user_interface,
+                                sandbox=sandbox,
+                                user_input=user_input,
+                                chat_history=chat_history,
+                                prompt_tokens=prompt_tokens,
+                                completion_tokens=completion_tokens,
+                                total_tokens=total_tokens,
+                                total_cost=total_cost,
+                            )
                     elif command_name in toolbox.local:
                         tool = toolbox.local.get(command_name)
                         if tool:
