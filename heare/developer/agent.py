@@ -89,6 +89,7 @@ def run(
         sandbox_contents[0] if sandbox_contents else os.getcwd(),
         mode=sandbox_mode,
         permission_check_callback=user_interface.permission_callback,
+        permission_check_rendering_callback=user_interface.permission_rendering_callback,
     )
     toolbox = Toolbox(sandbox)
     if hasattr(user_interface, "set_toolbox"):

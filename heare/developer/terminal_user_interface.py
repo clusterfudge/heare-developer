@@ -75,6 +75,14 @@ class TerminalUserInterface(UserInterface):
 
         return self.permission_result
 
+    def permission_rendering_callback(
+        self,
+        action: str,
+        resource: str,
+        action_arguments: Dict | None,
+    ) -> None:
+        pass
+
     def handle_tool_use(
         self,
         tool_name: str,

@@ -39,6 +39,20 @@ class UserInterface(ABC):
         """
 
     @abstractmethod
+    def permission_rendering_callback(
+        self,
+        action: str,
+        resource: str,
+        action_arguments: Dict | None,
+    ) -> None:
+        """
+        :param action:
+        :param resource:
+        :param action_arguments:
+        :return: None
+        """
+
+    @abstractmethod
     def handle_tool_use(
         self,
         tool_name: str,

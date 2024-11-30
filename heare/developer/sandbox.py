@@ -16,6 +16,7 @@ class SandboxMode(Enum):
 
 
 PermissionCheckCallback = Callable[[str, str, SandboxMode, Dict | None], bool]
+PermissionCheckRenderingCallback = Callable[[str, str, Dict | None], None]
 
 
 def _default_permission_check_callback(
@@ -28,17 +29,28 @@ def _default_permission_check_callback(
     return response == "y"
 
 
+def _default_permission_check_rendering_callback(
+    action: str, resource: str, mode: SandboxMode, action_arguments: Dict | None = None
+):
+    pass
+
+
 class Sandbox:
     def __init__(
         self,
         root_directory: str,
         mode: SandboxMode,
         permission_check_callback: PermissionCheckCallback = None,
+        permission_check_rendering_callback: PermissionCheckRenderingCallback = None,
     ):
         self.root_directory = os.path.abspath(root_directory)
         self.mode = mode
         self._permission_check_callback = (
             permission_check_callback or _default_permission_check_callback
+        )
+        self._permission_check_rendering_callback = (
+            permission_check_rendering_callback
+            or _default_permission_check_rendering_callback
         )
         self.permissions_cache = self._initialize_cache()
         self.gitignore_spec = self._load_gitignore()
@@ -94,22 +106,24 @@ class Sandbox:
     def check_permissions(
         self, action: str, resource: str, action_arguments: Dict | None = None
     ) -> bool:
-        if self.mode == SandboxMode.ALLOW_ALL:
-            return True
-
         key = f"{action}:{resource}"
-
+        allowed = False
         if self.mode == SandboxMode.REMEMBER_ALL:
             assert isinstance(self.permissions_cache, dict)
             if key in self.permissions_cache:
-                return self.permissions_cache[key]
+                allowed = self.permissions_cache[key]
         elif self.mode == SandboxMode.REMEMBER_PER_RESOURCE:
             assert isinstance(self.permissions_cache, dict)
             if (
                 action in self.permissions_cache
                 and resource in self.permissions_cache[action]
             ):
-                return self.permissions_cache[action][resource]
+                allowed = self.permissions_cache[action][resource]
+
+        self._permission_check_rendering_callback(action, resource, action_arguments)
+
+        if allowed or self.mode == SandboxMode.ALLOW_ALL:
+            return True
 
         allowed = self._permission_check_callback(
             action, resource, self.mode, action_arguments
@@ -176,7 +190,7 @@ class Sandbox:
 
                 # Update action_arguments with the diff instead of full content
                 if not self.check_permissions(
-                    "write_file", file_path, {"diff": diff_output}
+                    "edit_file", file_path, {"diff": diff_output}
                 ):
                     raise PermissionError
 

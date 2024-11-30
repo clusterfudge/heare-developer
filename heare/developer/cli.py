@@ -101,22 +101,6 @@ class CLIUserInterface(UserInterface):
         sandbox_mode: SandboxMode,
         action_arguments: Dict | None,
     ) -> bool:
-        formatted_params = (
-            "\n".join([f"  {key}: {value}" for key, value in action_arguments.items()])
-            if action_arguments
-            else ""
-        )
-        self.console.print(
-            Panel(
-                f"[bold blue]Action:[/bold blue] {action}\n"
-                f"[bold cyan]Resource:[/bold cyan] {resource}\n"
-                f"[bold green]Arguments:[/bold green]\n{formatted_params}",
-                title="Permission Check",
-                expand=False,
-                border_style="bold yellow",
-            )
-        )
-
         response = (
             str(
                 self.console.input(
@@ -128,25 +112,35 @@ class CLIUserInterface(UserInterface):
         )
         return response == "y"
 
-    def handle_tool_use(
+    def permission_rendering_callback(
         self,
-        tool_name: str,
-        tool_params: Dict[str, Any],
-    ):
+        action: str,
+        resource: str,
+        action_arguments: Dict | None,
+    ) -> None:
+        if not action_arguments:
+            action_arguments = {}
         formatted_params = "\n".join(
-            [f"  {key}: {value}" for key, value in tool_params.items()]
+            [f"  {key}: {value}" for key, value in action_arguments.items()]
         )
 
         self.console.print(
             Panel(
-                f"[bold blue]Action:[/bold blue] {tool_name}\n"
-                f"[bold cyan]Resource:[/bold cyan] {tool_params.get('path', 'N/A')}\n"
+                f"[bold blue]Action:[/bold blue] {action}\n"
+                f"[bold cyan]Resource:[/bold cyan] {resource}\n"
                 f"[bold green]Arguments:[/bold green]\n{formatted_params}",
                 title="Permission Check",
                 expand=False,
                 border_style="bold yellow",
             )
         )
+
+    def handle_tool_use(
+        self,
+        tool_name: str,
+        tool_params: Dict[str, Any],
+    ):
+        pass
 
     def handle_tool_result(self, name: str, result: Dict[str, Any]) -> None:
         # Get the content based on tool type
