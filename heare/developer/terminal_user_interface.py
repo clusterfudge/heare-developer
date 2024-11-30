@@ -92,12 +92,21 @@ class TerminalUserInterface(UserInterface):
         self.app.show_sidebar()
 
     def handle_tool_result(self, name: str, result: Dict[str, Any]) -> None:
+        # Get the content based on tool type
         content = (
             result["content"]
             if name not in ["read_file", "write_file", "edit_file"]
             else "File operation completed"
         )
-        self.app.update_tool_result(f"Tool Result ({name}):\n{content}")
+
+        # Format the result to show both the command and output
+        formatted_result = (
+            f"Tool Command: {name}\n"
+            f"Parameters: {result.get('params', 'N/A')}\n"
+            f"\nOutput:\n{content}"
+        )
+
+        self.app.update_tool_result(formatted_result)
         self.app.show_sidebar(tab="Tool Result")
 
     def get_user_input(self, prompt: str = "") -> str:

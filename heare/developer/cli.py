@@ -149,15 +149,30 @@ class CLIUserInterface(UserInterface):
         )
 
     def handle_tool_result(self, name: str, result: Dict[str, Any]) -> None:
+        # Get the content based on tool type
         content = (
             result["content"]
             if name not in ["read_file", "write_file", "edit_file"]
             else "File operation completed"
         )
+
+        # Format parameters if they exist
+        params_str = ""
+        if "params" in result:
+            params_str = "\n".join(
+                f"  {key}: {value}" for key, value in result["params"].items()
+            )
+
+        display_text = (
+            f"[bold blue]Command:[/bold blue] {name}\n"
+            f"[bold cyan]Parameters:[/bold cyan]\n{params_str}\n"
+            f"[bold green]Result:[/bold green]\n{content}"
+        )
+
         self.console.print(
             Panel(
-                f"[bold green]Result:[/bold green]\n{content}",
-                title=f"Tool Result: {name}",
+                display_text,
+                title="Tool Result",
                 expand=False,
                 border_style="bold magenta",
             )

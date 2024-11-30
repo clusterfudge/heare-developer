@@ -291,6 +291,7 @@ def run(
             if final_message.stop_reason == "tool_use":
                 for part in final_message.content:
                     if part.type == "tool_use":
+                        user_interface.handle_tool_use(part.name, part.input)
                         result = toolbox.invoke_agent_tool(part)
                         tool_result_buffer.append(result)
                         user_interface.handle_tool_result(part.name, result)

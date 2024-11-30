@@ -43,13 +43,12 @@ class UserInterface(ABC):
         self,
         tool_name: str,
         tool_params: Dict[str, Any],
-    ) -> bool:
+    ):
         """
         Handle and display information about a tool being used, optionally check for permissions.
 
         :param tool_name: The name of the tool being used
         :param tool_params: The parameters passed to the tool
-        :return: True if permission granted, False otherwise.
         """
 
     @abstractmethod

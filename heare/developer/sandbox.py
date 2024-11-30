@@ -62,7 +62,7 @@ class Sandbox:
                 )
         return PathSpec.from_lines(GitWildMatchPattern, patterns)
 
-    def get_directory_listing(self, path=""):
+    def get_directory_listing(self, path="", recursive=True):
         listing = []
         target_dir = os.path.join(self.root_directory, path)
 
@@ -85,6 +85,9 @@ class Sandbox:
                 rel_path = os.path.relpath(full_path, target_dir)
                 if not self.gitignore_spec.match_file(os.path.join(path, rel_path)):
                     listing.append(rel_path)
+
+            if not recursive:
+                break  # Only process the first level for non-recursive listing
 
         return sorted(listing)
 

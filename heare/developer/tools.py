@@ -1,4 +1,3 @@
-import os
 import subprocess
 import inspect
 from functools import wraps
@@ -175,12 +174,13 @@ def list_directory(sandbox: Sandbox, path: str, recursive: Optional[bool] = None
         recursive: If True, list contents recursively (optional)
     """
     try:
-        contents = sandbox.get_directory_listing()
+        contents = sandbox.get_directory_listing(
+            path, recursive=bool(recursive) if recursive is not None else False
+        )
 
         result = f"Contents of {path}:\n"
-        for item_path in contents:
-            relative_path = os.path.relpath(item_path, path)
-            result += f"{relative_path}\n"
+        for item in contents:
+            result += f"{item}\n"
         return result
     except Exception as e:
         return f"Error listing directory: {str(e)}"
