@@ -1,4 +1,6 @@
 import os
+from typing import Dict
+
 import pytest
 import tempfile
 from unittest.mock import patch
@@ -45,6 +47,14 @@ class MockUserInterface(UserInterface):
         action_arguments: dict | None,
     ) -> bool:
         return self.next_input.lower() == "y"
+
+    def permission_rendering_callback(
+        self,
+        action: str,
+        resource: str,
+        action_arguments: Dict | None,
+    ) -> None:
+        pass
 
     def status(self, message: str, spinner: str = None):
         class NoOpContextManager:

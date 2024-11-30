@@ -101,6 +101,14 @@ class MockUserInterface(UserInterface):
     ) -> bool:
         return True
 
+    def permission_rendering_callback(
+        self,
+        action: str,
+        resource: str,
+        action_arguments: dict | None,
+    ):
+        pass
+
     def status(self, message: str, spinner: str = None):
         class NoOpContextManager:
             def __enter__(self):
