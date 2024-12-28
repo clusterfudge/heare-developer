@@ -1,5 +1,6 @@
 import argparse
 import os
+import re
 from typing import Dict, Any
 
 from rich.console import Console
@@ -9,6 +10,7 @@ from rich.text import Text
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
+from prompt_toolkit.document import Document
 
 from heare.developer.agent import run
 from heare.developer.sandbox import SandboxMode
@@ -232,15 +234,72 @@ class CustomCompleter(Completer):
         self.word_completer = WordCompleter(
             list(commands.keys()), ignore_case=True, sentence=True, meta_dict=commands
         )
+        self.path_pattern = re.compile(r"[^\s@]+|@[^\s]*")
+
+    def get_word_under_cursor(self, document: Document) -> tuple[str, int]:
+        """Get the word under the cursor and its start position."""
+        # Get the text before cursor
+        text_before_cursor = document.text_before_cursor
+
+        # Find the last space before cursor
+        last_space = text_before_cursor.rindex(" ") if " " in text_before_cursor else -1
+        current_word = text_before_cursor[last_space + 1 :]
+
+        # If we have a word starting with @, that's our target
+        if "@" in current_word:
+            return current_word, -(len(current_word))
+
+        return current_word, -(len(current_word))
 
     def get_completions(self, document, complete_event):
-        text = document.text_before_cursor.lstrip()
-        if text.startswith("/"):
+        word, start_position = self.get_word_under_cursor(document)
+
+        # Handle command completions
+        if word.startswith("!"):
             yield from self.word_completer.get_completions(document, complete_event)
+
+        # Handle file system completions
+        elif "@" in word:
+            # Get the path after @
+            at_index = word.index("@")
+            path = word[at_index + 1 :]
+            dirname = os.path.dirname(path) if path else "."
+            basename = os.path.basename(path)
+
+            try:
+                # If dirname is empty, use current directory
+                if not dirname or dirname == "":
+                    dirname = "."
+
+                # List directory contents
+                for entry in os.listdir(dirname):
+                    entry_path = os.path.join(dirname, entry)
+
+                    # Only show entries that match the current basename
+                    if entry.lower().startswith(basename.lower()):
+                        # Add trailing slash for directories
+                        display = entry + "/" if os.path.isdir(entry_path) else entry
+                        full_path = os.path.join(dirname, display)
+
+                        # Remove './' from the beginning if present
+                        if full_path.startswith("./"):
+                            full_path = full_path[2:]
+
+                        # Preserve any text before the @ in the completion
+                        prefix = word[:at_index]
+                        completion = prefix + "@" + full_path
+
+                        yield Completion(
+                            completion, start_position=start_position, display=display
+                        )
+            except OSError:
+                pass  # Handle any filesystem errors gracefully
+
+        # Handle history completions
         else:
             for history_item in reversed(self.history.get_strings()):
-                if history_item.startswith(text):
-                    yield Completion(history_item, start_position=-len(text))
+                if history_item.startswith(word):
+                    yield Completion(history_item, start_position=start_position)
 
 
 def main():
