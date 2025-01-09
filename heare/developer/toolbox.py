@@ -134,14 +134,24 @@ class Toolbox:
     def _dump(self, user_interface, sandbox, user_input, *args, **kwargs):
         """Render the system message, tool specs, and chat history"""
         from .prompt import create_system_message
+        from .agent import _inline_latest_file_mentions
 
         content = "[bold cyan]System Message:[/bold cyan]\n"
         content += create_system_message(sandbox)
         content += "\n\n[bold cyan]Tool Specifications:[/bold cyan]\n"
         content += str(self.agent_schema)
-        content += "\n\n[bold cyan]Chat History:[/bold cyan]\n"
-        for message in kwargs["chat_history"]:
-            content += f"\n[bold]{message['role']}:[/bold] {message['content']}"
+        content += (
+            "\n\n[bold cyan]Chat History (with inlined file contents):[/bold cyan]\n"
+        )
+        inlined_history = _inline_latest_file_mentions(kwargs["chat_history"])
+        for message in inlined_history:
+            if isinstance(message["content"], str):
+                content += f"\n[bold]{message['role']}:[/bold] {message['content']}"
+            elif isinstance(message["content"], list):
+                content += f"\n[bold]{message['role']}:[/bold]"
+                for block in message["content"]:
+                    if isinstance(block, dict) and "text" in block:
+                        content += f"\n{block['text']}"
 
         user_interface.handle_system_message(content)
 
