@@ -104,7 +104,8 @@ def _extract_file_mentions(message: MessageParam) -> list[Path]:
 
     # Split on whitespace and get tokens starting with @
     words = content.split()
-    file_mentions = [word[1:] for word in words if word.startswith("@")]
+    # Get words starting with @ and strip trailing period if present
+    file_mentions = [word[1:].rstrip(".") for word in words if word.startswith("@")]
 
     # Convert to paths and filter to existing files
     paths = [Path(mention) for mention in file_mentions]
@@ -131,6 +132,8 @@ def _inline_latest_file_mentions(
             results.append(message.copy())
             for file_mention in file_mentions:
                 file_mention_map[file_mention].append(idx)
+        else:
+            results.append(message)
 
     for mentioned_file, message_indexes in file_mention_map.items():
         last_index = message_indexes[-1]
