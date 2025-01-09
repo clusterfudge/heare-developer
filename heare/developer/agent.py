@@ -1,10 +1,12 @@
 import os
 import time
 import random
+from collections import defaultdict
 from datetime import datetime, timezone
+from pathlib import Path
 
 import anthropic
-from anthropic.types import TextBlock
+from anthropic.types import TextBlock, MessageParam
 from dotenv import load_dotenv
 
 from heare.developer.prompt import create_system_message
@@ -74,6 +76,92 @@ def retry_with_exponential_backoff(func, max_retries=5, base_delay=1, max_delay=
     return wrapper
 
 
+def _extract_file_mentions(message: MessageParam) -> list[Path]:
+    """Extract file mentions from a message that start with @ and resolve to actual files.
+
+    File mentions are substrings that:
+    - Start with @
+    - Contain no breaks or backslash escapes
+    - Resolve to an actual file on the filesystem
+
+    Args:
+        message: The message to extract file mentions from
+
+    Returns:
+        List of Path objects for files that were mentioned and exist
+    """
+    if isinstance(message["content"], str):
+        content = message["content"]
+    elif isinstance(message["content"], list):
+        # For messages with multiple content blocks, concatenate text blocks
+        content = " ".join(
+            block["text"]
+            for block in message["content"]
+            if isinstance(block, dict) and "text" in block
+        )
+    else:
+        return []
+
+    # Split on whitespace and get tokens starting with @
+    words = content.split()
+    file_mentions = [word[1:] for word in words if word.startswith("@")]
+
+    # Convert to paths and filter to existing files
+    paths = [Path(mention) for mention in file_mentions]
+    return [path for path in paths if path.exists()]
+
+
+def _inline_latest_file_mentions(
+    chat_history: list[MessageParam],
+) -> list[MessageParam]:
+    """
+
+    :param chat_history:
+    :return:
+    """
+    file_mention_map: dict[Path, list[int]] = defaultdict(list)
+    results: list[MessageParam] = []
+
+    for idx, message in enumerate(chat_history):
+        if message["role"] != "user":
+            results.append(message)
+            continue
+        file_mentions = _extract_file_mentions(message)
+        if file_mentions:
+            results.append(message.copy())
+            for file_mention in file_mentions:
+                file_mention_map[file_mention].append(idx)
+
+    for mentioned_file, message_indexes in file_mention_map.items():
+        last_index = message_indexes[-1]
+        message_to_update = results[last_index]
+
+        # Read the file content
+        try:
+            with open(mentioned_file, "r") as f:
+                file_content = f.read()
+        except Exception as e:
+            print(f"Warning: Could not read file {mentioned_file}: {e}")
+            continue
+
+        # Format the file content block
+        relative_path = mentioned_file.as_posix()
+        file_block = (
+            f"<mentioned_file path={relative_path}>\n{file_content}\n</mentioned_file>"
+        )
+
+        # Convert message content to list format if it's a string
+        if isinstance(message_to_update["content"], str):
+            message_to_update["content"] = [
+                {"type": "text", "text": message_to_update["content"]}
+            ]
+
+        # Add the file content as a new text block
+        message_to_update["content"].append({"type": "text", "text": file_block})
+
+    return results
+
+
 def run(
     model,
     sandbox_contents,
@@ -129,7 +217,7 @@ def run(
 
         user_interface.handle_system_message(command_message)
 
-    chat_history = []
+    chat_history: list[MessageParam] = []
     tool_result_buffer = []
     prompt_tokens = 0
     completion_tokens = 0
@@ -230,7 +318,7 @@ def run(
                         with client.messages.stream(
                             system=system_message,
                             max_tokens=4096,
-                            messages=chat_history,
+                            messages=_inline_latest_file_mentions(chat_history),
                             model=model["title"],
                             tools=toolbox.agent_schema,
                         ) as stream:
