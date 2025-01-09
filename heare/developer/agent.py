@@ -84,6 +84,10 @@ def _extract_file_mentions(message: MessageParam) -> list[Path]:
     - Contain no breaks or backslash escapes
     - Resolve to an actual file on the filesystem
 
+    Note: This function only extracts the file mentions but does not read the files.
+    Access to file contents is controlled by the sandbox when this is used in
+    combination with other functions.
+
     Args:
         message: The message to extract file mentions from
 
@@ -115,10 +119,22 @@ def _extract_file_mentions(message: MessageParam) -> list[Path]:
 def _inline_latest_file_mentions(
     chat_history: list[MessageParam],
 ) -> list[MessageParam]:
-    """
+    """Process file mentions in chat history and inline their contents into the messages.
 
-    :param chat_history:
-    :return:
+    This function operates outside the sandbox system, treating @ mentions as explicit
+    permission to read the referenced files. This is in contrast to other file operations
+    that require sandbox permission checks.
+
+    Security Note: This direct file access could potentially be exploited if code is
+    copy/pasted into the system or if a sub-agent tool is used where the user message
+    originates from a higher-level agent. Care should be taken when processing file
+    mentions from untrusted sources.
+
+    Args:
+        chat_history: List of message parameters from the conversation history
+
+    Returns:
+        Modified chat history with file contents inlined into the messages
     """
     file_mention_map: dict[Path, list[int]] = defaultdict(list)
     results: list[MessageParam] = []
