@@ -4,24 +4,23 @@ Heare Developer CLI is a powerful and interactive coding assistant that leverage
 
 ## Key Features
 
-1. **Interactive AI Assistant**: Engage with Claude AI models for coding assistance, explanations, and problem-solving.
-2. **Sandbox Environment**: Safely perform file operations and execute commands within a controlled environment.
-3. **File Management**: Read, write, and list files/directories within the sandbox.
-4. **Bash Command Execution**: Run bash commands with some restrictions for security.
-5. **Permission Management**: Control access to files and directories with granular permissions.
-6. **Tool Integration**: Use built-in tools for various tasks.
-7. **Syntax Highlighting**: Enjoy syntax highlighting for a better user experience.
-8. **Chat History**: Maintain and review chat history for context preservation.
-9. **Token Usage Tracking**: Monitor token usage and associated costs for each interaction.
-10. **Multiple AI Models**: Choose from different Claude AI models.
-11. **Customizable Sandbox Mode**: Set different sandbox modes for file operations.
+1. **Advanced AI Models**: Access to Claude 3 models (Opus, Sonnet, Sonnet-3.5, Haiku) for varied needs and performance levels
+2. **Intelligent File Handling**: Smart file mention system using @ syntax for referencing files
+3. **Sandbox Environment**: Configurable sandbox modes for controlled file operations
+4. **Tool Integration**: Built-in tools for file and system operations
+5. **Command Auto-completion**: Intelligent command and path completion
+6. **Multi-line Input Support**: Easy handling of multi-line code and text input
+7. **Token Usage Tracking**: Real-time monitoring of token usage and associated costs
+8. **Rate Limiting Protection**: Built-in rate limit handling with exponential backoff
+9. **Permission Management**: Granular control over file and system operations
+10. **Rich Command History**: Searchable command history with auto-suggestions
 
 ## Installation
 
 1. Clone the repository:
    ```
-   git clone https://github.com/your-repo/heare-developer-cli.git
-   cd heare-developer-cli
+   git clone https://github.com/clusterfudge/heare-developer.git
+   cd heare-developer
    ```
 
 2. Install the required dependencies:
@@ -30,69 +29,77 @@ Heare Developer CLI is a powerful and interactive coding assistant that leverage
    ```
 
 3. Set up your Anthropic API key:
-   - Create a `.env` file in the project root.
-   - Add your Anthropic API key: `ANTHROPIC_API_KEY=your_api_key_here`
+   ```
+   export ANTHROPIC_API_KEY=your_api_key_here
+   ```
+   Or create a `.env` file containing:
+   ```
+   ANTHROPIC_API_KEY=your_api_key_here
+   ```
 
 ## Usage
 
-To start the Heare Developer CLI, run:
-
-```
+Basic usage:
+```bash
 python -m heare.developer.cli [sandbox_path]
 ```
 
-Optional arguments:
-- `sandbox_path`: Specify the path to initialize the sandbox (default is the current directory).
-- `--model`: Choose the Claude AI model to use (default is 'sonnet-3.5'). Available options: opus, sonnet, sonnet-3.5, haiku.
-- `--summary-cache`: Specify the path for the summary cache (default is ~/.cache/heare.summary_cache).
-- `--sandbox-mode`: Set the sandbox mode for file operations. Choices are: REMEMBER_PER_RESOURCE, FORGET_IMMEDIATELY, REMEMBER_FOREVER.
+### Command Line Options
 
-Once the CLI is running, you can:
+- `sandbox_path`: Path to initialize the sandbox (default: current directory)
+- `--model`: Choose the Claude AI model (default: sonnet-3.5)
+  - Available options: opus, sonnet, sonnet-3.5, haiku
+- `--summary-cache`: Specify path for summary cache (default: ~/.cache/heare.summary_cache)
+- `--sandbox-mode`: Set sandbox mode for file operations
+  - Options: REMEMBER_PER_RESOURCE, FORGET_IMMEDIATELY, REMEMBER_FOREVER
+- `--prompt`: Provide initial prompt (prefix with @ to read from file)
 
-1. Ask questions or request assistance from the AI.
-2. Use built-in tools for various operations (specific commands may vary, refer to the CLI output for available tools).
-3. Enter multi-line input by starting with '{' on a new line, entering your content, and ending with '}' on a new line.
+### Interactive Features
 
-## Examples
-
-1. Ask for coding help:
+1. **File References**:
+   Use @ syntax to reference files in your messages:
    ```
-   > Can you explain how to use list comprehensions in Python?
-   ```
-
-2. Use a built-in tool (example may vary based on available tools):
-   ```
-   > !add myfile.py
+   > Can you explain the code in @src/main.py?
    ```
 
-3. Request file content:
-   ```
-   > Can you show me the contents of myfile.py?
-   ```
-
-4. Execute a bash command (if available):
-   ```
-   > !exec ls -l
-   ```
-
-5. Enter multi-line input:
+2. **Multi-line Input**:
    ```
    > {
    Here's my multi-line
-   input for the AI
-   assistant to process.
+   input that can include
+   code or text
    }
    ```
 
-## Contributing
+3. **Command Auto-completion**:
+   - Press Tab to auto-complete commands and file paths
+   - @ followed by partial path triggers file path completion
 
-Contributions to the Heare Developer CLI are welcome! Please follow these steps:
+4. **Available Commands**:
+   - `/quit` or `/exit`: Exit the CLI
+   - `/restart`: Clear chat history and start over
+   - Various tool-specific commands (shown on startup)
+
+### Sandbox Modes
+
+- `REMEMBER_PER_RESOURCE`: Remember permissions per resource (default)
+- `FORGET_IMMEDIATELY`: Ask for permission each time
+- `REMEMBER_FOREVER`: Remember all permissions
+
+## Development
+
+The project follows a modular architecture:
+
+- `heare/developer/`: Core CLI and developer tools
+- `heare/pm/`: Project management functionality (WIP)
+- `tests/`: Test suite
+
+To contribute:
 
 1. Fork the repository
-2. Create a new branch for your feature
-3. Commit your changes
-4. Push to your fork
-5. Submit a pull request
+2. Create a feature branch
+3. Add tests for new functionality
+4. Submit a pull request
 
 ## License
 
@@ -100,5 +107,8 @@ Contributions to the Heare Developer CLI are welcome! Please follow these steps:
 
 ## Acknowledgements
 
-- This project uses the Anthropic Claude AI models for natural language processing.
-- Special thanks to all contributors and users of the Heare Developer CLI.
+This project uses:
+- Anthropic's Claude AI models
+- Rich for terminal UI
+- Prompt Toolkit for command line interface
+- Various other open source packages (see requirements.txt)

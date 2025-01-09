@@ -66,9 +66,9 @@ class CLIUserInterface(UserInterface):
         self.toolbox = toolbox
 
         commands = {
-            "!quit": "Quit the chat",
-            "!exit": "Quit the chat",
-            "!restart": "Clear chat history and start over",
+            "/quit": "Quit the chat",
+            "/exit": "Quit the chat",
+            "/restart": "Clear chat history and start over",
         }
         for tool_name, spec in toolbox.local.items():
             commands[f"!{tool_name}"] = spec["docstring"]
@@ -255,7 +255,7 @@ class CustomCompleter(Completer):
         word, start_position = self.get_word_under_cursor(document)
 
         # Handle command completions
-        if word.startswith("!"):
+        if word.startswith("/"):
             yield from self.word_completer.get_completions(document, complete_event)
 
         # Handle file system completions
