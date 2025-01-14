@@ -14,12 +14,14 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: "3.x"
+    - name: Install uv
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
     - name: Install dependencies
       run: |
-          python -m pip install --upgrade pip
-          pip install pytest setuptools_scm
-          pip install -e .
-          python setup.py sdist
+          uv pip install pytest setuptools_scm
+          uv pip install -e .
+          python -m build
     - name: Run tests
       run: PYTHONPATH=. pytest .
     - name: Store the distribution packages
@@ -35,7 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/heare-developer  # Replace <package-name> with your PyPI project name
+      url: https://pypi.org/p/heare-developer
     permissions:
       id-token: write  # IMPORTANT: mandatory for trusted publishing
     steps:

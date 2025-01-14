@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=45", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "heare-developer"
+dynamic = ["version"]
+authors = [
+    {name = "Sean Fitzgerald", email = "sean@fitzgeralds.me"},
+]
+description = "A command-line coding agent."
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "anthropic==0.42.0",
+    "python-dotenv==1.0.1",
+    "pathspec==0.12.1",
+    "prompt_toolkit==3.0.47",
+    "rich==13.7.1",
+    "textual==0.82.0",
+    "pytest==8.3.1",
+    "pre-commit==3.6.0",
+]
+
+[project.scripts]
+heare-developer = "heare.developer.cli:main"
+heare-console = "heare.developer.terminal:main"
+heare-pm = "heare.pm.project.cli:main"
+
+[tool.setuptools_scm]
+write_to = "heare/_version.py"
+
+[tool.setuptools]
+packages = ["heare"]

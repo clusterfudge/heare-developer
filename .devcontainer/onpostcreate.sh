@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
-pip3 install -r requirements.txt
-pip3 install -e .
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uv pip install -e .
