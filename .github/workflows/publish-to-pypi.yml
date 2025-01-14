@@ -22,7 +22,7 @@ jobs:
           uv venv
           uv pip install pytest setuptools_scm build
           uv pip install -e .
-          python -m build
+          uv python -m build
     - name: Run tests
       run: PYTHONPATH=. pytest .
     - name: Store the distribution packages
