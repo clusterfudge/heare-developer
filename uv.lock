@@ -117,25 +117,29 @@ wheels = [
 
 [[package]]
 name = "heare-developer"
-version = "0.2.7.dev0+gb8d4692.d20250114"
+version = "0.2.7.dev1+g216e0a5.d20250114"
 source = { editable = "." }
 dependencies = [
     { name = "anthropic" },
     { name = "pathspec" },
-    { name = "pre-commit" },
     { name = "prompt-toolkit" },
-    { name = "pytest" },
     { name = "python-dotenv" },
     { name = "rich" },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "pre-commit" },
+    { name = "pytest" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "anthropic", specifier = "==0.42.0" },
     { name = "pathspec", specifier = "==0.12.1" },
-    { name = "pre-commit", specifier = "==3.6.0" },
+    { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.8" },
     { name = "prompt-toolkit", specifier = "==3.0.47" },
-    { name = "pytest", specifier = ">=8.3" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3" },
     { name = "python-dotenv", specifier = "==1.0.1" },
     { name = "rich", specifier = "==13.7.1" },
 ]
@@ -334,7 +338,7 @@ wheels = [
 
 [[package]]
 name = "pre-commit"
-version = "3.6.0"
+version = "4.0.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cfgv" },
@@ -343,9 +347,9 @@ dependencies = [
     { name = "pyyaml" },
     { name = "virtualenv" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/88/e8/4330d06f2b00ad3a9c66e07a68fe23f70233a4e7e1aaba5a738a93d2cb5d/pre_commit-3.6.0.tar.gz", hash = "sha256:d30bad9abf165f7785c15a21a1f46da7d0677cb00ee7ff4c579fd38922efe15d", size = 177069 }
+sdist = { url = "https://files.pythonhosted.org/packages/2e/c8/e22c292035f1bac8b9f5237a2622305bc0304e776080b246f3df57c4ff9f/pre_commit-4.0.1.tar.gz", hash = "sha256:80905ac375958c0444c65e9cebebd948b3cdb518f335a091a670a89d652139d2", size = 191678 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e2/e3/54cd906d377e1766299df14710ded125e195d5c685c8f1bafecec073e9c6/pre_commit-3.6.0-py2.py3-none-any.whl", hash = "sha256:c255039ef399049a5544b6ce13d135caba8f2c28c3b4033277a788f434308376", size = 204021 },
+    { url = "https://files.pythonhosted.org/packages/16/8f/496e10d51edd6671ebe0432e33ff800aa86775d2d147ce7d43389324a525/pre_commit-4.0.1-py2.py3-none-any.whl", hash = "sha256:efde913840816312445dc98787724647c65473daefe420785f885e8ed9a06878", size = 218713 },
 ]
 
 [[package]]
