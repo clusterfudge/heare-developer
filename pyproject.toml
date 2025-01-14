@@ -22,8 +22,12 @@ dependencies = [
     "pathspec==0.12.1",
     "prompt_toolkit==3.0.47",
     "rich==13.7.1",
-    "pytest==8.3.1",
-    "pre-commit==3.6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.4",
+    "pre-commit>=3.8",
 ]
 
 [project.scripts]
