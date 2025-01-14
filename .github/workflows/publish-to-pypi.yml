@@ -21,7 +21,6 @@ jobs:
       run: |
           uv venv
           uv pip install pytest setuptools_scm build
-          uv pip install -e .
           uv run python -m build
     - name: Run tests
       run: uv run pytest .
