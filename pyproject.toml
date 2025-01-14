@@ -22,14 +22,12 @@ dependencies = [
     "pathspec==0.12.1",
     "prompt_toolkit==3.0.47",
     "rich==13.7.1",
-    "textual==0.82.0",
     "pytest==8.3.1",
     "pre-commit==3.6.0",
 ]
 
 [project.scripts]
 heare-developer = "heare.developer.cli:main"
-heare-console = "heare.developer.terminal:main"
 heare-pm = "heare.pm.project.cli:main"
 
 [tool.setuptools_scm]

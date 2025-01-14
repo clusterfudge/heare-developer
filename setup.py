@@ -13,7 +13,6 @@ setup(
     entry_points={
         "console_scripts": [
             "heare-developer=heare.developer.cli:main",
-            "heare-console=heare.developer.terminal:main",
             "heare-pm=heare.pm.project.cli:main",
         ],
     },
