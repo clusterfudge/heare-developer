@@ -20,8 +20,7 @@ jobs:
     - name: Install dependencies
       run: |
           uv venv
-          uv pip install pytest setuptools_scm build
-          uv run python -m build
+          uv build
     - name: Run tests
       run: uv run pytest .
     - name: Store the distribution packages
