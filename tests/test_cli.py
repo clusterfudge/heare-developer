@@ -3,7 +3,7 @@ from typing import Dict
 
 import pytest
 import tempfile
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from heare.developer.user_interface import UserInterface
 from heare.developer.sandbox import SandboxMode
 from heare.developer.cli import main
@@ -102,56 +102,61 @@ def temp_prompt_file():
     os.unlink(f.name)
 
 
-@patch("os.path.basename", return_value="test.py")
+@patch("heare.developer.hdev.run")
 @patch("heare.developer.cli.CLIUserInterface")
-@patch("heare.developer.cli.run")
-@patch("sys.argv")
-def test_cli_with_direct_prompt(mock_argv, mock_run, mock_ui_class, mock_basename):
-    mock_argv.__getitem__.return_value = ["test.py", "--prompt", "Hello, assistant"]
-    main()
-    mock_run.assert_called_once()
-    call_kwargs = mock_run.call_args[1]
-    assert call_kwargs["initial_prompt"] == "Hello, assistant"
-    assert call_kwargs["single_response"] is True
+def test_cli_with_direct_prompt(mock_ui_class, mock_run):
+    with patch("sys.argv", ["test.py", "--prompt", "Hello, assistant"]):
+        # Setup mock interface
+        mock_ui = MagicMock()
+        mock_ui_class.return_value = mock_ui
+
+        main()
+        mock_run.assert_called_once()
+        call_kwargs = mock_run.call_args[1]
+        assert call_kwargs["initial_prompt"] == "Hello, assistant"
+        assert call_kwargs["single_response"] is True
 
 
-@patch("os.path.basename", return_value="test.py")
+@patch("heare.developer.hdev.run")
 @patch("heare.developer.cli.CLIUserInterface")
-@patch("heare.developer.cli.run")
-@patch("sys.argv")
-def test_cli_with_file_prompt(
-    mock_argv, mock_run, mock_ui_class, mock_basename, temp_prompt_file
-):
-    mock_argv.__getitem__.return_value = ["test.py", "--prompt", f"@{temp_prompt_file}"]
-    main()
-    mock_run.assert_called_once()
-    call_kwargs = mock_run.call_args[1]
-    assert call_kwargs["initial_prompt"] == "Test prompt content"
-    assert call_kwargs["single_response"] is True
+def test_cli_with_file_prompt(mock_ui_class, mock_run, temp_prompt_file):
+    with patch("sys.argv", ["test.py", "--prompt", f"@{temp_prompt_file}"]):
+        # Setup mock interface
+        mock_ui = MagicMock()
+        mock_ui_class.return_value = mock_ui
+
+        main()
+        mock_run.assert_called_once()
+        call_kwargs = mock_run.call_args[1]
+        assert call_kwargs["initial_prompt"] == "Test prompt content"
+        assert call_kwargs["single_response"] is True
 
 
-@patch("os.path.basename", return_value="test.py")
+@patch("heare.developer.hdev.run")
 @patch("heare.developer.cli.CLIUserInterface")
-@patch("heare.developer.cli.run")
-@patch("sys.argv")
-def test_cli_with_nonexistent_prompt_file(
-    mock_argv, mock_run, mock_ui_class, mock_basename, capsys
-):
-    mock_argv.__getitem__.return_value = ["test.py", "--prompt", "@nonexistent.txt"]
-    main()
-    mock_run.assert_not_called()
-    captured = capsys.readouterr()
-    assert "Error: Could not find file" in captured.out
+def test_cli_with_nonexistent_prompt_file(mock_ui_class, mock_run, capsys):
+    with patch("sys.argv", ["test.py", "--prompt", "@nonexistent.txt"]):
+        # Setup mock interface
+        mock_ui = MagicMock()
+        mock_ui_class.return_value = mock_ui
+
+        main()
+        mock_run.assert_not_called()
+        captured = capsys.readouterr()
+        assert "Error: Could not find file" in captured.out
 
 
-@patch("os.path.basename", return_value="test.py")
+@patch("heare.developer.hdev.run")
 @patch("heare.developer.cli.CLIUserInterface")
-@patch("heare.developer.cli.run")
-@patch("sys.argv")
-def test_cli_without_prompt(mock_argv, mock_run, mock_ui_class, mock_basename):
-    mock_argv.__getitem__.return_value = ["test.py"]
-    main()
-    mock_run.assert_called_once()
-    call_kwargs = mock_run.call_args[1]
-    assert call_kwargs["initial_prompt"] is None
-    assert call_kwargs["single_response"] is False
+def test_cli_without_prompt(mock_ui_class, mock_run):
+    with patch("sys.argv", ["test.py"]):
+        # Setup mock interface
+        mock_ui = MagicMock()
+        mock_ui_class.return_value = mock_ui
+        mock_ui.get_user_input.return_value = "/quit"
+
+        main()
+        mock_run.assert_called_once()
+        call_kwargs = mock_run.call_args[1]
+        assert call_kwargs["initial_prompt"] is None
+        assert call_kwargs["single_response"] is False
