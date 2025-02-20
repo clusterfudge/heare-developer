@@ -100,7 +100,6 @@ def run_bash_command(sandbox: Sandbox, command: str):
             r"\brm\b",
             r"\bmv\b",
             r"\bcp\b",
-            r"\bchmod\b",
             r"\bchown\b",
             r"\bsudo\b",
             r">",
