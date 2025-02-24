@@ -1,12 +1,12 @@
 import unittest
 from typing import Optional
 from heare.developer.tools import tool
-from heare.developer.sandbox import Sandbox
+from heare.developer.context import AgentContext
 
 
 # Test fixtures
 @tool
-def simple_func(sandbox: Sandbox, arg1: str):
+def simple_func(context: "AgentContext", arg1: str):
     """A simple function with one required argument.
 
     Args:
@@ -17,7 +17,10 @@ def simple_func(sandbox: Sandbox, arg1: str):
 
 @tool
 def multi_arg_func(
-    sandbox: Sandbox, required1: str, required2: int, optional1: Optional[bool] = None
+    context: "AgentContext",
+    required1: str,
+    required2: int,
+    optional1: Optional[bool] = None,
 ):
     """A function with multiple arguments, some optional.
 
@@ -30,43 +33,45 @@ def multi_arg_func(
 
 
 @tool
-def no_docstring_func(sandbox: Sandbox, arg1: str, optional1: Optional[str] = None):
+def no_docstring_func(
+    context: "AgentContext", arg1: str, optional1: Optional[str] = None
+):
     return arg1
 
 
 class TestToolDecorator(unittest.TestCase):
-    def test_sandbox_parameter_validation(self):
-        """Test that tool decorator validates sandbox parameter"""
-        # Test missing sandbox parameter
+    def test_context_parameter_validation(self):
+        """Test that tool decorator validates context parameter"""
+        # Test missing context parameter
         with self.assertRaises(ValueError) as cm:
 
             @tool
-            def no_sandbox(arg1: str):
+            def no_context(arg1: str):
                 pass
 
-        self.assertIn("must be 'sandbox'", str(cm.exception))
+        self.assertIn("must be 'context'", str(cm.exception))
 
         # Test wrong parameter name
         with self.assertRaises(ValueError) as cm:
 
             @tool
-            def wrong_param_name(wrong_name: Sandbox, arg1: str):
+            def wrong_param_name(wrong_name: "AgentContext", arg1: str):
                 pass
 
-        self.assertIn("must be 'sandbox'", str(cm.exception))
+        self.assertIn("must be 'context'", str(cm.exception))
 
         # Test wrong parameter type
         with self.assertRaises(ValueError) as cm:
 
             @tool
-            def wrong_param_type(sandbox: str, arg1: str):
+            def wrong_param_type(context: str, arg1: str):
                 pass
 
-        self.assertIn("must be annotated with 'Sandbox'", str(cm.exception))
+        self.assertIn("must be annotated with 'AgentContext' type", str(cm.exception))
 
-        # Test valid sandbox parameter
+        # Test valid context parameter
         @tool
-        def valid_func(sandbox: Sandbox, arg1: str):
+        def valid_func(context: "AgentContext", arg1: str):
             pass
 
         # Should not raise any exception
@@ -120,30 +125,30 @@ class TestToolDecorator(unittest.TestCase):
         self.assertEqual(props["required1"]["description"], "First required argument")
         self.assertEqual(props["optional1"]["description"], "First optional argument")
 
-    def test_sandbox_parameter_excluded(self):
-        """Test that sandbox parameter is not included in schema"""
+    def test_context_parameter_excluded(self):
+        """Test that context parameter is not included in schema"""
         schema = simple_func.schema()
-        self.assertNotIn("sandbox", schema["input_schema"]["properties"])
-        self.assertNotIn("sandbox", schema["input_schema"]["required"])
+        self.assertNotIn("context", schema["input_schema"]["properties"])
+        self.assertNotIn("context", schema["input_schema"]["required"])
 
     def test_original_function_behavior(self):
         """Test that decorated function still works normally"""
 
-        # Create a minimal sandbox mock
-        class MockSandbox:
+        # Create a minimal context mock
+        class MockContext:
             pass
 
-        sandbox = MockSandbox()
+        context = MockContext()
 
         # Test simple function
-        self.assertEqual(simple_func(sandbox, "test"), "test")
+        self.assertEqual(simple_func(context, "test"), "test")
 
         # Test multi-argument function
-        result = multi_arg_func(sandbox, "test", 42)
+        result = multi_arg_func(context, "test", 42)
         self.assertEqual(result, ("test", 42, None))
 
         # Test with optional argument
-        result = multi_arg_func(sandbox, "test", 42, True)
+        result = multi_arg_func(context, "test", 42, True)
         self.assertEqual(result, ("test", 42, True))
 
 

@@ -1,7 +1,7 @@
 from typing import Callable, List
-from .sandbox import Sandbox
+
+from .context import AgentContext
 import subprocess
-import os
 import inspect
 from .commit import run_commit
 
@@ -10,10 +10,16 @@ from .tools import ALL_TOOLS
 
 
 class Toolbox:
-    def __init__(self, sandbox: Sandbox, agent_tools: List[Callable] = ALL_TOOLS):
-        self.sandbox = sandbox
+    def __init__(self, context: AgentContext, tool_names: List[str] | None = None):
+        self.context = context
         self.local = {}  # CLI tools
-        self.agent_tools = agent_tools
+
+        if tool_names is not None:
+            self.agent_tools = [
+                tool for tool in ALL_TOOLS if tool.__name__ in tool_names
+            ]
+        else:
+            self.agent_tools = ALL_TOOLS
 
         self.register_cli_tool(
             "archive",
@@ -49,12 +55,6 @@ class Toolbox:
             "commit", self._commit, "Generate and execute a commit message"
         )
 
-        # Agent tools (used by the LLM)
-        self.agent = {
-            tool.__name__: getattr(self, f"_{tool.__name__}")
-            for tool in self.agent_tools
-        }
-
         # Schema for agent tools
         self.agent_schema = self.schemas()
 
@@ -82,7 +82,7 @@ class Toolbox:
         from .tools import invoke_tool
 
         # Convert agent tools to a list matching tools format
-        return invoke_tool(self.sandbox, tool_use, tools=self.agent_tools)
+        return invoke_tool(self.context, tool_use, tools=self.agent_tools)
 
     # CLI Tools
     def _help(self, user_interface, sandbox, user_input, *args, **kwargs):
@@ -247,7 +247,7 @@ class Toolbox:
             if any(re.search(cmd, command) for cmd in dangerous_commands):
                 return "Error: This command is not allowed for safety reasons."
 
-            if not self.sandbox.check_permissions("shell", command):
+            if not self.context.check_permissions("shell", command):
                 return "Error: Operator denied permission."
 
             # Run the command and capture output
@@ -267,57 +267,6 @@ class Toolbox:
             return "Error: Command execution timed out"
         except Exception as e:
             return f"Error executing command: {str(e)}"
-
-    def _read_file(self, path: str) -> str:
-        try:
-            return self.sandbox.read_file(path)
-        except PermissionError:
-            return f"Error: No read permission for {path}"
-        except Exception as e:
-            return f"Error reading file: {str(e)}"
-
-    def _write_file(self, path: str, content: str) -> str:
-        try:
-            self.sandbox.write_file(path, content)
-            return "File written successfully"
-        except PermissionError:
-            return f"Error: No write permission for {path}"
-        except Exception as e:
-            return f"Error writing file: {str(e)}"
-
-    def _list_directory(self, path: str) -> str:
-        try:
-            contents = self.sandbox.get_directory_listing()
-
-            result = f"Contents of {path}:\n"
-            for item_path in contents:
-                relative_path = os.path.relpath(item_path, path)
-                result += f"{relative_path}\n"
-            return result
-        except Exception as e:
-            return f"Error listing directory: {str(e)}"
-
-    def _edit_file(self, path: str, match_text: str, replace_text: str) -> str:
-        try:
-            content = self.sandbox.read_file(path)
-
-            # Check if the match_text is unique
-            if content.count(match_text) > 1:
-                return "Error: The text to match is not unique in the file."
-            elif content.count(match_text) == 0:
-                # If match_text is not found, append replace_text to the end of the file
-                new_content = content + "\n" + replace_text
-                self.sandbox.write_file(path, new_content)
-                return "Text not found. Content added to the end of the file."
-            else:
-                # Replace the matched text
-                new_content = content.replace(match_text, replace_text, 1)
-                self.sandbox.write_file(path, new_content)
-                return "File edited successfully"
-        except PermissionError:
-            return f"Error: No read or write permission for {path}"
-        except Exception as e:
-            return f"Error editing file: {str(e)}"
 
     def schemas(self) -> List[dict]:
         """Generate schemas for all tools in the toolbox.

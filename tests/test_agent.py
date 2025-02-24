@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from heare.developer.agent import run
 from heare.developer.user_interface import UserInterface
 from heare.developer.sandbox import SandboxMode
+from heare.developer.context import AgentContext
 from typing import List
 
 
@@ -170,91 +171,98 @@ def mock_toolbox():
         yield mock_instance
 
 
-def test_single_response_mode(
-    mock_anthropic, mock_environment, model_config, mock_system_message, mock_toolbox
-):
+@pytest.fixture
+def agent_context(model_config):
     ui = MockUserInterface()
+    return AgentContext(
+        model_spec=model_config,
+        sandbox={},
+        sandbox_mode="remember_per_resource",
+        user_interface=ui,
+    )
 
+
+def test_single_response_mode(
+    mock_anthropic, mock_environment, agent_context, mock_system_message, mock_toolbox
+):
     run(
-        model_config,
-        {},
-        "remember_per_resource",
-        mock_toolbox,
-        ui,
+        agent_context=agent_context,
         initial_prompt="Hello",
         single_response=True,
     )
 
     # Verify initial prompt was processed
-    assert any("Hello" in str(msg) for msg in ui.messages if msg[0] == "user")
+    assert any(
+        "Hello" in str(msg)
+        for msg in agent_context.user_interface.messages
+        if msg[0] == "user"
+    )
     # Verify the session ended after one response
     assert mock_anthropic.return_value.messages.stream.call_count == 1
     # Verify we got a response
     assert any(
-        "Test response" in str(msg) for msg in ui.messages if msg[0] == "assistant"
+        "Test response" in str(msg)
+        for msg in agent_context.user_interface.messages
+        if msg[0] == "assistant"
     )
 
 
 def test_initial_prompt_without_single_response(
-    mock_anthropic, mock_environment, model_config, mock_system_message, mock_toolbox
+    mock_anthropic, mock_environment, agent_context, mock_system_message, mock_toolbox
 ):
-    ui = MockUserInterface()
-    ui.inputs = ["/quit"]  # Add quit command to end the session
+    agent_context.user_interface.inputs = [
+        "/quit"
+    ]  # Add quit command to end the session
 
     run(
-        model_config,
-        {},
-        "remember_per_resource",
-        mock_toolbox,
-        ui,
+        agent_context=agent_context,
         initial_prompt="Hello",
         single_response=False,
     )
 
     # Verify initial prompt was processed
-    assert any("Hello" in str(msg) for msg in ui.messages if msg[0] == "user")
+    assert any(
+        "Hello" in str(msg)
+        for msg in agent_context.user_interface.messages
+        if msg[0] == "user"
+    )
     # Verify we got a response
     assert any(
-        "Test response" in str(msg) for msg in ui.messages if msg[0] == "assistant"
+        "Test response" in str(msg)
+        for msg in agent_context.user_interface.messages
+        if msg[0] == "assistant"
     )
 
 
 def test_command_display_with_single_response(
-    mock_anthropic, mock_environment, model_config, mock_system_message, mock_toolbox
+    mock_anthropic, mock_environment, agent_context, mock_system_message, mock_toolbox
 ):
-    ui = MockUserInterface()
-
     run(
-        model_config,
-        {},
-        "remember_per_resource",
-        mock_toolbox,
-        ui,
+        agent_context=agent_context,
         initial_prompt="Hello",
         single_response=True,
     )
 
     # Verify commands are not displayed in single response mode
-    assert not any("Available commands" in str(msg) for msg in ui.messages)
+    assert not any(
+        "Available commands" in str(msg)
+        for msg in agent_context.user_interface.messages
+    )
 
 
 def test_command_display_without_single_response(
-    mock_anthropic, mock_environment, model_config, mock_system_message
+    mock_anthropic, mock_environment, agent_context, mock_system_message
 ):
-    ui = MockUserInterface()
-    ui.inputs = ["/quit"]
-
-    mock_toolbox = MockToolbox({"test": {"docstring": "Test command"}})
+    agent_context.user_interface.inputs = ["/quit"]
 
     run(
-        model_config,
-        {},
-        "remember_per_resource",
-        mock_toolbox,
-        ui,
+        agent_context=agent_context,
         initial_prompt=None,
         single_response=False,
     )
 
     # Verify commands are displayed in normal mode
-    assert any("Available commands" in str(msg) for msg in ui.messages)
+    assert any(
+        "Available commands" in str(msg)
+        for msg in agent_context.user_interface.messages
+    )

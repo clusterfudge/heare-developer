@@ -9,10 +9,9 @@ import anthropic
 from anthropic.types import TextBlock, MessageParam
 from dotenv import load_dotenv
 
+from heare.developer.context import AgentContext
 from heare.developer.prompt import create_system_message
-from heare.developer.sandbox import Sandbox
 from heare.developer.toolbox import Toolbox
-from heare.developer.user_interface import UserInterface
 
 
 class RateLimiter:
@@ -182,23 +181,18 @@ def _inline_latest_file_mentions(
 
 
 def run(
-    model,
-    sandbox_contents,
-    sandbox_mode,
-    cli_tools,
-    user_interface: UserInterface,
+    agent_context: AgentContext,
     initial_prompt: str = None,
     single_response: bool = False,
-):
+    tool_names: list[str] | None = None,
+) -> list[MessageParam]:
     load_dotenv()
-
-    sandbox = Sandbox(
-        sandbox_contents[0] if sandbox_contents else os.getcwd(),
-        mode=sandbox_mode,
-        permission_check_callback=user_interface.permission_callback,
-        permission_check_rendering_callback=user_interface.permission_rendering_callback,
+    sandbox, user_interface, model = (
+        agent_context.sandbox,
+        agent_context.user_interface,
+        agent_context.model_spec,
     )
-    toolbox = Toolbox(sandbox)
+    toolbox = Toolbox(agent_context, tool_names=tool_names)
     if hasattr(user_interface, "set_toolbox"):
         user_interface.set_toolbox(toolbox)
 
@@ -207,7 +201,7 @@ def run(
         user_interface.handle_system_message(
             "[bold red]Error: ANTHROPIC_API_KEY environment variable not set[/bold red]"
         )
-        return
+        return []
 
     client = anthropic.Client(api_key=api_key)
     rate_limiter = RateLimiter()
@@ -255,7 +249,7 @@ def run(
 
     while True:
         try:
-            if not tool_result_buffer and not initial_prompt:
+            if not tool_result_buffer and not single_response:
                 user_input = user_interface.get_user_input(" > ")
 
                 command_name = (
@@ -434,3 +428,4 @@ def run(
                     "KeyboardInterrupt detected. Press Ctrl+C again to exit, or continue typing to resume."
                     "[/bold yellow]"
                 )
+    return chat_history

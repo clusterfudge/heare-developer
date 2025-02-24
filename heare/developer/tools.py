@@ -1,22 +1,25 @@
+import contextlib
 import subprocess
 import inspect
 from functools import wraps
 from typing import Optional, Union, get_origin, get_args, List, Callable
-from .sandbox import Sandbox
+
+from .context import AgentContext
+from .user_interface import UserInterface
 
 
 def tool(func):
     """Decorator that adds a schema method to a function and validates sandbox parameter"""
-    # Validate that first parameter is sandbox: Sandbox
+    # Validate that first parameter is context: AgentContext
     sig = inspect.signature(func)
     params = list(sig.parameters.items())
-    if not params or params[0][0] != "sandbox":
-        raise ValueError(f"First parameter of {func.__name__} must be 'sandbox'")
+    if not params or params[0][0] != "context":
+        raise ValueError(f"First parameter of {func.__name__} must be 'context'")
 
     type_hints = inspect.get_annotations(func)
-    if type_hints.get("sandbox") != Sandbox:
+    if type_hints.get("context") != "AgentContext":
         raise ValueError(
-            f"First parameter of {func.__name__} must be annotated with 'Sandbox' type"
+            f"First parameter of {func.__name__} must be annotated with 'AgentContext' type"
         )
 
     @wraps(func)
@@ -57,7 +60,7 @@ def tool(func):
         # Process parameters
         sig = inspect.signature(func)
         for param_name, param in sig.parameters.items():
-            if param_name == "sandbox":  # Skip sandbox parameter
+            if param_name == "context":  # Skip context parameter
                 continue
 
             # Check if parameter is optional
@@ -88,7 +91,7 @@ def tool(func):
 
 
 @tool
-def run_bash_command(sandbox: Sandbox, command: str):
+def run_bash_command(context: "AgentContext", command: str):
     """Run a bash command in a sandboxed environment with safety checks.
 
     Args:
@@ -110,7 +113,7 @@ def run_bash_command(sandbox: Sandbox, command: str):
         if any(re.search(cmd, command) for cmd in dangerous_commands):
             return "Error: This command is not allowed for safety reasons."
 
-        if not sandbox.check_permissions("shell", command):
+        if not context.sandbox.check_permissions("shell", command):
             return "Error: Operator denied permission."
 
         # Run the command and capture output
@@ -133,14 +136,14 @@ def run_bash_command(sandbox: Sandbox, command: str):
 
 
 @tool
-def read_file(sandbox: Sandbox, path: str):
+def read_file(context: "AgentContext", path: str):
     """Read and return the contents of a file from the sandbox.
 
     Args:
         path: Path to the file to read
     """
     try:
-        return sandbox.read_file(path)
+        return context.sandbox.read_file(path)
     except PermissionError:
         return f"Error: No read permission for {path}"
     except Exception as e:
@@ -148,7 +151,7 @@ def read_file(sandbox: Sandbox, path: str):
 
 
 @tool
-def write_file(sandbox: Sandbox, path: str, content: str):
+def write_file(context: "AgentContext", path: str, content: str):
     """Write content to a file in the sandbox.
 
     Args:
@@ -156,7 +159,7 @@ def write_file(sandbox: Sandbox, path: str, content: str):
         content: Content to write to the file
     """
     try:
-        sandbox.write_file(path, content)
+        context.sandbox.write_file(path, content)
         return "File written successfully"
     except PermissionError:
         return f"Error: No write permission for {path}"
@@ -165,7 +168,9 @@ def write_file(sandbox: Sandbox, path: str, content: str):
 
 
 @tool
-def list_directory(sandbox: Sandbox, path: str, recursive: Optional[bool] = None):
+def list_directory(
+    context: "AgentContext", path: str, recursive: Optional[bool] = None
+):
     """List contents of a directory in the sandbox.
 
     Args:
@@ -173,7 +178,7 @@ def list_directory(sandbox: Sandbox, path: str, recursive: Optional[bool] = None
         recursive: If True, list contents recursively (optional)
     """
     try:
-        contents = sandbox.get_directory_listing(
+        contents = context.sandbox.get_directory_listing(
             path, recursive=bool(recursive) if recursive is not None else False
         )
 
@@ -186,7 +191,7 @@ def list_directory(sandbox: Sandbox, path: str, recursive: Optional[bool] = None
 
 
 @tool
-def edit_file(sandbox: Sandbox, path: str, match_text: str, replace_text: str):
+def edit_file(context: "AgentContext", path: str, match_text: str, replace_text: str):
     """Make a targeted edit to a file in the sandbox by replacing specific text.
 
     Args:
@@ -195,7 +200,7 @@ def edit_file(sandbox: Sandbox, path: str, match_text: str, replace_text: str):
         replace_text: Text to replace the matched text with
     """
     try:
-        content = sandbox.read_file(path)
+        content = context.sandbox.read_file(path)
 
         # Check if the match_text is unique
         if content.count(match_text) > 1:
@@ -203,12 +208,12 @@ def edit_file(sandbox: Sandbox, path: str, match_text: str, replace_text: str):
         elif content.count(match_text) == 0:
             # If match_text is not found, append replace_text to the end of the file
             new_content = content + "\n" + replace_text
-            sandbox.write_file(path, new_content)
+            context.sandbox.write_file(path, new_content)
             return "Text not found. Content added to the end of the file."
         else:
             # Replace the matched text
             new_content = content.replace(match_text, replace_text, 1)
-            sandbox.write_file(path, new_content)
+            context.sandbox.write_file(path, new_content)
             return "File edited successfully"
     except PermissionError:
         return f"Error: No read or write permission for {path}"
@@ -216,18 +221,166 @@ def edit_file(sandbox: Sandbox, path: str, match_text: str, replace_text: str):
         return f"Error editing file: {str(e)}"
 
 
+@tool
+def web_search(context: "AgentContext", search_query: str) -> str:
+    """Perform a web search using Brave Search API.
+
+    Args:
+        search_query: The search query to send to Brave Search
+    """
+    import os
+    import asyncio
+    from brave_search_python_client import BraveSearch, WebSearchRequest
+
+    # Try to get API key from environment first
+    api_key = os.getenv("BRAVE_SEARCH_API_KEY")
+
+    # If not in environment, try to read from ~/.brave-search-api-key
+    if not api_key:
+        try:
+            key_path = os.path.expanduser("~/.brave-search-api-key")
+            if os.path.exists(key_path):
+                with open(key_path, "r") as f:
+                    api_key = f.read().strip()
+        except Exception:
+            pass
+
+    if not api_key:
+        return "Error: BRAVE_SEARCH_API_KEY not found in environment or ~/.brave-search-api-key"
+
+    try:
+        # Initialize Brave Search client
+        bs = BraveSearch(api_key=api_key)
+
+        # Create event loop and run the async operation
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        response = loop.run_until_complete(bs.web(WebSearchRequest(q=search_query)))
+        loop.close()
+
+        # Format results
+        results = []
+        if response.web and response.web.results:
+            for result in response.web.results:
+                results.append(f"Title: {result.title}")
+                results.append(f"URL: {result.url}")
+                if result.description:
+                    results.append(f"Description: {result.description}")
+                results.append("---")
+
+            return "\n".join(results)
+        else:
+            return "No results found"
+
+    except Exception as e:
+        return f"Error performing web search: {str(e)}"
+
+
+# Create a minimal UI that captures output as string
+class CaptureInterface(UserInterface):
+    def get_user_input(self, prompt: str = "") -> str:
+        pass
+
+    def display_welcome_message(self) -> None:
+        pass
+
+    def status(
+        self, message: str, spinner: str = None
+    ) -> contextlib.AbstractContextManager:
+        return self.parent.status(message, spinner)
+
+    def __init__(self, parent: UserInterface) -> None:
+        self.output = []
+        self.parent = parent
+
+    def handle_system_message(self, message):
+        self.output.append(message)
+
+    def handle_user_input(self, message):
+        self.output.append(message)
+
+    def handle_assistant_message(self, message):
+        self.output.append(message)
+
+    def handle_tool_use(self, tool_name, tool_input):
+        self.output.append(f"Using tool {tool_name} with input {tool_input}")
+
+    def handle_tool_result(self, tool_name, result):
+        self.output.append(f"Tool {tool_name} result: {result}")
+
+    def display_token_count(
+        self, prompt_tokens, completion_tokens, total_tokens, total_cost
+    ):
+        pass
+
+    def permission_callback(self, operation, path, sandbox_mode, action_arguments):
+        return True
+
+    def permission_rendering_callback(self, operation, path, action_arguments):
+        return True
+
+
+@tool
+def agent(context: "AgentContext", prompt: str, tool_names: List[str]):
+    """Run a prompt through a sub-agent with a limited set of tools.
+    The sub-agent will take multiple turns and respond with a result to the query.
+    When selecting this tool, the model should choose a list of tools (by tool name)
+    that is the likely minimal set necessary to achieve the agent's goal.
+
+    Args:
+        prompt: the initial prompt question to ask the
+        tool_names: a list of tool names from the existing tools to provide to the sub-agent. this should be a subset!
+    """
+    from .agent import run
+
+    ui = CaptureInterface(parent=context.user_interface)
+
+    # Run the agent with single response mode
+    chat_history = run(
+        agent_context=context.with_user_interface(ui),
+        initial_prompt=prompt,
+        single_response=True,
+        tool_names=tool_names,
+    )
+
+    # Get the final assistant message from chat history
+    for message in reversed(chat_history):
+        if message["role"] == "assistant":
+            # Handle both string and list content formats
+            if isinstance(message["content"], str):
+                return message["content"]
+            elif isinstance(message["content"], list):
+                # Concatenate all text blocks
+                return "".join(
+                    block.text for block in message["content"] if hasattr(block, "text")
+                )
+
+    return "No response generated"
+
+
 # List of all available tools
-ALL_TOOLS = [read_file, write_file, list_directory, run_bash_command, edit_file]
+ALL_TOOLS = [
+    read_file,
+    write_file,
+    list_directory,
+    run_bash_command,
+    edit_file,
+    web_search,
+    agent,
+]
 
 
-def invoke_tool(sandbox: Sandbox, tool_use, tools: List[Callable] = ALL_TOOLS):
+def invoke_tool(context: "AgentContext", tool_use, tools: List[Callable] = None):
     """Invoke a tool based on the tool_use specification.
 
     Args:
-        sandbox: The sandbox environment
+        context: The agent's context
         tool_use: The tool use specification containing name, input, and id
         tools: List of tool functions to use. Defaults to ALL_TOOLS.
     """
+    if tools is None:
+        tools = ALL_TOOLS
+
     function_name = tool_use.name
     arguments = tool_use.input
 
@@ -244,6 +397,6 @@ def invoke_tool(sandbox: Sandbox, tool_use, tools: List[Callable] = ALL_TOOLS):
         }
 
     # Call the tool function with the sandbox and arguments
-    result = tool_func(sandbox, **arguments)
+    result = tool_func(context, **arguments)
 
     return {"type": "tool_result", "tool_use_id": tool_use.id, "content": result}

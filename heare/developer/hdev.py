@@ -13,6 +13,7 @@ from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.document import Document
 
 from heare.developer.agent import run
+from heare.developer.context import AgentContext
 from heare.developer.sandbox import SandboxMode
 from heare.developer.user_interface import UserInterface
 from heare.developer.toolbox import Toolbox
@@ -347,12 +348,15 @@ def main(args: List[str]):
     if not initial_prompt:
         user_interface.display_welcome_message()
 
+    context = AgentContext.create(
+        model_spec=MODEL_MAP.get(args.model),
+        sandbox_mode=args.sandbox,
+        sandbox_contents=args.sandbox,
+        user_interface=user_interface,
+    )
+
     run(
-        MODEL_MAP.get(args.model),
-        args.sandbox,
-        args.sandbox_mode,
-        None,  # Toolbox will be created in run()
-        user_interface,
+        agent_context=context,
         initial_prompt=initial_prompt,
         single_response=bool(initial_prompt),
     )

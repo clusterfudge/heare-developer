@@ -10,7 +10,7 @@ authors = [
 ]
 description = "A command-line coding agent."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
@@ -22,6 +22,7 @@ dependencies = [
     "pathspec==0.12.1",
     "prompt_toolkit==3.0.47",
     "rich==13.7.1",
+    "brave-search-python-client>=0.2.22",
 ]
 
 [project.optional-dependencies]
