@@ -33,15 +33,14 @@ class MockStream:
         self.content = content
         self.final_message = MockMessage(
             type="message",
-            content=[content],
+            content=[{"type": "text", "text": content}],
             usage=Usage(input_tokens=100, output_tokens=50),
             stop_reason="end_turn",
         )
         self.response = MockResponse(
             {
-                "x-ratelimit-limit": "100000",
-                "x-ratelimit-remaining": "99999",
-                "x-ratelimit-reset": "3600",
+                "anthropic-ratelimit-tokens-remaining": "100000",
+                "anthropic-ratelimit-tokens-reset": "2024-03-20T00:00:00Z",
             }
         )
 
@@ -174,10 +173,10 @@ def mock_toolbox():
 @pytest.fixture
 def agent_context(model_config):
     ui = MockUserInterface()
-    return AgentContext(
+    return AgentContext.create(
         model_spec=model_config,
-        sandbox={},
-        sandbox_mode="remember_per_resource",
+        sandbox_mode=SandboxMode.REMEMBER_PER_RESOURCE,
+        sandbox_contents=[],
         user_interface=ui,
     )
 
@@ -199,33 +198,6 @@ def test_single_response_mode(
     )
     # Verify the session ended after one response
     assert mock_anthropic.return_value.messages.stream.call_count == 1
-    # Verify we got a response
-    assert any(
-        "Test response" in str(msg)
-        for msg in agent_context.user_interface.messages
-        if msg[0] == "assistant"
-    )
-
-
-def test_initial_prompt_without_single_response(
-    mock_anthropic, mock_environment, agent_context, mock_system_message, mock_toolbox
-):
-    agent_context.user_interface.inputs = [
-        "/quit"
-    ]  # Add quit command to end the session
-
-    run(
-        agent_context=agent_context,
-        initial_prompt="Hello",
-        single_response=False,
-    )
-
-    # Verify initial prompt was processed
-    assert any(
-        "Hello" in str(msg)
-        for msg in agent_context.user_interface.messages
-        if msg[0] == "user"
-    )
     # Verify we got a response
     assert any(
         "Test response" in str(msg)
@@ -266,3 +238,36 @@ def test_command_display_without_single_response(
         "Available commands" in str(msg)
         for msg in agent_context.user_interface.messages
     )
+
+
+def test_initial_prompt_without_single_response(
+    mock_anthropic, mock_environment, agent_context, mock_system_message, mock_toolbox
+):
+    agent_context.user_interface.inputs = [
+        "/quit"
+    ]  # Add quit command to end the session
+
+    run(
+        agent_context=agent_context,
+        initial_prompt="Hello",
+        single_response=False,
+    )
+
+    # Print all messages for debugging
+    print("\nAll messages:")
+    for msg_type, content in agent_context.user_interface.messages:
+        print(f"{msg_type}: {content}")
+
+    # Verify initial prompt was processed
+    assert any(
+        "Hello" in str(msg)
+        for msg in agent_context.user_interface.messages
+        if msg[0] == "user"
+    ), "Initial prompt 'Hello' not found in messages"
+
+    # Verify we got a response
+    assert any(
+        "Test response" in str(msg)
+        for msg in agent_context.user_interface.messages
+        if msg[0] == "assistant"
+    ), "Test response not found in assistant messages"

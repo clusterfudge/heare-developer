@@ -249,7 +249,7 @@ def run(
 
     while True:
         try:
-            if not tool_result_buffer and not single_response:
+            if not tool_result_buffer and not single_response and not initial_prompt:
                 user_input = user_interface.get_user_input(" > ")
 
                 command_name = (
