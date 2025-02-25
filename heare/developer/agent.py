@@ -372,22 +372,15 @@ def run(
 
             chat_history.append({"role": "assistant", "content": filtered})
 
-            prompt_tokens += final_message.usage.input_tokens
-            completion_tokens += final_message.usage.output_tokens
-            total_tokens = prompt_tokens + completion_tokens
-            total_cost += (
-                final_message.usage.input_tokens
-                / 1_000_000.0
-                * model["pricing"]["input"]
-            ) + (
-                final_message.usage.output_tokens
-                / 1_000_000.0
-                * model["pricing"]["output"]
-            )
-
+            agent_context.report_usage(final_message.usage)
+            usage_summary = agent_context.usage_summary()
             user_interface.handle_assistant_message(ai_response)
             user_interface.display_token_count(
-                prompt_tokens, completion_tokens, total_tokens, total_cost
+                usage_summary["total_input_tokens"],
+                usage_summary["total_output_tokens"],
+                usage_summary["total_input_tokens"]
+                + usage_summary["total_output_tokens"],
+                usage_summary["total_cost"],
             )
 
             if final_message.stop_reason == "tool_use":

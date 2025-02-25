@@ -13,32 +13,32 @@ from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.document import Document
 
 from heare.developer.agent import run
-from heare.developer.context import AgentContext
+from heare.developer.context import AgentContext, ModelSpec
 from heare.developer.sandbox import SandboxMode
 from heare.developer.user_interface import UserInterface
 from heare.developer.toolbox import Toolbox
 from prompt_toolkit.completion import Completer, WordCompleter, Completion
 
-MODEL_MAP = {
+MODEL_MAP: dict[str, ModelSpec] = {
     "opus": {
         "title": "claude-3-opus-20240229",
         "pricing": {"input": 15.00, "output": 75.00},
+        "cache_pricing": {"write": 18.75, "read": 1.50},
     },
     "sonnet-3.7": {
         "title": "claude-3-sonnet-20240229",
         "pricing": {"input": 3.00, "output": 15.00},
-    },
-    "sonnet": {
-        "title": "claude-3-sonnet-20240229",
-        "pricing": {"input": 3.00, "output": 15.00},
+        "cache_pricing": {"write": 3.75, "read": 0.30},
     },
     "sonnet-3.5": {
         "title": "claude-3-5-sonnet-latest",
         "pricing": {"input": 3.00, "output": 15.00},
+        "cache_pricing": {"write": 3.75, "read": 0.30},
     },
     "haiku": {
-        "title": "claude-3-haiku-20240307",
+        "title": "claude-3-5-haiku-20240307",
         "pricing": {"input": 0.80, "output": 4.00},
+        "cache_pricing": {"write": 1.00, "read": 0.08},
     },
 }
 
