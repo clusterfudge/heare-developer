@@ -229,7 +229,7 @@ class CLIUserInterface(UserInterface):
         )
 
     def status(self, message, spinner=None):
-        return self.console.status(message, spinner=spinner)
+        return self.console.status(message, spinner=spinner or "dots")
 
 
 class CustomCompleter(Completer):

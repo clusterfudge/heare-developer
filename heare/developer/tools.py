@@ -344,9 +344,7 @@ def agent(context: "AgentContext", prompt: str, tool_names: List[str]):
     """
     from .agent import run
 
-    with context.user_interface.console.status(
-        "Initiating sub-agent: {prompt}"
-    ) as status:
+    with context.user_interface.status(f"Initiating sub-agent: {prompt}") as status:
         ui = CaptureInterface(parent=context.user_interface, status=status)
 
         # Run the agent with single response mode

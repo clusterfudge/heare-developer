@@ -1,5 +1,7 @@
+import json
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, TypedDict
 from uuid import uuid4
 
@@ -7,6 +9,18 @@ from anthropic.types import Usage
 
 from heare.developer.sandbox import Sandbox, SandboxMode
 from heare.developer.user_interface import UserInterface
+from pydantic import BaseModel
+
+
+class PydanticJSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, BaseModel):
+            # For Pydantic v2
+            if hasattr(obj, "model_dump"):
+                return obj.model_dump()
+            # For Pydantic v1
+            return obj.dict()
+        return super().default(obj)
 
 
 class ModelSpec(TypedDict):
@@ -110,3 +124,27 @@ class AgentContext:
         usage_summary["total_cost"] /= 1_000_000
 
         return usage_summary
+
+    def flush(self, chat_history):
+        history_dir = Path.home() / ".hdev" / "history"
+        if self.parent_session_id:
+            history_dir = history_dir / self.parent_session_id
+        else:
+            history_dir = history_dir / self.session_id
+        history_dir.mkdir(parents=True, exist_ok=True)
+
+        if self.parent_session_id is None:
+            history_file = history_dir / "root.json"
+        else:
+            history_file = history_dir / f"{self.session_id}.json"
+
+        context_data = {
+            "session_id": self.session_id,
+            "parent_session_id": self.parent_session_id,
+            "model_spec": self.model_spec,
+            "usage": self.usage,
+            "messages": chat_history,
+        }
+
+        with open(history_file, "w") as f:
+            json.dump(context_data, f, indent=2, cls=PydanticJSONEncoder)

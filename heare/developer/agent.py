@@ -232,10 +232,6 @@ def run(
 
     chat_history: list[MessageParam] = []
     tool_result_buffer = []
-    prompt_tokens = 0
-    completion_tokens = 0
-    total_tokens = 0
-    total_cost = 0.0
 
     interrupt_count = 0
     last_interrupt_time = 0
@@ -250,7 +246,8 @@ def run(
     while True:
         try:
             if not tool_result_buffer and not single_response and not initial_prompt:
-                user_input = user_interface.get_user_input(" > ")
+                cost = f"${agent_context.usage_summary()['total_cost']:.2f}"
+                user_input = user_interface.get_user_input(f"{cost} > ")
 
                 command_name = (
                     user_input.split()[0][1:] if user_input.startswith("/") else ""
@@ -262,26 +259,9 @@ def run(
                     elif user_input == "/restart":
                         chat_history = []
                         tool_result_buffer = []
-                        prompt_tokens = 0
-                        completion_tokens = 0
-                        total_tokens = 0
-                        total_cost = 0.0
                         user_interface.handle_assistant_message(
                             "[bold green]Chat history cleared. Starting over.[/bold green]"
                         )
-                    elif user_input.startswith("/archive"):
-                        tool = toolbox.local.get("archive")
-                        if tool:
-                            tool["invoke"](
-                                user_interface=user_interface,
-                                sandbox=sandbox,
-                                user_input=user_input,
-                                chat_history=chat_history,
-                                prompt_tokens=prompt_tokens,
-                                completion_tokens=completion_tokens,
-                                total_tokens=total_tokens,
-                                total_cost=total_cost,
-                            )
                     elif command_name in toolbox.local:
                         tool = toolbox.local.get(command_name)
                         if tool:
@@ -291,10 +271,6 @@ def run(
                                 user_input=user_input,
                                 chat_history=chat_history,
                                 tool_result_buffer=tool_result_buffer,
-                                prompt_tokens=prompt_tokens,
-                                completion_tokens=completion_tokens,
-                                total_tokens=total_tokens,
-                                total_cost=total_cost,
                             )
                     else:
                         user_interface.handle_assistant_message(
@@ -400,6 +376,7 @@ def run(
 
             # Exit after one response if in single-response mode
             if single_response and not tool_result_buffer:
+                agent_context.flush(chat_history)
                 break
 
         except KeyboardInterrupt:
@@ -421,4 +398,6 @@ def run(
                     "KeyboardInterrupt detected. Press Ctrl+C again to exit, or continue typing to resume."
                     "[/bold yellow]"
                 )
+        finally:
+            agent_context.flush(chat_history)
     return chat_history

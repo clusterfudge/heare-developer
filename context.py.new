@@ -1,0 +1,24 @@
+import json
+import os
+from pathlib import Path
+
+#ORIGINAL CONTENT  
+
+    def flush(self):
+        history_dir = Path.home() / ".hdev" / "history" 
+        history_dir.mkdir(parents=True, exist_ok=True)
+        
+        if self.parent_session_id is None:
+            history_file = history_dir / "root.json"
+        else:
+            history_file = history_dir / f"{self.session_id}.json"
+        
+        context_data = {
+            "session_id": self.session_id,
+            "parent_session_id": self.parent_session_id,
+            "model_spec": self.model_spec,
+            "usage": self.usage,
+        }
+        
+        with open(history_file, "w") as f:
+            json.dump(context_data, f, indent=2)
