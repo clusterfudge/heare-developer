@@ -4,6 +4,8 @@ import inspect
 from functools import wraps
 from typing import Optional, Union, get_origin, get_args, List, Callable
 
+from rich.status import Status
+
 from .context import AgentContext
 from .user_interface import UserInterface
 
@@ -285,13 +287,16 @@ class CaptureInterface(UserInterface):
         pass
 
     def status(
-        self, message: str, spinner: str = None
+        self, message: str, spinner: str = None, update=False
     ) -> contextlib.AbstractContextManager:
-        return self.parent.status(message, spinner)
+        if update:
+            self._status.update(message, spinner=spinner or "aesthetic")
+        return self._status
 
-    def __init__(self, parent: UserInterface) -> None:
+    def __init__(self, parent: UserInterface, status: Status) -> None:
         self.output = []
         self.parent = parent
+        self._status = status
 
     def handle_system_message(self, message):
         self.output.append(message)
@@ -303,7 +308,9 @@ class CaptureInterface(UserInterface):
         self.output.append(message)
 
     def handle_tool_use(self, tool_name, tool_input):
-        self.output.append(f"Using tool {tool_name} with input {tool_input}")
+        message = f"Using tool {tool_name} with input {tool_input}"
+        self.status(message, update=True)
+        self.output.append(message)
 
     def handle_tool_result(self, tool_name, result):
         self.output.append(f"Tool {tool_name} result: {result}")
@@ -323,9 +330,13 @@ class CaptureInterface(UserInterface):
 @tool
 def agent(context: "AgentContext", prompt: str, tool_names: List[str]):
     """Run a prompt through a sub-agent with a limited set of tools.
+    Use an agent when you believe that the action desired will require multiple steps, but you do not
+    believe the details of the intermediate steps are important -- only the result.
     The sub-agent will take multiple turns and respond with a result to the query.
     When selecting this tool, the model should choose a list of tools (by tool name)
     that is the likely minimal set necessary to achieve the agent's goal.
+    Do not assume that the user can see the response of the agent, and summarize it for them.
+    Do not indicate in your response that you used a sub-agent, simply present the results.
 
     Args:
         prompt: the initial prompt question to ask the
@@ -333,29 +344,34 @@ def agent(context: "AgentContext", prompt: str, tool_names: List[str]):
     """
     from .agent import run
 
-    ui = CaptureInterface(parent=context.user_interface)
+    with context.user_interface.console.status(
+        "Initiating sub-agent: {prompt}"
+    ) as status:
+        ui = CaptureInterface(parent=context.user_interface, status=status)
 
-    # Run the agent with single response mode
-    chat_history = run(
-        agent_context=context.with_user_interface(ui),
-        initial_prompt=prompt,
-        single_response=True,
-        tool_names=tool_names,
-    )
+        # Run the agent with single response mode
+        chat_history = run(
+            agent_context=context.with_user_interface(ui),
+            initial_prompt=prompt,
+            single_response=True,
+            tool_names=tool_names,
+        )
 
-    # Get the final assistant message from chat history
-    for message in reversed(chat_history):
-        if message["role"] == "assistant":
-            # Handle both string and list content formats
-            if isinstance(message["content"], str):
-                return message["content"]
-            elif isinstance(message["content"], list):
-                # Concatenate all text blocks
-                return "".join(
-                    block.text for block in message["content"] if hasattr(block, "text")
-                )
+        # Get the final assistant message from chat history
+        for message in reversed(chat_history):
+            if message["role"] == "assistant":
+                # Handle both string and list content formats
+                if isinstance(message["content"], str):
+                    return message["content"]
+                elif isinstance(message["content"], list):
+                    # Concatenate all text blocks
+                    return "".join(
+                        block.text
+                        for block in message["content"]
+                        if hasattr(block, "text")
+                    )
 
-    return "No response generated"
+        return "No response generated"
 
 
 # List of all available tools
