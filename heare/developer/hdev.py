@@ -350,7 +350,7 @@ def main(args: List[str]):
 
     context = AgentContext.create(
         model_spec=MODEL_MAP.get(args.model),
-        sandbox_mode=args.sandbox,
+        sandbox_mode=args.sandbox_mode,
         sandbox_contents=args.sandbox,
         user_interface=user_interface,
     )
