@@ -126,6 +126,9 @@ class AgentContext:
         return usage_summary
 
     def flush(self, chat_history):
+        if not chat_history:
+            return
+
         history_dir = Path.home() / ".hdev" / "history"
         if self.parent_session_id:
             history_dir = history_dir / self.parent_session_id
