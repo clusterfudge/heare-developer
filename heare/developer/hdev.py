@@ -24,17 +24,21 @@ MODEL_MAP = {
         "title": "claude-3-opus-20240229",
         "pricing": {"input": 15.00, "output": 75.00},
     },
+    "sonnet-3.7": {
+        "title": "claude-3-sonnet-20240229",
+        "pricing": {"input": 3.00, "output": 15.00},
+    },
     "sonnet": {
         "title": "claude-3-sonnet-20240229",
-        "pricing": {"input": 15.00, "output": 75.00},
+        "pricing": {"input": 3.00, "output": 15.00},
     },
     "sonnet-3.5": {
         "title": "claude-3-5-sonnet-latest",
-        "pricing": {"input": 15.00, "output": 75.00},
+        "pricing": {"input": 3.00, "output": 15.00},
     },
     "haiku": {
         "title": "claude-3-haiku-20240307",
-        "pricing": {"input": 15.00, "output": 75.00},
+        "pricing": {"input": 0.80, "output": 4.00},
     },
 }
 
@@ -307,7 +311,7 @@ def main(args: List[str]):
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument("sandbox", nargs="*")
     arg_parser.add_argument(
-        "--model", default="sonnet-3.5", choices=list(MODEL_MAP.keys())
+        "--model", default="sonnet-3.7", choices=list(MODEL_MAP.keys())
     )
     arg_parser.add_argument(
         "--summary-cache",
