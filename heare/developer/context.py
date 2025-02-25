@@ -29,7 +29,7 @@ class ModelSpec(TypedDict):
     cache_pricing: dict[str, float]
 
 
-@dataclass(frozen=True)
+@dataclass
 class AgentContext:
     parent_session_id: str | None
     session_id: str

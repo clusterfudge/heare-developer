@@ -12,6 +12,8 @@ from typing import List
 class Usage:
     input_tokens: int
     output_tokens: int
+    cache_creation_input_tokens: int = 0
+    cache_read_input_tokens: int = 0
 
 
 @dataclass
@@ -152,6 +154,7 @@ def model_config():
     return {
         "title": "claude-3-opus-20240229",
         "pricing": {"input": 15.0, "output": 75.0},
+        "cache_pricing": {"write": 15.50, "read": 1.0},
     }
 
 
@@ -173,12 +176,14 @@ def mock_toolbox():
 @pytest.fixture
 def agent_context(model_config):
     ui = MockUserInterface()
-    return AgentContext.create(
+    ctx = AgentContext.create(
         model_spec=model_config,
         sandbox_mode=SandboxMode.REMEMBER_PER_RESOURCE,
         sandbox_contents=[],
         user_interface=ui,
     )
+    ctx.flush = Mock()
+    return ctx
 
 
 def test_single_response_mode(
