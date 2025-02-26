@@ -26,7 +26,7 @@ MODEL_MAP: dict[str, ModelSpec] = {
         "cache_pricing": {"write": 18.75, "read": 1.50},
     },
     "sonnet-3.7": {
-        "title": "claude-3-sonnet-20240229",
+        "title": "claude-3-7-sonnet-latest",
         "pricing": {"input": 3.00, "output": 15.00},
         "cache_pricing": {"write": 3.75, "read": 0.30},
     },
@@ -36,7 +36,7 @@ MODEL_MAP: dict[str, ModelSpec] = {
         "cache_pricing": {"write": 3.75, "read": 0.30},
     },
     "haiku": {
-        "title": "claude-3-5-haiku-20240307",
+        "title": "claude-3-5-haiku-20241022",
         "pricing": {"input": 0.80, "output": 4.00},
         "cache_pricing": {"write": 1.00, "read": 0.08},
     },
