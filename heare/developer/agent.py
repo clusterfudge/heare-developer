@@ -376,7 +376,7 @@ def run(
 
             # Exit after one response if in single-response mode
             if single_response and not tool_result_buffer:
-                agent_context.flush(chat_history)
+                agent_context.flush(_inline_latest_file_mentions(chat_history))
                 break
 
         except KeyboardInterrupt:
