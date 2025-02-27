@@ -126,21 +126,40 @@ class AgentContext:
         return usage_summary
 
     def flush(self, chat_history):
+        """Save the agent context and chat history to a file.
+
+        For root contexts (parent_session_id is None), saves to:
+            ~/.hdev/history/{session_id}/root.json
+
+        For sub-agent contexts (parent_session_id is not None), saves to:
+            ~/.hdev/history/{parent_session_id}/{session_id}.json
+
+        Args:
+            chat_history: The chat history to save
+        """
         if not chat_history:
             return
 
+        # Base history directory
         history_dir = Path.home() / ".hdev" / "history"
-        if self.parent_session_id:
-            history_dir = history_dir / self.parent_session_id
-        else:
-            history_dir = history_dir / self.session_id
+
+        # For root contexts, use their own session_id
+        # For sub-agent contexts, use the parent_session_id
+        context_dir = (
+            self.parent_session_id if self.parent_session_id else self.session_id
+        )
+        history_dir = history_dir / context_dir
+
+        # Create the directory if it doesn't exist
         history_dir.mkdir(parents=True, exist_ok=True)
 
-        if self.parent_session_id is None:
-            history_file = history_dir / "root.json"
-        else:
-            history_file = history_dir / f"{self.session_id}.json"
+        # Filename is root.json for root contexts, or {session_id}.json for sub-agent contexts
+        filename = (
+            "root.json" if self.parent_session_id is None else f"{self.session_id}.json"
+        )
+        history_file = history_dir / filename
 
+        # Prepare the data to save
         context_data = {
             "session_id": self.session_id,
             "parent_session_id": self.parent_session_id,
@@ -149,5 +168,6 @@ class AgentContext:
             "messages": chat_history,
         }
 
+        # Write the data to the file
         with open(history_file, "w") as f:
             json.dump(context_data, f, indent=2, cls=PydanticJSONEncoder)

@@ -351,29 +351,43 @@ def agent(context: "AgentContext", prompt: str, tool_names: List[str]):
     with context.user_interface.status(f"Initiating sub-agent: {prompt}") as status:
         ui = CaptureInterface(parent=context.user_interface, status=status)
 
-        # Run the agent with single response mode
-        chat_history = run(
-            agent_context=context.with_user_interface(ui),
-            initial_prompt=prompt,
-            single_response=True,
-            tool_names=tool_names,
-        )
+        # Create a sub-agent context with the current context as parent
+        sub_agent_context = context.with_user_interface(ui)
 
-        # Get the final assistant message from chat history
-        for message in reversed(chat_history):
-            if message["role"] == "assistant":
-                # Handle both string and list content formats
-                if isinstance(message["content"], str):
-                    return message["content"]
-                elif isinstance(message["content"], list):
-                    # Concatenate all text blocks
-                    return "".join(
-                        block.text
-                        for block in message["content"]
-                        if hasattr(block, "text")
-                    )
+        try:
+            # Run the agent with single response mode
+            chat_history = run(
+                agent_context=sub_agent_context,
+                initial_prompt=prompt,
+                single_response=True,
+                tool_names=tool_names,
+            )
 
-        return "No response generated"
+            # Make sure the chat history is flushed in case run() didn't do it
+            # (this can happen if there's an exception in run())
+            sub_agent_context.flush(chat_history)
+
+            # Get the final assistant message from chat history
+            for message in reversed(chat_history):
+                if message["role"] == "assistant":
+                    # Handle both string and list content formats
+                    if isinstance(message["content"], str):
+                        return message["content"]
+                    elif isinstance(message["content"], list):
+                        # Concatenate all text blocks
+                        return "".join(
+                            block.text
+                            for block in message["content"]
+                            if hasattr(block, "text")
+                        )
+
+            return "No response generated"
+        except Exception:
+            # If there's an exception, still try to flush any partial chat history
+            if "chat_history" in locals() and chat_history:
+                sub_agent_context.flush(chat_history)
+            # Re-raise the exception
+            raise
 
 
 def _call_anthropic_with_retry(
