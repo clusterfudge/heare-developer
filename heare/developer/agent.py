@@ -291,7 +291,7 @@ def run(
 
                         with client.messages.stream(
                             system=system_message,
-                            max_tokens=4096,
+                            max_tokens=50 * 1024,
                             messages=_inline_latest_file_mentions(chat_history),
                             model=model["title"],
                             tools=toolbox.agent_schema,
