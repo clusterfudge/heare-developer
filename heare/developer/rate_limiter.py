@@ -6,7 +6,6 @@ class RateLimiter:
     def __init__(self):
         # Store all rate limit info in a dictionary
         self.limits = {
-            "tokens": {"limit": None, "remaining": None, "reset_time": None},
             "input_tokens": {"limit": None, "remaining": None, "reset_time": None},
             "output_tokens": {"limit": None, "remaining": None, "reset_time": None},
             "requests": {"limit": None, "remaining": None, "reset_time": None},
@@ -21,7 +20,6 @@ class RateLimiter:
         """Process Anthropic rate limit headers and update the rate limiter state."""
         # Dictionary mapping header prefixes to limit types
         header_prefixes = {
-            "anthropic-ratelimit-tokens": "tokens",
             "anthropic-ratelimit-input-tokens": "input_tokens",
             "anthropic-ratelimit-output-tokens": "output_tokens",
             "anthropic-ratelimit-requests": "requests",
@@ -107,10 +105,9 @@ class RateLimiter:
 
         # Define thresholds for each limit type
         thresholds = {
-            "tokens": 1000,
-            "input_tokens": 1000,
-            "output_tokens": 1000,
-            "requests": 5,
+            "input_tokens": 40_000,
+            "output_tokens": 16_000,
+            "requests": 1_000,
         }
 
         # Check all types of limits and find the most restrictive one
