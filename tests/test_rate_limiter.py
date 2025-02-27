@@ -45,31 +45,35 @@ class TestRateLimiter(unittest.TestCase):
         self.rate_limiter.update(self.full_headers)
 
         # Check token limits
-        self.assertEqual(self.rate_limiter.tokens_limit, 100000)
-        self.assertEqual(self.rate_limiter.tokens_remaining, 5000)
+        self.assertEqual(self.rate_limiter.limits["tokens"]["limit"], 100000)
+        self.assertEqual(self.rate_limiter.limits["tokens"]["remaining"], 5000)
         self.assertEqual(
-            self.rate_limiter.tokens_reset_time.isoformat(), self.future_time_str
+            self.rate_limiter.limits["tokens"]["reset_time"].isoformat(),
+            self.future_time_str,
         )
 
         # Check input token limits
-        self.assertEqual(self.rate_limiter.input_tokens_limit, 50000)
-        self.assertEqual(self.rate_limiter.input_tokens_remaining, 4000)
+        self.assertEqual(self.rate_limiter.limits["input_tokens"]["limit"], 50000)
+        self.assertEqual(self.rate_limiter.limits["input_tokens"]["remaining"], 4000)
         self.assertEqual(
-            self.rate_limiter.input_tokens_reset_time.isoformat(), self.future_time_str
+            self.rate_limiter.limits["input_tokens"]["reset_time"].isoformat(),
+            self.future_time_str,
         )
 
         # Check output token limits
-        self.assertEqual(self.rate_limiter.output_tokens_limit, 50000)
-        self.assertEqual(self.rate_limiter.output_tokens_remaining, 3000)
+        self.assertEqual(self.rate_limiter.limits["output_tokens"]["limit"], 50000)
+        self.assertEqual(self.rate_limiter.limits["output_tokens"]["remaining"], 3000)
         self.assertEqual(
-            self.rate_limiter.output_tokens_reset_time.isoformat(), self.future_time_str
+            self.rate_limiter.limits["output_tokens"]["reset_time"].isoformat(),
+            self.future_time_str,
         )
 
         # Check request limits
-        self.assertEqual(self.rate_limiter.requests_limit, 500)
-        self.assertEqual(self.rate_limiter.requests_remaining, 100)
+        self.assertEqual(self.rate_limiter.limits["requests"]["limit"], 500)
+        self.assertEqual(self.rate_limiter.limits["requests"]["remaining"], 100)
         self.assertEqual(
-            self.rate_limiter.requests_reset_time.isoformat(), self.future_time_str
+            self.rate_limiter.limits["requests"]["reset_time"].isoformat(),
+            self.future_time_str,
         )
 
         # Check retry-after
@@ -90,20 +94,21 @@ class TestRateLimiter(unittest.TestCase):
         self.rate_limiter.update(partial_headers)
 
         # Check token limits (with missing reset time)
-        self.assertEqual(self.rate_limiter.tokens_limit, 100000)
-        self.assertEqual(self.rate_limiter.tokens_remaining, 5000)
-        self.assertIsNone(self.rate_limiter.tokens_reset_time)
+        self.assertEqual(self.rate_limiter.limits["tokens"]["limit"], 100000)
+        self.assertEqual(self.rate_limiter.limits["tokens"]["remaining"], 5000)
+        self.assertIsNone(self.rate_limiter.limits["tokens"]["reset_time"])
 
         # Check request limits (complete)
-        self.assertEqual(self.rate_limiter.requests_limit, 500)
-        self.assertEqual(self.rate_limiter.requests_remaining, 100)
+        self.assertEqual(self.rate_limiter.limits["requests"]["limit"], 500)
+        self.assertEqual(self.rate_limiter.limits["requests"]["remaining"], 100)
         self.assertEqual(
-            self.rate_limiter.requests_reset_time.isoformat(), self.future_time_str
+            self.rate_limiter.limits["requests"]["reset_time"].isoformat(),
+            self.future_time_str,
         )
 
         # Others should be None
-        self.assertIsNone(self.rate_limiter.input_tokens_limit)
-        self.assertIsNone(self.rate_limiter.output_tokens_limit)
+        self.assertIsNone(self.rate_limiter.limits["input_tokens"]["limit"])
+        self.assertIsNone(self.rate_limiter.limits["output_tokens"]["limit"])
 
     def test_handle_rate_limit_error_with_retry_after(self):
         """Test that handle_rate_limit_error prioritizes retry-after header"""
@@ -114,9 +119,10 @@ class TestRateLimiter(unittest.TestCase):
         self.assertEqual(self.rate_limiter.last_rate_limit_error, self.mock_error)
 
         # Should have updated all the rate limit info
-        self.assertEqual(self.rate_limiter.tokens_remaining, 5000)
+        self.assertEqual(self.rate_limiter.limits["tokens"]["remaining"], 5000)
         self.assertEqual(
-            self.rate_limiter.tokens_reset_time.isoformat(), self.future_time_str
+            self.rate_limiter.limits["tokens"]["reset_time"].isoformat(),
+            self.future_time_str,
         )
 
     def test_handle_rate_limit_error_without_retry_after(self):
@@ -142,7 +148,7 @@ class TestRateLimiter(unittest.TestCase):
 
         # Should have updated all the rate limit info
         self.assertEqual(
-            self.rate_limiter.input_tokens_reset_time.isoformat(),
+            self.rate_limiter.limits["input_tokens"]["reset_time"].isoformat(),
             earlier_reset.isoformat(),
         )
 
@@ -181,8 +187,8 @@ class TestRateLimiter(unittest.TestCase):
     def test_check_and_wait_approaching_token_limit(self, mock_sleep):
         """Test check_and_wait when approaching token limit"""
         # Setup rate limiter with low tokens remaining
-        self.rate_limiter.tokens_remaining = 500
-        self.rate_limiter.tokens_reset_time = self.near_future_time
+        self.rate_limiter.limits["tokens"]["remaining"] = 500
+        self.rate_limiter.limits["tokens"]["reset_time"] = self.near_future_time
 
         self.rate_limiter.check_and_wait(self.mock_user_interface)
 
@@ -199,9 +205,11 @@ class TestRateLimiter(unittest.TestCase):
     def test_check_and_wait_approaching_request_limit(self, mock_sleep):
         """Test check_and_wait when approaching request limit"""
         # Setup rate limiter with low requests remaining but plenty of tokens
-        self.rate_limiter.tokens_remaining = 5000
-        self.rate_limiter.requests_remaining = 3  # Below the threshold for requests (5)
-        self.rate_limiter.requests_reset_time = self.near_future_time
+        self.rate_limiter.limits["tokens"]["remaining"] = 5000
+        self.rate_limiter.limits["requests"]["remaining"] = (
+            3  # Below the threshold for requests (5)
+        )
+        self.rate_limiter.limits["requests"]["reset_time"] = self.near_future_time
 
         self.rate_limiter.check_and_wait(self.mock_user_interface)
 
@@ -220,8 +228,8 @@ class TestRateLimiter(unittest.TestCase):
     def test_check_and_wait_no_reset_time(self, mock_sleep):
         """Test check_and_wait when no reset time is available"""
         # Setup rate limiter with low tokens remaining but no reset time
-        self.rate_limiter.tokens_remaining = 500
-        self.rate_limiter.tokens_reset_time = None
+        self.rate_limiter.limits["tokens"]["remaining"] = 500
+        self.rate_limiter.limits["tokens"]["reset_time"] = None
 
         self.rate_limiter.check_and_wait(self.mock_user_interface)
 
@@ -235,10 +243,10 @@ class TestRateLimiter(unittest.TestCase):
     def test_check_and_wait_no_limits_approaching(self, mock_sleep):
         """Test check_and_wait when no limits are approaching"""
         # Setup rate limiter with plenty of everything
-        self.rate_limiter.tokens_remaining = 50000
-        self.rate_limiter.input_tokens_remaining = 25000
-        self.rate_limiter.output_tokens_remaining = 25000
-        self.rate_limiter.requests_remaining = 400
+        self.rate_limiter.limits["tokens"]["remaining"] = 50000
+        self.rate_limiter.limits["input_tokens"]["remaining"] = 25000
+        self.rate_limiter.limits["output_tokens"]["remaining"] = 25000
+        self.rate_limiter.limits["requests"]["remaining"] = 400
 
         self.rate_limiter.check_and_wait(self.mock_user_interface)
 
