@@ -100,37 +100,3 @@ class RateLimiter:
             self.last_rate_limit_error = None
             self.backoff_time = 0
             return
-
-        current_time = datetime.now(timezone.utc)
-
-        # Define thresholds for each limit type
-        thresholds = {
-            "input_tokens": 40_000,
-            "output_tokens": 16_000,
-            "requests": 1_000,
-        }
-
-        # Check all types of limits and find the most restrictive one
-        for limit_type, threshold in thresholds.items():
-            remaining = self.limits[limit_type]["remaining"]
-            reset_time = self.limits[limit_type]["reset_time"]
-
-            if remaining is not None and remaining < threshold:
-                if reset_time:
-                    wait_time = max(0, (reset_time - current_time).total_seconds())
-                    if wait_time > 0:
-                        message = f"{limit_type.replace('_', ' ').capitalize()} rate limit approaching ({remaining} remaining). Waiting for {wait_time:.2f} seconds until reset."
-                        if user_interface:
-                            user_interface.handle_system_message(message)
-                        else:
-                            print(message)
-                        time.sleep(wait_time)
-                        return
-                else:
-                    message = f"{limit_type.replace('_', ' ').capitalize()} rate limit approaching ({remaining} remaining). Waiting for 60 seconds."
-                    if user_interface:
-                        user_interface.handle_system_message(message)
-                    else:
-                        print(message)
-                    time.sleep(60)
-                    return

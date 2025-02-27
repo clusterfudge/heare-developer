@@ -21,9 +21,6 @@ class TestRateLimiter(unittest.TestCase):
         # Create headers with all Anthropic rate limit information
         self.full_headers = {
             "retry-after": "30",
-            "anthropic-ratelimit-tokens-limit": "100000",
-            "anthropic-ratelimit-tokens-remaining": "5000",
-            "anthropic-ratelimit-tokens-reset": self.future_time_str,
             "anthropic-ratelimit-input-tokens-limit": "50000",
             "anthropic-ratelimit-input-tokens-remaining": "4000",
             "anthropic-ratelimit-input-tokens-reset": self.future_time_str,
@@ -43,14 +40,6 @@ class TestRateLimiter(unittest.TestCase):
     def test_update_all_headers(self):
         """Test that update method properly parses all headers"""
         self.rate_limiter.update(self.full_headers)
-
-        # Check token limits
-        self.assertEqual(self.rate_limiter.limits["tokens"]["limit"], 100000)
-        self.assertEqual(self.rate_limiter.limits["tokens"]["remaining"], 5000)
-        self.assertEqual(
-            self.rate_limiter.limits["tokens"]["reset_time"].isoformat(),
-            self.future_time_str,
-        )
 
         # Check input token limits
         self.assertEqual(self.rate_limiter.limits["input_tokens"]["limit"], 50000)
@@ -82,9 +71,6 @@ class TestRateLimiter(unittest.TestCase):
     def test_update_partial_headers(self):
         """Test that update method correctly handles partial headers"""
         partial_headers = {
-            "anthropic-ratelimit-tokens-limit": "100000",
-            "anthropic-ratelimit-tokens-remaining": "5000",
-            # Intentionally missing reset time
             # Only include requests information
             "anthropic-ratelimit-requests-limit": "500",
             "anthropic-ratelimit-requests-remaining": "100",
@@ -92,11 +78,6 @@ class TestRateLimiter(unittest.TestCase):
         }
 
         self.rate_limiter.update(partial_headers)
-
-        # Check token limits (with missing reset time)
-        self.assertEqual(self.rate_limiter.limits["tokens"]["limit"], 100000)
-        self.assertEqual(self.rate_limiter.limits["tokens"]["remaining"], 5000)
-        self.assertIsNone(self.rate_limiter.limits["tokens"]["reset_time"])
 
         # Check request limits (complete)
         self.assertEqual(self.rate_limiter.limits["requests"]["limit"], 500)
@@ -119,9 +100,9 @@ class TestRateLimiter(unittest.TestCase):
         self.assertEqual(self.rate_limiter.last_rate_limit_error, self.mock_error)
 
         # Should have updated all the rate limit info
-        self.assertEqual(self.rate_limiter.limits["tokens"]["remaining"], 5000)
+        self.assertEqual(self.rate_limiter.limits["input_tokens"]["remaining"], 4000)
         self.assertEqual(
-            self.rate_limiter.limits["tokens"]["reset_time"].isoformat(),
+            self.rate_limiter.limits["input_tokens"]["reset_time"].isoformat(),
             self.future_time_str,
         )
 
@@ -185,65 +166,67 @@ class TestRateLimiter(unittest.TestCase):
 
     @patch("time.sleep")
     def test_check_and_wait_approaching_token_limit(self, mock_sleep):
-        """Test check_and_wait when approaching token limit"""
-        # Setup rate limiter with low tokens remaining
-        self.rate_limiter.limits["tokens"]["remaining"] = 500
-        self.rate_limiter.limits["tokens"]["reset_time"] = self.near_future_time
+        """Test check_and_wait only waits after a rate limit error"""
+        # Setup rate limiter with low input tokens remaining, but no rate limit error
+        self.rate_limiter.limits["input_tokens"]["remaining"] = 500
+        self.rate_limiter.limits["input_tokens"]["reset_time"] = self.near_future_time
+
+        # Without setting last_rate_limit_error, check_and_wait should not sleep
+        self.rate_limiter.check_and_wait(self.mock_user_interface)
+
+        # Should not have called sleep because there's no rate limit error
+        mock_sleep.assert_not_called()
+        self.mock_user_interface.handle_system_message.assert_not_called()
+
+        # Now set a rate limit error and verify it sleeps
+        self.rate_limiter.last_rate_limit_error = self.mock_error
+        self.rate_limiter.backoff_time = 10
 
         self.rate_limiter.check_and_wait(self.mock_user_interface)
 
-        # Should have called sleep with wait_time close to 10 seconds
-        self.assertEqual(mock_sleep.call_count, 1)
-        wait_time = mock_sleep.call_args[0][0]
-        self.assertGreater(wait_time, 5)  # Allow for test execution time
-        self.assertLess(wait_time, 15)  # Allow for test execution time
-
-        # Should have notified user
+        # Now it should sleep
+        mock_sleep.assert_called_once_with(10)
         self.mock_user_interface.handle_system_message.assert_called_once()
 
     @patch("time.sleep")
-    def test_check_and_wait_approaching_request_limit(self, mock_sleep):
-        """Test check_and_wait when approaching request limit"""
-        # Setup rate limiter with low requests remaining but plenty of tokens
-        self.rate_limiter.limits["tokens"]["remaining"] = 5000
-        self.rate_limiter.limits["requests"]["remaining"] = (
-            3  # Below the threshold for requests (5)
-        )
+    def test_check_and_wait_only_after_rate_limit_error(self, mock_sleep):
+        """Test check_and_wait only waits after a rate limit error"""
+        # Setup rate limiter with low requests remaining but no rate limit error
+        self.rate_limiter.limits["input_tokens"]["remaining"] = 5000
+        self.rate_limiter.limits["output_tokens"]["remaining"] = 5000
+        self.rate_limiter.limits["requests"]["remaining"] = 3
         self.rate_limiter.limits["requests"]["reset_time"] = self.near_future_time
 
+        # Without setting last_rate_limit_error, check_and_wait should not sleep
         self.rate_limiter.check_and_wait(self.mock_user_interface)
 
-        # Should have called sleep with wait_time close to 10 seconds
-        self.assertEqual(mock_sleep.call_count, 1)
-        wait_time = mock_sleep.call_args[0][0]
-        self.assertGreater(wait_time, 5)  # Allow for test execution time
-        self.assertLess(wait_time, 15)  # Allow for test execution time
-
-        # Should have notified user about requests limit
-        self.mock_user_interface.handle_system_message.assert_called_once()
-        message = self.mock_user_interface.handle_system_message.call_args[0][0]
-        self.assertIn("requests", message.lower())
+        # Should not have called sleep because there's no rate limit error
+        mock_sleep.assert_not_called()
+        self.mock_user_interface.handle_system_message.assert_not_called()
 
     @patch("time.sleep")
-    def test_check_and_wait_no_reset_time(self, mock_sleep):
-        """Test check_and_wait when no reset time is available"""
-        # Setup rate limiter with low tokens remaining but no reset time
-        self.rate_limiter.limits["tokens"]["remaining"] = 500
-        self.rate_limiter.limits["tokens"]["reset_time"] = None
+    def test_check_and_wait_with_error_but_no_reset_time(self, mock_sleep):
+        """Test check_and_wait with rate limit error but no reset time"""
+        # Setup rate limiter with a rate limit error and backoff time
+        self.rate_limiter.last_rate_limit_error = self.mock_error
+        self.rate_limiter.backoff_time = 60
 
         self.rate_limiter.check_and_wait(self.mock_user_interface)
 
-        # Should have used default wait time (60 seconds)
+        # Should have used the backoff time
         mock_sleep.assert_called_once_with(60)
 
         # Should have notified user
         self.mock_user_interface.handle_system_message.assert_called_once()
 
     @patch("time.sleep")
-    def test_check_and_wait_no_limits_approaching(self, mock_sleep):
-        """Test check_and_wait when no limits are approaching"""
-        # Setup rate limiter with plenty of everything
-        self.rate_limiter.limits["tokens"]["remaining"] = 50000
+    def test_check_and_wait_no_rate_limit_error(self, mock_sleep):
+        """Test check_and_wait when no rate limit error has occurred"""
+        # Setup rate limiter with no rate limit error
+        self.rate_limiter.last_rate_limit_error = None
+        self.rate_limiter.backoff_time = 0
+
+        # Set plenty of tokens/requests remaining (not that this is checked currently)
         self.rate_limiter.limits["input_tokens"]["remaining"] = 25000
         self.rate_limiter.limits["output_tokens"]["remaining"] = 25000
         self.rate_limiter.limits["requests"]["remaining"] = 400
