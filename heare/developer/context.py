@@ -74,8 +74,8 @@ class AgentContext:
     def _report_usage(self, usage: Usage, model_spec: ModelSpec):
         self.usage.append((usage, model_spec))
 
-    def report_usage(self, usage: Usage):
-        self._report_usage(usage, self.model_spec)
+    def report_usage(self, usage: Usage, model_spec: ModelSpec | None = None):
+        self._report_usage(usage, model_spec or self.model_spec)
 
     def usage_summary(self) -> dict[str, Any]:
         usage_summary = {

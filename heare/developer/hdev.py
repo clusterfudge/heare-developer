@@ -6,6 +6,7 @@ from typing import Dict, Any, List
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
+from rich.box import HORIZONTALS
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
@@ -52,6 +53,23 @@ def parse_sandbox_mode(value: str) -> SandboxMode:
     raise argparse.ArgumentTypeError(f"Invalid sandbox mode: {value}")
 
 
+# Use the pre-defined HORIZONTALS box which has only top and bottom borders
+# This makes it easier to copy-paste content from the terminal
+HORIZONTAL_ONLY_BOX = HORIZONTALS
+
+
+def create_clean_panel(content, title=None, style=""):
+    """Create a panel with only horizontal borders to make copy/paste easier"""
+    return Panel(
+        content,
+        title=title,
+        expand=False,
+        box=HORIZONTAL_ONLY_BOX,
+        border_style=style,
+        padding=(1, 0),  # Vertical padding but no horizontal padding
+    )
+
+
 class CLIUserInterface(UserInterface):
     def __init__(self, console: Console, sandbox_mode: SandboxMode):
         self.console = console
@@ -83,21 +101,19 @@ class CLIUserInterface(UserInterface):
     def handle_system_message(self, message: str) -> None:
         self.console.print("\n")
         self.console.print(
-            Panel(
+            create_clean_panel(
                 f"[bold yellow]{message}[/bold yellow]",
                 title="System Message",
-                expand=False,
-                border_style="bold yellow",
+                style="bold yellow",
             )
         )
 
     def handle_assistant_message(self, message: str) -> None:
         self.console.print(
-            Panel(
+            create_clean_panel(
                 f"[bold green]{message}[/bold green]",
                 title="AI Assistant",
-                expand=False,
-                border_style="bold green",
+                style="bold green",
             )
         )
 
@@ -132,13 +148,12 @@ class CLIUserInterface(UserInterface):
         )
 
         self.console.print(
-            Panel(
+            create_clean_panel(
                 f"[bold blue]Action:[/bold blue] {action}\n"
                 f"[bold cyan]Resource:[/bold cyan] {resource}\n"
                 f"[bold green]Arguments:[/bold green]\n{formatted_params}",
                 title="Permission Check",
-                expand=False,
-                border_style="bold yellow",
+                style="bold yellow",
             )
         )
 
@@ -171,11 +186,10 @@ class CLIUserInterface(UserInterface):
         )
 
         self.console.print(
-            Panel(
+            create_clean_panel(
                 display_text,
                 title="Tool Result",
-                expand=False,
-                border_style="bold magenta",
+                style="bold magenta",
             )
         )
 
@@ -221,10 +235,10 @@ class CLIUserInterface(UserInterface):
 
     def display_welcome_message(self) -> None:
         self.console.print(
-            Panel(
+            create_clean_panel(
                 "[bold green]Welcome to the Heare Developer CLI, your personal coding assistant.[/bold green]\n"
                 "[bold yellow]For multi-line input, start with '{' on a new line, enter your content, and end with '}' on a new line.[/bold yellow]",
-                expand=False,
+                style="bold cyan",
             )
         )
 
