@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 from datetime import datetime, timezone, timedelta
 
-from heare.developer.agent import RateLimiter
+from heare.developer.rate_limiter import RateLimiter
 
 
 class TestRateLimiter(unittest.TestCase):
