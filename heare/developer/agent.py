@@ -3,6 +3,7 @@ import time
 import random
 from collections import defaultdict
 from pathlib import Path
+from uuid import uuid4
 
 import anthropic
 from anthropic.types import TextBlock, MessageParam
@@ -244,8 +245,10 @@ def run(
                     elif user_input == "/restart":
                         chat_history = []
                         tool_result_buffer = []
+                        # Generate a new session ID for the agent context
+                        agent_context.session_id = str(uuid4())
                         user_interface.handle_assistant_message(
-                            "[bold green]Chat history cleared. Starting over.[/bold green]"
+                            "[bold green]Chat history cleared and new session started.[/bold green]"
                         )
                     elif command_name in toolbox.local:
                         tool = toolbox.local.get(command_name)
