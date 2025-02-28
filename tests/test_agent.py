@@ -155,6 +155,7 @@ def model_config():
         "title": "claude-3-opus-20240229",
         "pricing": {"input": 15.0, "output": 75.0},
         "cache_pricing": {"write": 15.50, "read": 1.0},
+        "max_tokens": 8192,
     }
 
 
