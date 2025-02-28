@@ -27,6 +27,7 @@ class ModelSpec(TypedDict):
     title: str
     pricing: dict[str, float]
     cache_pricing: dict[str, float]
+    max_tokens: int
 
 
 @dataclass

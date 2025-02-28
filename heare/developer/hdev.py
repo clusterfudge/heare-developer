@@ -1,6 +1,7 @@
 import argparse
 import os
 import re
+import sys
 from typing import Dict, Any, List
 
 from rich.console import Console
@@ -21,29 +22,28 @@ from heare.developer.toolbox import Toolbox
 from prompt_toolkit.completion import Completer, WordCompleter, Completion
 
 MODEL_MAP: dict[str, ModelSpec] = {
-    "opus": {
-        "title": "claude-3-opus-20240229",
-        "pricing": {"input": 15.00, "output": 75.00},
-        "cache_pricing": {"write": 18.75, "read": 1.50},
-    },
     "sonnet-3.7": {
         "title": "claude-3-7-sonnet-latest",
         "pricing": {"input": 3.00, "output": 15.00},
         "cache_pricing": {"write": 3.75, "read": 0.30},
+        "max_tokens": 8192,
     },
     "sonnet-3.5": {
         "title": "claude-3-5-sonnet-latest",
         "pricing": {"input": 3.00, "output": 15.00},
         "cache_pricing": {"write": 3.75, "read": 0.30},
+        "max_tokens": 8192,
     },
     "haiku": {
         "title": "claude-3-5-haiku-20241022",
         "pricing": {"input": 0.80, "output": 4.00},
         "cache_pricing": {"write": 1.00, "read": 0.08},
+        "max_tokens": 8192,
     },
 }
 
 SANDBOX_MODE_MAP = {mode.name.lower(): mode for mode in SandboxMode}
+SANDBOX_MODE_MAP["dwr"] = SandboxMode.ALLOW_ALL
 
 
 def parse_sandbox_mode(value: str) -> SandboxMode:
@@ -381,4 +381,4 @@ def main(args: List[str]):
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv)
