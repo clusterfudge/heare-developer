@@ -127,12 +127,16 @@ class CLIUserInterface(UserInterface):
         response = (
             str(
                 self.console.input(
-                    "[bold yellow]Allow this action? (y/N): [/bold yellow]"
+                    "[bold yellow]Allow this action? (y/N/D for 'do something else'): [/bold yellow]"
                 )
             )
             .strip()
             .lower()
         )
+        if response == "d":
+            from heare.developer.sandbox import DoSomethingElseError
+
+            raise DoSomethingElseError()
         return response == "y"
 
     def permission_rendering_callback(

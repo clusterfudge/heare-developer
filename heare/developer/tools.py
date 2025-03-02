@@ -12,6 +12,7 @@ from rich.status import Status
 
 from .context import AgentContext
 from .user_interface import UserInterface
+from .sandbox import DoSomethingElseError
 
 
 def tool(func):
@@ -119,8 +120,11 @@ def run_bash_command(context: "AgentContext", command: str):
         if any(re.search(cmd, command) for cmd in dangerous_commands):
             return "Error: This command is not allowed for safety reasons."
 
-        if not context.sandbox.check_permissions("shell", command):
-            return "Error: Operator denied permission."
+        try:
+            if not context.sandbox.check_permissions("shell", command):
+                return "Error: Operator denied permission."
+        except DoSomethingElseError:
+            raise  # Re-raise to be handled by higher-level components
 
         # Run the command and capture output
         result = subprocess.run(
@@ -152,6 +156,8 @@ def read_file(context: "AgentContext", path: str):
         return context.sandbox.read_file(path)
     except PermissionError:
         return f"Error: No read permission for {path}"
+    except DoSomethingElseError:
+        raise  # Re-raise to be handled by higher-level components
     except Exception as e:
         return f"Error reading file: {str(e)}"
 
@@ -169,6 +175,8 @@ def write_file(context: "AgentContext", path: str, content: str):
         return "File written successfully"
     except PermissionError:
         return f"Error: No write permission for {path}"
+    except DoSomethingElseError:
+        raise  # Re-raise to be handled by higher-level components
     except Exception as e:
         return f"Error writing file: {str(e)}"
 
@@ -223,6 +231,8 @@ def edit_file(context: "AgentContext", path: str, match_text: str, replace_text:
             return "File edited successfully"
     except PermissionError:
         return f"Error: No read or write permission for {path}"
+    except DoSomethingElseError:
+        raise  # Re-raise to be handled by higher-level components
     except Exception as e:
         return f"Error editing file: {str(e)}"
 

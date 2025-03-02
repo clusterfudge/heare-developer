@@ -80,9 +80,14 @@ class Toolbox:
     def invoke_agent_tool(self, tool_use):
         """Invoke an agent tool based on the tool use object."""
         from .tools import invoke_tool
+        from .sandbox import DoSomethingElseError
 
-        # Convert agent tools to a list matching tools format
-        return invoke_tool(self.context, tool_use, tools=self.agent_tools)
+        try:
+            # Convert agent tools to a list matching tools format
+            return invoke_tool(self.context, tool_use, tools=self.agent_tools)
+        except DoSomethingElseError:
+            # Let the exception propagate up to the agent to be handled
+            raise
 
     # CLI Tools
     def _help(self, user_interface, sandbox, user_input, *args, **kwargs):

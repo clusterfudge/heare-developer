@@ -8,6 +8,10 @@ from pathspec import PathSpec
 from pathspec.patterns import GitWildMatchPattern
 
 
+class DoSomethingElseError(Exception):
+    """Raised when the user chooses to 'do something else' instead of allowing or denying a permission."""
+
+
 class SandboxMode(Enum):
     REQUEST_EVERY_TIME = auto()
     REMEMBER_PER_RESOURCE = auto()
@@ -24,8 +28,11 @@ def _default_permission_check_callback(
 ) -> bool:
     # Request human input
     response = input(
-        f"Allow {action} on {resource} with arguments {action_arguments}? (Y/N): "
+        f"Allow {action} on {resource} with arguments {action_arguments}? (Y/N/D for 'do something else'): "
     ).lower()
+    if response == "d":
+        # Special return value to indicate "do something else"
+        raise DoSomethingElseError()
     return response == "y"
 
 
@@ -125,6 +132,7 @@ class Sandbox:
         if allowed or self.mode == SandboxMode.ALLOW_ALL:
             return True
 
+        # Call permission check callback, which may raise DoSomethingElseError
         allowed = self._permission_check_callback(
             action, resource, self.mode, action_arguments
         )

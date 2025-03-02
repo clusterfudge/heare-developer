@@ -13,6 +13,7 @@ from heare.developer.context import AgentContext
 from heare.developer.prompt import create_system_message
 from heare.developer.rate_limiter import RateLimiter
 from heare.developer.toolbox import Toolbox
+from heare.developer.sandbox import DoSomethingElseError
 
 
 def retry_with_exponential_backoff(func, max_retries=5, base_delay=1, max_delay=60):
@@ -367,9 +368,43 @@ def run(
                 for part in final_message.content:
                     if part.type == "tool_use":
                         user_interface.handle_tool_use(part.name, part.input)
-                        result = toolbox.invoke_agent_tool(part)
-                        tool_result_buffer.append(result)
-                        user_interface.handle_tool_result(part.name, result)
+                        try:
+                            result = toolbox.invoke_agent_tool(part)
+                            tool_result_buffer.append(result)
+                            user_interface.handle_tool_result(part.name, result)
+                        except DoSomethingElseError:
+                            # Handle "do something else" workflow:
+                            # 1. Remove the last assistant message
+                            if chat_history and chat_history[-1]["role"] == "assistant":
+                                chat_history.pop()
+
+                            # 2. Get user's alternate prompt
+                            user_interface.handle_system_message(
+                                "You selected 'do something else'. Please enter what you'd like to do instead:"
+                            )
+                            alternate_prompt = user_interface.get_user_input()
+
+                            # 3. Append alternate prompt to the last user message
+                            for i in reversed(range(len(chat_history))):
+                                if chat_history[i]["role"] == "user":
+                                    # Add the alternate prompt to the previous user message
+                                    if isinstance(chat_history[i]["content"], str):
+                                        chat_history[i]["content"] += (
+                                            f"\n\nAlternate request: {alternate_prompt}"
+                                        )
+                                    elif isinstance(chat_history[i]["content"], list):
+                                        # Handle content as list of blocks
+                                        chat_history[i]["content"].append(
+                                            {
+                                                "type": "text",
+                                                "text": f"\n\nAlternate request: {alternate_prompt}",
+                                            }
+                                        )
+                                    break
+
+                            # Clear the tool result buffer to avoid processing the current tool request
+                            tool_result_buffer.clear()
+                            break
             elif final_message.stop_reason == "max_tokens":
                 user_interface.handle_assistant_message(
                     "[bold red]Hit max tokens.[/bold red]"
