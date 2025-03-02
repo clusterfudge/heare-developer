@@ -15,10 +15,13 @@ ALL_TOOLS = [
     python_repl,
 ]
 
-try:
-    from heare.developer.tools.issues import PLANE_TOOLS
 
-    ALL_TOOLS.extend(PLANE_TOOLS)
-except ImportError:
-    # If there's an error importing the Plane tools, just continue without them
-    pass
+# TODO: The plane tool specs are a lot of tokens, and don't yet work because of lack of workspace config.
+# Re-enable when we have a root agent solution that has _no_ tools, just tool names/groupings. The tool shelf lives!
+# try:
+#     from heare.developer.tools.issues import PLANE_TOOLS
+#
+#     ALL_TOOLS.extend(PLANE_TOOLS)
+# except ImportError:
+#     # If there's an error importing the Plane tools, just continue without them
+#     pass
