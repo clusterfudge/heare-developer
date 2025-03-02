@@ -7,7 +7,7 @@ Heare Developer CLI is a powerful and interactive coding assistant that leverage
 1. **Advanced AI Models**: Access to Claude 3 models (Opus, Sonnet, Sonnet-3.5, Haiku) for varied needs and performance levels
 2. **Intelligent File Handling**: Smart file mention system using @ syntax for referencing files
 3. **Sandbox Environment**: Configurable sandbox modes for controlled file operations
-4. **Tool Integration**: Built-in tools for file and system operations
+4. **Tool Integration**: Built-in tools for file and system operations, including Plane.so API integration for task management
 5. **Command Auto-completion**: Intelligent command and path completion
 6. **Multi-line Input Support**: Easy handling of multi-line code and text input
 7. **Token Usage Tracking**: Real-time monitoring of token usage and associated costs
@@ -36,6 +36,12 @@ Heare Developer CLI is a powerful and interactive coding assistant that leverage
    ```
    ANTHROPIC_API_KEY=your_api_key_here
    ```
+
+4. (Optional) Set up your Plane.so API key for task management:
+   ```
+   export PLANE_API_KEY=your_plane_api_key_here
+   ```
+   Or create a `~/.plane-secret` file containing just your API key.
 
 ## Usage
 
@@ -80,6 +86,13 @@ python -m heare.developer.cli [sandbox_path]
    - `/restart`: Clear chat history and start over
    - Various tool-specific commands (shown on startup)
 
+5. **Plane.so Integration**:
+   - Manage tasks, issues, and projects directly through the CLI
+   - List workspaces, projects, and issues
+   - Create, update, and link issues
+   - Add comments and create subtasks
+   - See `docs/plane_tools_examples.md` for detailed usage examples
+
 ### Sandbox Modes
 
 - `REMEMBER_PER_RESOURCE`: Remember permissions per resource (default)
@@ -112,3 +125,14 @@ This project uses:
 - Rich for terminal UI
 - Prompt Toolkit for command line interface
 - Various other open source packages (see requirements.txt)
+3. **Available Commands**:
+   - `/quit` or `/exit`: Exit the CLI
+   - `/restart`: Clear chat history and start over
+   - Various tool-specific commands (shown on startup)
+
+4. **Plane.so Integration**:
+   - Manage tasks, issues, and projects directly through the CLI
+   - List workspaces, projects, and issues
+   - Create, update, and link issues
+   - Add comments and create subtasks
+   - See `docs/plane_tools_examples.md` for detailed usage examples

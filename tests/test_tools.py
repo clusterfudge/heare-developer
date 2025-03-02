@@ -1,6 +1,6 @@
 import unittest
 from typing import Optional
-from heare.developer.tools import tool
+from heare.developer.tools.framework import tool
 from heare.developer.context import AgentContext
 
 

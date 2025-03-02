@@ -160,7 +160,7 @@ class TestAgentContextFlush(unittest.TestCase):
     def test_agent_tool_creates_correct_context(self):
         """Test that the agent tool creates a context with the correct parent_session_id"""
         with patch("heare.developer.agent.run") as mock_run:
-            from heare.developer.tools import agent
+            from heare.developer.tools.subagent import agent
 
             # Create a parent context
             parent_context = self.create_test_context()
@@ -169,7 +169,9 @@ class TestAgentContextFlush(unittest.TestCase):
             mock_run.return_value = []
 
             # We need to patch the CaptureInterface too
-            with patch("heare.developer.tools.CaptureInterface") as mock_capture:
+            with patch(
+                "heare.developer.tools.subagent.CaptureInterface"
+            ) as mock_capture:
                 # The mock's instance should have a parent attribute
                 mock_capture_instance = MagicMock()
                 mock_capture.return_value = mock_capture_instance

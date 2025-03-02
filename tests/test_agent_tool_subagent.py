@@ -6,7 +6,7 @@ from tempfile import TemporaryDirectory
 from uuid import uuid4
 
 from heare.developer.context import AgentContext
-from heare.developer.tools import agent
+from heare.developer.tools.subagent import agent
 
 
 class JsonSerializableMock:
@@ -96,7 +96,9 @@ class TestAgentToolSubagent(unittest.TestCase):
         capture_interface_mock = MagicMock()
 
         # Patch CaptureInterface constructor
-        with patch("heare.developer.tools.CaptureInterface") as mock_capture_class:
+        with patch(
+            "heare.developer.tools.subagent.CaptureInterface"
+        ) as mock_capture_class:
             mock_capture_class.return_value = capture_interface_mock
 
             # Mock agent.run to capture the agent_context and return chat history

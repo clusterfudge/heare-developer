@@ -5,7 +5,6 @@ import subprocess
 import inspect
 from .commit import run_commit
 
-
 from .tools import ALL_TOOLS
 
 
@@ -79,7 +78,7 @@ class Toolbox:
 
     def invoke_agent_tool(self, tool_use):
         """Invoke an agent tool based on the tool use object."""
-        from .tools import invoke_tool
+        from .tools.framework import invoke_tool
         from .sandbox import DoSomethingElseError
 
         try:

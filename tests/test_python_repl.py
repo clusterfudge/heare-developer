@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import MagicMock
-from heare.developer.tools import python_repl
+from heare.developer.tools.repl import python_repl
 
 
 class TestPythonREPL(unittest.TestCase):
