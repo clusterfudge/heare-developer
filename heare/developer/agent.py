@@ -234,7 +234,9 @@ def run(
         try:
             if not tool_result_buffer and not single_response and not initial_prompt:
                 cost = f"${agent_context.usage_summary()['total_cost']:.2f}"
-                user_input = user_interface.get_user_input(f"{cost} > ")
+                user_input = ""
+                while not user_input.strip():
+                    user_input = user_interface.get_user_input(f"{cost} > ")
 
                 command_name = (
                     user_input.split()[0][1:] if user_input.startswith("/") else ""
