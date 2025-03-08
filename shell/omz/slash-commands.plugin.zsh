@@ -1,6 +1,10 @@
 #!/usr/bin/env zsh
 AGENT_CLI=${AGENT_CLI:-"hdev"}
 
+# Define aliases for common issue commands
+alias issues="${AGENT_CLI} issues"
+alias config-issues="${AGENT_CLI} config issues"
+
 # Register the slash command handler for commands starting with //
 function _slash_command() {
     # If command starts with /, transform it to use AGENT_CLI

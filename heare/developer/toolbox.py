@@ -7,6 +7,11 @@ from .commit import run_commit
 
 from .tools import ALL_TOOLS
 
+try:
+    from .tools.issues_cli import ISSUE_CLI_TOOLS
+except ImportError:
+    ISSUE_CLI_TOOLS = {}
+
 
 class Toolbox:
     def __init__(self, context: AgentContext, tool_names: List[str] | None = None):
@@ -53,6 +58,15 @@ class Toolbox:
         self.register_cli_tool(
             "commit", self._commit, "Generate and execute a commit message"
         )
+
+        # Register issue tracking CLI tools
+        for name, tool_info in ISSUE_CLI_TOOLS.items():
+            self.register_cli_tool(
+                name,
+                tool_info["func"],
+                tool_info["docstring"],
+                aliases=tool_info.get("aliases", []),
+            )
 
         # Schema for agent tools
         self.agent_schema = self.schemas()

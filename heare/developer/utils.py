@@ -102,3 +102,52 @@ class CustomCompleter(Completer):
             for history_item in reversed(self.history.get_strings()):
                 if history_item.startswith(text):
                     yield Completion(history_item, start_position=-len(text))
+
+
+def get_current_project_name() -> str:
+    """
+    Get the current project name.
+
+    If in a git repository, uses the basename of the git repo
+    (e.g., 'foo' from 'github.com:clusterfudge/foo.git').
+    Otherwise, uses the basename of the current working directory.
+
+    Returns:
+        str: Name of the current project
+    """
+    import subprocess
+    import os
+
+    try:
+        # Check if we're in a git repository
+        result = subprocess.run(
+            ["git", "config", "--get", "remote.origin.url"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        if result.returncode == 0 and result.stdout.strip():
+            # Extract the basename from the git remote URL
+            git_url = result.stdout.strip()
+
+            # Handle different URL formats
+            if git_url.endswith(".git"):
+                git_url = git_url[:-4]  # Remove .git suffix
+
+            # Extract the repo name (last part of the path)
+            if "/" in git_url:
+                repo_name = git_url.split("/")[-1]
+            elif ":" in git_url:
+                # Handle SSH-style URLs (e.g., github.com:user/repo)
+                repo_name = git_url.split(":")[-1].split("/")[-1]
+            else:
+                repo_name = git_url
+
+            return repo_name
+    except (subprocess.SubprocessError, FileNotFoundError):
+        # Git command failed or git is not installed
+        pass
+
+    # Fallback to current directory name
+    return os.path.basename(os.getcwd())

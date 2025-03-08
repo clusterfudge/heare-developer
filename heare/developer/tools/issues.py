@@ -55,7 +55,7 @@ def _get_plane_headers() -> Dict[str, str]:
     """
     api_key = _get_plane_api_key()
     return {
-        "Authorization": f"Bearer {api_key}",
+        "x-api-key": {api_key},
         "Content-Type": "application/json",
         "Accept": "application/json",
     }
@@ -66,6 +66,7 @@ def _make_plane_request(
     endpoint: str,
     data: Optional[Dict[str, Any]] = None,
     params: Optional[Dict[str, Any]] = None,
+    headers: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Any]:
     """
     Make a request to the Plane.so API.
@@ -75,6 +76,7 @@ def _make_plane_request(
         endpoint: API endpoint (should start with /)
         data: Optional request body data
         params: Optional URL parameters
+        headers: Optional custom headers (if not provided, will use default headers)
 
     Returns:
         Dict[str, Any]: Response from the API
@@ -82,9 +84,11 @@ def _make_plane_request(
     Raises:
         Exception: If the request fails
     """
-    base_url = "https://app.plane.so"  # Base URL for Plane.so API
+    base_url = "https://api.plane.so"  # Base URL for Plane.so API
     url = f"{base_url}{endpoint}"
-    headers = _get_plane_headers()
+
+    if headers is None:
+        headers = _get_plane_headers()
 
     try:
         response = requests.request(

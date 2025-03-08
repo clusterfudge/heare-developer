@@ -268,7 +268,7 @@ wheels = [
 
 [[package]]
 name = "heare-developer"
-version = "0.3.4.dev2+gf66b4ae.d20250226"
+version = "0.4.13.dev0+ga7a5cb1.d20250308"
 source = { editable = "." }
 dependencies = [
     { name = "anthropic" },
