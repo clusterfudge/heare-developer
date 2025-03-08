@@ -143,7 +143,6 @@ def _make_plane_request(
     endpoint: str,
     data: Optional[Dict[str, Any]] = None,
     params: Optional[Dict[str, Any]] = None,
-    headers: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Any]:
     """
     Make a request to the Plane.so API.
@@ -164,14 +163,11 @@ def _make_plane_request(
     base_url = "https://api.plane.so"  # Base URL for Plane.so API
     url = f"{base_url}{endpoint}"
 
-    if headers is None:
-        headers = _get_plane_headers()
-
     try:
         response = requests.request(
             method=method,
             url=url,
-            headers=headers,
+            headers=_get_plane_headers(),
             json=data if data else None,
             params=params if params else None,
         )
@@ -265,122 +261,19 @@ def config_issues(
     # Check if we're handling a specific subcommand of config
     config = read_config()
 
-    # If no workspaces configured, prompt to add one
+    # Initialize empty dictionaries if they don't exist
     if not config.get("workspaces"):
         config["workspaces"] = {}
 
     if not config.get("projects"):
         config["projects"] = {}
 
-    # Check if we need to add a workspace
-    if not config["workspaces"]:
-        print_message("No workspaces configured. Let's add one first.")
-
-        workspace_name = Prompt.ask("Enter workspace slug")
-        api_key = Prompt.ask("Enter Plane.so API key for this workspace", password=True)
-
-        config["workspaces"][workspace_name] = api_key
-        write_config(config)
-        print_message(f"Added workspace '{workspace_name}' to configuration.")
-    else:
-        # Ask if user wants to add a new workspace
-        add_workspace = Confirm.ask("Add a new workspace?")
-        if add_workspace:
-            workspace_name = Prompt.ask("Enter workspace slug")
-            api_key = Prompt.ask(
-                "Enter Plane.so API key for this workspace", password=True
-            )
-
-            config["workspaces"][workspace_name] = api_key
-            write_config(config)
-            print_message(f"Added workspace '{workspace_name}' to configuration.")
-
-    # Let user select a workspace
-    workspace_choices = [
-        (workspace, workspace) for workspace in config["workspaces"].keys()
-    ]
-    selected_workspace_text, selected_workspace = interactive_select(
-        workspace_choices, title="[bold blue]Select a workspace[/bold blue]"
-    )
+    selected_workspace = workspace_selection_flow(config)
 
     # Get workspace projects from Plane API
     try:
         api_key = config["workspaces"][selected_workspace]
-        workspace_projects = get_workspace_projects(selected_workspace, api_key)
-
-        # Get default project name suggestion
-        default_name = get_git_repo_name() or get_current_dir_name()
-
-        # Create list of projects for selection
-        project_choices = []
-        for project in workspace_projects:
-            project_name = project.get("name")
-            project_id = project.get("id")
-            choice_name = f"{project_name} ({project_id})"
-
-            # Check if this is our suggested default
-            if default_name and default_name.lower() == project_name.lower():
-                # Put a marker next to the suggested default
-                choice_name = f"{project_name} ({project_id}) [suggested]"
-                # Move to the top of the list
-                project_choices.insert(0, (choice_name, project))
-            else:
-                project_choices.append((choice_name, project))
-
-        # Add option to create a new project
-        project_choices.append(("Create a new project", "new"))
-
-        # Prompt user to select a project
-        selected_project_text, selected_project = interactive_select(
-            project_choices, title="[bold blue]Select a project[/bold blue]"
-        )
-
-        if selected_project == "new":
-            # Create a new project
-            new_project_name = Prompt.ask("Enter project name", default=default_name)
-
-            display_name = Prompt.ask(
-                "Enter display name (optional)", default=new_project_name
-            )
-
-            new_project_id = create_new_project(
-                selected_workspace, api_key, new_project_name
-            )
-
-            if new_project_id:
-                print_message(
-                    f"Created new project '{new_project_name}' with ID: {new_project_id}"
-                )
-
-                # Add to config
-                config["projects"][new_project_name] = {
-                    "_id": new_project_id,
-                    "name": display_name,
-                    "workspace": selected_workspace,
-                }
-                write_config(config)
-                print_message(f"Added project '{new_project_name}' to configuration.")
-            else:
-                print_message("Failed to create new project.")
-                return
-        else:
-            # Use existing project
-            project_name = selected_project.get("name")
-            project_id = selected_project.get("id")
-
-            # Ask for a display name (optional)
-            display_name = Prompt.ask(
-                "Enter display name (optional)", default=project_name
-            )
-
-            # Add to config
-            config["projects"][project_name] = {
-                "_id": project_id,
-                "name": display_name,
-                "workspace": selected_workspace,
-            }
-            write_config(config)
-            print_message(f"Added project '{project_name}' to configuration.")
+        project_name = project_selection_flow(config, selected_workspace, api_key)
 
         print_message("Issue tracking initialized successfully!")
 
@@ -399,6 +292,131 @@ def config_issues(
 
     except Exception as e:
         print_message(f"Error initializing issue tracking: {str(e)}")
+
+
+def workspace_selection_flow(config):
+    # Present any configured workspaces and option to create a new one
+    workspace_choices = [
+        (workspace, workspace) for workspace in config["workspaces"].keys()
+    ]
+    # Always add option to create a new workspace
+    workspace_choices.append(("Create a new workspace", "new"))
+
+    def _create_workspace_dialog():
+        # Create a new workspace
+        slug = Prompt.ask("Enter workspace slug")
+        _api_key = Prompt.ask(
+            "Enter Plane.so API key for this workspace", password=True
+        )
+
+        config["workspaces"][slug] = _api_key
+        write_config(config)
+        print_message(f"Added workspace '{slug}' to configuration.")
+        return slug
+
+    # If we have existing workspaces, let the user select one or create a new one
+    if config["workspaces"]:
+        selected_workspace_text, selected_workspace = interactive_select(
+            workspace_choices,
+            title="[bold blue]Select a workspace or create a new one[/bold blue]",
+        )
+
+        if selected_workspace == "new":
+            selected_workspace = _create_workspace_dialog()
+    else:
+        # No workspaces configured, prompt to add one
+        print_message("No workspaces configured. Let's add one first.")
+        selected_workspace = _create_workspace_dialog()
+    return selected_workspace
+
+
+def project_selection_flow(config, workspace_slug, api_key):
+    """Select a project from the workspace or create a new one.
+
+    Args:
+        config: The configuration dictionary
+        workspace_slug: The selected workspace slug
+        api_key: The API key for the workspace
+
+    Returns:
+        str: The name of the selected or created project
+    """
+    # Get projects from the workspace
+    workspace_projects = get_workspace_projects(workspace_slug, api_key)
+
+    # Get default project name suggestion
+    default_name = get_git_repo_name() or get_current_dir_name()
+
+    # Create list of projects for selection
+    project_choices = []
+    for project in workspace_projects:
+        project_name = project.get("name")
+        project_id = project.get("id")
+        choice_name = f"{project_name} ({project_id})"
+
+        # Check if this is our suggested default
+        if default_name and default_name.lower() == project_name.lower():
+            # Put a marker next to the suggested default
+            choice_name = f"{project_name} ({project_id}) [suggested]"
+            # Move to the top of the list
+            project_choices.insert(0, (choice_name, project))
+        else:
+            project_choices.append((choice_name, project))
+
+    # Add option to create a new project
+    project_choices.append(("Create a new project", "new"))
+
+    # Prompt user to select a project
+    selected_project_text, selected_project = interactive_select(
+        project_choices, title="[bold blue]Select a project[/bold blue]"
+    )
+
+    def _create_project_dialog():
+        # Create a new project
+        new_project_name = Prompt.ask("Enter project name", default=default_name)
+        display_name = Prompt.ask(
+            "Enter display name (optional)", default=new_project_name
+        )
+
+        new_project_id = create_new_project(workspace_slug, api_key, new_project_name)
+
+        if new_project_id:
+            print_message(
+                f"Created new project '{new_project_name}' with ID: {new_project_id}"
+            )
+
+            # Add to config
+            config["projects"][new_project_name] = {
+                "_id": new_project_id,
+                "name": display_name,
+                "workspace": workspace_slug,
+            }
+            write_config(config)
+            print_message(f"Added project '{new_project_name}' to configuration.")
+            return new_project_name
+        else:
+            print_message("Failed to create new project.")
+            sys.exit(1)
+
+    if selected_project == "new":
+        return _create_project_dialog()
+    else:
+        # Use existing project
+        project_name = selected_project.get("name")
+        project_id = selected_project.get("id")
+
+        # Ask for a display name (optional)
+        display_name = Prompt.ask("Enter display name (optional)", default=project_name)
+
+        # Add to config
+        config["projects"][project_name] = {
+            "_id": project_id,
+            "name": display_name,
+            "workspace": workspace_slug,
+        }
+        write_config(config)
+        print_message(f"Added project '{project_name}' to configuration.")
+        return project_name
 
 
 def issues(user_input: str = "", tool_result_buffer: List[dict] = None, **kwargs):
@@ -551,13 +569,9 @@ def list_issues(user_input: str = "", tool_result_buffer: List[dict] = None, **k
         if issue_details.get("link_count", 0) > 0:
             try:
                 link_endpoint = f"/api/v1/workspaces/{workspace_slug}/projects/{project_id}/issues/{selected_issue['id']}/links/"
-                headers = {
-                    "x-api-key": api_key,
-                    "Content-Type": "application/json",
-                    "Accept": "application/json",
-                }
                 linked_issues = _make_plane_request(
-                    "GET", link_endpoint, headers=headers
+                    "GET",
+                    link_endpoint,
                 )
             except Exception:
                 pass
@@ -594,69 +608,44 @@ def list_issues(user_input: str = "", tool_result_buffer: List[dict] = None, **k
 
 def get_workspace_projects(workspace_slug: str, api_key: str) -> List[Dict[str, Any]]:
     """Get projects for a workspace."""
-    headers = {
-        "x-api-key": api_key,
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-    }
 
     endpoint = f"/api/v1/workspaces/{workspace_slug}/projects"
-    return _make_plane_request("GET", endpoint, headers=headers)["results"]
+    return _make_plane_request("GET", endpoint)["results"]
 
 
 def get_project_issues(
     workspace_slug: str, project_id: str, api_key: str
 ) -> List[Dict[str, Any]]:
     """Get issues for a project."""
-    headers = {
-        "x-api-key": api_key,
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-    }
 
     endpoint = f"/api/v1/workspaces/{workspace_slug}/projects/{project_id}/issues"
-    return _make_plane_request("GET", endpoint, headers=headers)["results"]
+    return _make_plane_request("GET", endpoint)["results"]
 
 
 def get_issue_details(
     workspace_slug: str, project_id: str, issue_id: str, api_key: str
 ) -> Dict[str, Any]:
     """Get details for an issue."""
-    headers = {
-        "x-api-key": api_key,
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-    }
 
     endpoint = (
         f"/api/v1/workspaces/{workspace_slug}/projects/{project_id}/issues/{issue_id}"
     )
-    return _make_plane_request("GET", endpoint, headers=headers)
+    return _make_plane_request("GET", endpoint)
 
 
 def get_issue_comments(
     workspace_slug: str, project_id: str, issue_id: str, api_key: str
 ) -> List[Dict[str, Any]]:
     """Get comments for an issue."""
-    headers = {
-        "x-api-key": api_key,
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-    }
 
     endpoint = f"/api/v1/workspaces/{workspace_slug}/projects/{project_id}/issues/{issue_id}/comments"
-    return _make_plane_request("GET", endpoint, headers=headers)["results"]
+    return _make_plane_request("GET", endpoint)["results"]
 
 
 def create_new_project(
     workspace_slug: str, api_key: str, project_name: str
 ) -> Optional[str]:
     """Create a new project in Plane.so."""
-    headers = {
-        "x-api-key": api_key,
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-    }
 
     # Generate a project identifier (usually capital letters from the name)
     identifier = (
@@ -670,7 +659,7 @@ def create_new_project(
 
     endpoint = f"/api/v1/workspaces/{workspace_slug}/projects"
     try:
-        response = _make_plane_request("POST", endpoint, data=data, headers=headers)
+        response = _make_plane_request("POST", endpoint, data=data)
         return response.get("id")
     except Exception:
         return None
