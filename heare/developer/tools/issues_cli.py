@@ -39,7 +39,15 @@ def read_config() -> Dict[str, Any]:
 def write_config(config: Dict[str, Any]):
     """Write the issue tracking configuration."""
     ensure_config_dir()
-    with open(CONFIG_FILE, "w") as f:
+
+    # Print the configuration (helps with debugging)
+    print(yaml.dump(config, default_flow_style=False))
+
+    # Create the directory for the file if it doesn't exist
+    os.makedirs(os.path.dirname(str(CONFIG_FILE)), exist_ok=True)
+
+    # Write the config to the file
+    with open(str(CONFIG_FILE), "w") as f:
         yaml.dump(config, f, default_flow_style=False)
 
 
@@ -98,6 +106,15 @@ def config_issues(
     It initializes or updates the configuration for issue tracking by writing
     to ~/.config/hdev/issues.yml.
     """
+    # Display help if just "config" is used
+    if user_input.strip() == "config":
+        user_interface.handle_system_message(
+            "Usage: /config [type]\n\n"
+            "Examples:\n"
+            "  /config issues - Configure issue tracking\n"
+        )
+        return
+
     # Check if we're handling a specific subcommand of config
     config = read_config()
 
