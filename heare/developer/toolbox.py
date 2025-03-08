@@ -8,7 +8,7 @@ from .commit import run_commit
 from .tools import ALL_TOOLS
 
 try:
-    from .tools.issues_cli import ISSUE_CLI_TOOLS
+    from heare.developer.issues_cli import ISSUE_CLI_TOOLS
 except ImportError:
     ISSUE_CLI_TOOLS = {}
 
