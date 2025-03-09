@@ -1,4 +1,5 @@
 import argparse
+import io
 import os
 import re
 import sys
@@ -9,7 +10,7 @@ from rich.panel import Panel
 from rich.text import Text
 from rich.box import HORIZONTALS
 
-from prompt_toolkit import PromptSession
+from prompt_toolkit import PromptSession, ANSI
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.document import Document
@@ -68,6 +69,23 @@ def create_clean_panel(content, title=None, style=""):
         border_style=style,
         padding=(1, 0),  # Vertical padding but no horizontal padding
     )
+
+
+def rich_to_prompt_toolkit(rich_text):
+    """Convert Rich formatted text to prompt_toolkit compatible format"""
+    # Capture Rich output as ANSI
+    string_io = io.StringIO()
+    # Force terminal colors to ensure ANSI codes are generated
+    console = Console(file=string_io, force_terminal=True, color_system="standard")
+    console.print(rich_text, end="")  # end="" prevents extra newline
+
+    # Get the ANSI string
+    ansi_string = string_io.getvalue()
+
+    # Convert to prompt_toolkit format
+    prompt_toolkit_formatted = ANSI(ansi_string)
+
+    return prompt_toolkit_formatted
 
 
 class CLIUserInterface(UserInterface):
@@ -198,8 +216,8 @@ class CLIUserInterface(UserInterface):
         )
 
     def get_user_input(self, prompt: str = "") -> str:
-        self.console.print(prompt, end="")
-        user_input = self.session.prompt()
+        _console = Console(file=None)
+        user_input = self.session.prompt(rich_to_prompt_toolkit(prompt))
 
         # Handle multi-line input
         if user_input.strip() == "{":
