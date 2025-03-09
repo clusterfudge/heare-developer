@@ -709,9 +709,7 @@ def create_new_project(
 
     endpoint = f"/api/v1/workspaces/{workspace_slug}/projects"
     try:
-        response = _make_plane_request(
-            "POST", endpoint, data=data, headers={"x-api-key": api_key}
-        )
+        response = _make_plane_request("POST", endpoint, data=data, api_key=api_key)
         return response.get("id")
     except Exception:
         return None
@@ -729,6 +727,7 @@ def format_issue_details(
     for display to the user.
 
     Args:
+        sequence_id: the user-facing identifier of the issue
         issue: The issue details dictionary
         comments: List of comment dictionaries
         linked_issues: List of linked issue dictionaries
