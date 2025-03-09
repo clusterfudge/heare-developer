@@ -14,7 +14,7 @@ from typing import Dict, List, Optional, Any, Tuple
 import sys
 from rich.console import Console
 from rich.panel import Panel
-from rich.prompt import Prompt, Confirm
+from rich.prompt import Prompt
 from rich.table import Table
 from rich import box
 
@@ -123,16 +123,17 @@ def _get_plane_api_key() -> str:
     return api_key
 
 
-def _get_plane_headers() -> Dict[str, str]:
+def _get_plane_headers(api_key: str = None) -> Dict[str, str]:
     """
     Get headers for Plane.so API requests including the API key.
 
     Returns:
         Dict[str, str]: Headers dictionary with API key
     """
-    api_key = _get_plane_api_key()
+    if not api_key:
+        api_key = _get_plane_api_key()
     return {
-        "x-api-key": {api_key},
+        "x-api-key": api_key,
         "Content-Type": "application/json",
         "Accept": "application/json",
     }
@@ -143,6 +144,7 @@ def _make_plane_request(
     endpoint: str,
     data: Optional[Dict[str, Any]] = None,
     params: Optional[Dict[str, Any]] = None,
+    api_key: str = None,
 ) -> Dict[str, Any]:
     """
     Make a request to the Plane.so API.
@@ -163,11 +165,12 @@ def _make_plane_request(
     base_url = "https://api.plane.so"  # Base URL for Plane.so API
     url = f"{base_url}{endpoint}"
 
+    response = None
     try:
         response = requests.request(
             method=method,
             url=url,
-            headers=_get_plane_headers(),
+            headers=_get_plane_headers(api_key=api_key),
             json=data if data else None,
             params=params if params else None,
         )
@@ -181,7 +184,7 @@ def _make_plane_request(
     except requests.exceptions.RequestException as e:
         error_msg = f"Error making request to Plane.so API: {str(e)}"
         try:
-            if response.text:
+            if response and response.text:
                 error_details = response.json()
                 error_msg = f"{error_msg}. Details: {json.dumps(error_details)}"
         except Exception:
@@ -419,10 +422,13 @@ def project_selection_flow(config, workspace_slug, api_key):
         return project_name
 
 
-def issues(user_input: str = "", tool_result_buffer: List[dict] = None, **kwargs):
-    """Browse and manage issues in configured projects."""
-    tool_result_buffer = tool_result_buffer or []
+def issues(user_input: str = "", **kwargs):
+    """Browse and manage issues in configured projects.
 
+    Supports:
+    1. "issues list" - Lists all issues and allows selection
+    2. "issues <project-prefix>-<issue number>" - Directly loads a specific issue
+    """
     # First check if issues are configured
     config = read_config()
     if not config.get("projects"):
@@ -433,20 +439,67 @@ def issues(user_input: str = "", tool_result_buffer: List[dict] = None, **kwargs
         )
         return
 
+    project_config = get_project_from_config()
+
     # Check if we have any parameters
     parts = user_input.strip().split()
-    subcommand = parts[1] if len(parts) > 1 else "list"
 
+    if len(parts) < 1:
+        # No arguments provided, default to list
+        return list_issues(user_input, **kwargs)
+
+    subcommand = parts[0]
+
+    # Check if the argument matches the <project-prefix>-<issue number> pattern
+    if "-" in subcommand and len(subcommand.split("-")) == 2:
+        # This looks like a direct issue reference
+        project_prefix, issue_number = subcommand.split("-")
+        if issue_number.isdigit():
+            issue = _load_issue(subcommand, **kwargs)
+            comments = get_issue_comments(
+                workspace_slug=project_config["workspace"],
+                project_id=issue["project"],
+                issue_id=issue["id"],
+            )
+            return format_issue_details(subcommand, issue, comments, [])
+
+    # If not a direct issue reference, handle standard subcommands
     if subcommand == "list":
-        return list_issues(user_input, tool_result_buffer, **kwargs)
+        return list_issues(user_input, **kwargs)
     else:
         print_message(
-            f"Unknown subcommand: {subcommand}\n\nAvailable subcommands:\n- list: List and browse issues"
+            f"Unknown subcommand: {subcommand}\n\n"
+            "Available commands:\n"
+            "- issues list - List and browse issues\n"
+            "- issues <project-prefix>-<issue number> - Directly load a specific issue"
         )
         return
 
 
-def list_issues(user_input: str = "", tool_result_buffer: List[dict] = None, **kwargs):
+def _load_issue(sequence_id: str, **_):
+    """Load a specific issue by its project prefix and issue number.
+
+    Args:
+        sequence_id: An issue identifier that maps to <project-identifier>-<issue number>
+
+    This function directly loads a specific issue based on the project prefix and issue number.
+    It bypasses the project and issue selection process.
+    """
+    config = read_config()
+
+    # Check if issues are configured
+    if not config.get("projects"):
+        print_message(
+            "Issue tracking is not configured yet. Please run '/config issues' first."
+        )
+        return
+
+    project = get_project_from_config()
+    endpoint = f"/api/v1/workspaces/{project['workspace']}/issues/{sequence_id}"
+    return _make_plane_request("GET", endpoint)
+
+
+def list_issues(user_input: str = "", **kwargs) -> str:
     """Browse issues in configured projects.
 
     This function lists issues from the configured project. When an issue is selected,
@@ -455,7 +508,6 @@ def list_issues(user_input: str = "", tool_result_buffer: List[dict] = None, **k
 
     Users can also add the issue details to the conversation.
     """
-    tool_result_buffer = tool_result_buffer or []
     config = read_config()
 
     # Extract project name from command if specified, otherwise try to match with git repo or current directory
@@ -510,7 +562,7 @@ def list_issues(user_input: str = "", tool_result_buffer: List[dict] = None, **k
 
         if not issues:
             print_message(f"No issues found in project '{project_name}'.")
-            return
+            return ""
 
         # Create a list of issues for selection, sorted by sequence_id
         issues.sort(key=lambda x: x.get("sequence_id", 0))
@@ -537,7 +589,7 @@ def list_issues(user_input: str = "", tool_result_buffer: List[dict] = None, **k
 
             # Add to table
             table.add_row(
-                f"#{sequence_id}",
+                f"{project_config['identifier']}-{sequence_id}",
                 issue_name[:50] + ("..." if len(issue_name) > 50 else ""),
                 state,
                 priority,
@@ -545,11 +597,8 @@ def list_issues(user_input: str = "", tool_result_buffer: List[dict] = None, **k
             )
 
             # Format: #ID | Title | Status | Assignee
-            choice_text = f"#{sequence_id} | {issue_name} | {state} | {assignee}"
+            choice_text = f"{project_config['identifier']}-{sequence_id} | {issue_name} | {state} | {assignee}"
             issue_choices.append((choice_text, issue))
-
-        # Display the table
-        console.print(table)
 
         # Let user select an issue
         selected_issue_text, selected_issue = interactive_select(
@@ -561,14 +610,14 @@ def list_issues(user_input: str = "", tool_result_buffer: List[dict] = None, **k
             workspace_slug, project_id, selected_issue["id"], api_key
         )
         issue_comments = get_issue_comments(
-            workspace_slug, project_id, selected_issue["id"], api_key
+            workspace_slug, project_id, selected_issue["id"]
         )
 
         # Get linked issues if any
         linked_issues = []
         if issue_details.get("link_count", 0) > 0:
             try:
-                link_endpoint = f"/api/v1/workspaces/{workspace_slug}/projects/{project_id}/issues/{selected_issue['id']}/links/"
+                link_endpoint = f"/api/v1/workspaces/{workspace_slug}/projects/{project_id}/issues/{selected_issue['id']}/links"
                 linked_issues = _make_plane_request(
                     "GET",
                     link_endpoint,
@@ -578,7 +627,10 @@ def list_issues(user_input: str = "", tool_result_buffer: List[dict] = None, **k
 
         # Format issue details
         issue_formatted = format_issue_details(
-            issue_details, issue_comments, linked_issues
+            f"{project_config['identifier']}-{issue_details['sequence_id']}",
+            issue_details,
+            issue_comments,
+            linked_issues,
         )
 
         # Display issue details in a panel
@@ -590,17 +642,6 @@ def list_issues(user_input: str = "", tool_result_buffer: List[dict] = None, **k
                 expand=True,
             )
         )
-
-        # Ask if the user wants to add this to the conversation
-        add_to_conversation = Confirm.ask("Add this issue to the conversation?")
-        if add_to_conversation:
-            # Format a message that includes attribution for the issue and comments
-            message = f"Issue #{issue_details.get('sequence_id')}: {issue_details.get('name')}\n\n"
-            message += f"Created by: {issue_details.get('created_by_detail', {}).get('display_name', 'Unknown')}\n\n"
-            message += issue_formatted
-
-            tool_result_buffer.append({"role": "user", "content": message})
-            print_message("Issue added to the conversation.")
 
     except Exception as e:
         print_message(f"Error browsing issues: {str(e)}")
@@ -633,8 +674,17 @@ def get_issue_details(
     return _make_plane_request("GET", endpoint)
 
 
+def get_issue_project_by_id(
+    workspace_slug: str, project_id: str, api_key: str
+) -> Dict[str, Any]:
+    """Get details for a project by its ID."""
+
+    endpoint = f"/api/v1/workspaces/{workspace_slug}/projects/{project_id}"
+    return _make_plane_request("GET", endpoint)
+
+
 def get_issue_comments(
-    workspace_slug: str, project_id: str, issue_id: str, api_key: str
+    workspace_slug: str, project_id: str, issue_id: str
 ) -> List[Dict[str, Any]]:
     """Get comments for an issue."""
 
@@ -659,13 +709,16 @@ def create_new_project(
 
     endpoint = f"/api/v1/workspaces/{workspace_slug}/projects"
     try:
-        response = _make_plane_request("POST", endpoint, data=data)
+        response = _make_plane_request(
+            "POST", endpoint, data=data, headers={"x-api-key": api_key}
+        )
         return response.get("id")
     except Exception:
         return None
 
 
 def format_issue_details(
+    sequence_id: str,
     issue: Dict[str, Any],
     comments: List[Dict[str, Any]],
     linked_issues: List[Dict[str, Any]] = None,
@@ -683,7 +736,8 @@ def format_issue_details(
     Returns:
         Formatted string with issue details
     """
-    result = (
+    result = f"[bold]{sequence_id.upper()}: {issue.get('name')}[/bold]\n"
+    result += (
         f"[bold]Status:[/bold] {issue.get('state_detail', {}).get('name', 'Unknown')}\n"
     )
     result += f"[bold]Priority:[/bold] {issue.get('priority', 'None')}\n"

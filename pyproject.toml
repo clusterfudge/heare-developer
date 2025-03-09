@@ -8,7 +8,7 @@ dynamic = ["version"]
 authors = [
     {name = "Sean Fitzgerald", email = "sean@fitzgeralds.me"},
 ]
-description = "A command-line coding agent."
+description = "A command-line agent."
 readme = "README.md"
 requires-python = ">=3.11"
 classifiers = [
@@ -36,7 +36,6 @@ dev = [
 [project.scripts]
 heare-developer = "heare.developer.cli:main"
 hdev = "heare.developer.cli:main"
-heare-pm = "heare.pm.project.cli:main"
 
 [tool.setuptools_scm]
 write_to = "heare/_version.py"

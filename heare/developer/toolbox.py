@@ -25,12 +25,6 @@ class Toolbox:
         else:
             self.agent_tools = ALL_TOOLS
 
-        self.register_cli_tool(
-            "archive",
-            self._archive_chat,
-            "Archive the current chat history to a JSON file",
-        )
-
         # Register CLI tools
         self.register_cli_tool("help", self._help, "Show help", aliases=["h"])
         self.register_cli_tool(
@@ -89,6 +83,36 @@ class Toolbox:
         if aliases:
             for alias in aliases:
                 self.local[alias] = tool_info
+
+    def invoke_cli_tool(
+        self,
+        name: str,
+        arg_str: str,
+        confirm_to_add: bool = True,
+    ) -> tuple[str, bool]:
+        content = self.local[name]["invoke"](
+            sandbox=self.context.sandbox,
+            user_interface=self.context.user_interface,
+            user_input=arg_str,
+        )
+
+        self.context.user_interface.handle_system_message(content)
+        add_to_buffer = confirm_to_add
+        if confirm_to_add:
+            add_to_buffer = (
+                (
+                    self.context.user_interface.get_user_input(
+                        "[bold]Add command and output to conversation? (y/[red]N[/red]): [/bold]"
+                    )
+                    .strip()
+                    .lower()
+                )
+                == "y"
+                and content
+                and content.strip()
+            )
+
+        return content, add_to_buffer
 
     def invoke_agent_tool(self, tool_use):
         """Invoke an agent tool based on the tool use object."""
@@ -193,47 +217,7 @@ class Toolbox:
             chat_entry = (
                 f"Executed bash command: {command}\n\nCommand output:\n{result}"
             )
-            tool_result_buffer = kwargs.get("tool_result_buffer", [])
-            tool_result_buffer.append({"role": "user", "content": chat_entry})
-            user_interface.handle_system_message(
-                "[bold green]Command and output added to tool result buffer as a user message.[/bold green]"
-            )
-        else:
-            user_interface.handle_system_message(
-                "[bold yellow]Command and output not added to tool result buffer.[/bold yellow]"
-            )
-
-    def _archive_chat(self, user_interface, sandbox, user_input, *args, **kwargs):
-        """Archive the current chat history to a JSON file"""
-        from datetime import datetime
-        from .utils import serialize_to_file, get_data_file
-
-        chat_history = kwargs.get("chat_history", [])
-        prompt_tokens = kwargs.get("prompt_tokens", 0)
-        completion_tokens = kwargs.get("completion_tokens", 0)
-        total_tokens = kwargs.get("total_tokens", 0)
-        total_cost = kwargs.get("total_cost", 0.0)
-
-        archive_data = {
-            "timestamp": datetime.now().isoformat(),
-            "chat_history": chat_history,
-            "token_usage": {
-                "prompt_tokens": prompt_tokens,
-                "completion_tokens": completion_tokens,
-                "total_tokens": total_tokens,
-                "total_cost": total_cost,
-            },
-        }
-
-        filename = f"chat_archive_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-        archive_file = get_data_file(filename)
-
-        with open(archive_file, "w") as f:
-            serialize_to_file(archive_data, f, indent=2)
-
-        user_interface.handle_system_message(
-            f"[bold green]Chat history archived to {archive_file}[/bold green]"
-        )
+            return chat_entry
 
     def _commit(self, user_interface, sandbox, user_input, *args, **kwargs):
         """Generate and execute a commit message"""
@@ -265,7 +249,7 @@ class Toolbox:
             if any(re.search(cmd, command) for cmd in dangerous_commands):
                 return "Error: This command is not allowed for safety reasons."
 
-            if not self.context.check_permissions("shell", command):
+            if not self.context.sandbox.check_permissions("shell", command):
                 return "Error: Operator denied permission."
 
             # Run the command and capture output

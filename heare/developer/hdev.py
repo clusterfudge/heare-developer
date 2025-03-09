@@ -198,7 +198,8 @@ class CLIUserInterface(UserInterface):
         )
 
     def get_user_input(self, prompt: str = "") -> str:
-        user_input = self.session.prompt(prompt)
+        self.console.print(prompt, end="")
+        user_input = self.session.prompt()
 
         # Handle multi-line input
         if user_input.strip() == "{":
