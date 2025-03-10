@@ -1,8 +1,11 @@
 """
 Cache module for Plane.so entities.
 
-This module provides caching for Plane.so entities like states, priorities, and other reference data
+This module provides caching for Plane.so entities like states, priorities, users, and other reference data
 to avoid repeated API calls and to provide a lookup mechanism for IDs and labels.
+
+The Plane.so API typically returns UUIDs instead of full details for related resources. This cache
+helps resolve those UUIDs to their full details without making additional API calls for each entity.
 """
 
 import json

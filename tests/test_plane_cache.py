@@ -175,6 +175,12 @@ class TestPlaneCache(unittest.TestCase):
                 "In Progress": "state2",
                 "done": "state3",
                 "Done": "state3",
+                "backlog": "state4",
+                "Backlog": "state4",
+                "todo": "state5",
+                "Todo": "state5",
+                "cancelled": "state6",
+                "Cancelled": "state6",
             }
         }
         mock_fetch.return_value = mock_states
@@ -190,6 +196,36 @@ class TestPlaneCache(unittest.TestCase):
             self.workspace_slug, self.project_id, "progress", self.api_key
         )
         self.assertEqual(state_id, "state2")
+
+        # Test all required states with different case variations
+        test_cases = [
+            ("Done", "state3"),
+            ("done", "state3"),
+            ("DONE", "state3"),
+            ("In Progress", "state2"),
+            ("in progress", "state2"),
+            ("IN PROGRESS", "state2"),
+            ("Backlog", "state4"),
+            ("backlog", "state4"),
+            ("BACKLOG", "state4"),
+            ("Todo", "state5"),
+            ("todo", "state5"),
+            ("TODO", "state5"),
+            ("Cancelled", "state6"),
+            ("cancelled", "state6"),
+            ("CANCELLED", "state6"),
+        ]
+
+        for state_name, expected_id in test_cases:
+            with self.subTest(state_name=state_name, expected_id=expected_id):
+                state_id = get_state_id_by_name(
+                    self.workspace_slug, self.project_id, state_name, self.api_key
+                )
+                self.assertEqual(
+                    state_id,
+                    expected_id,
+                    f"Failed for state name '{state_name}', got ID '{state_id}' instead of '{expected_id}'",
+                )
 
         # Non-existent state
         state_id = get_state_id_by_name(
@@ -220,6 +256,24 @@ class TestPlaneCache(unittest.TestCase):
                     "color": "#0000ff",
                     "slug": "done",
                 },
+                "state4": {
+                    "name": "Backlog",
+                    "group": "backlog",
+                    "color": "#ffff00",
+                    "slug": "backlog",
+                },
+                "state5": {
+                    "name": "Todo",
+                    "group": "backlog",
+                    "color": "#ff00ff",
+                    "slug": "todo",
+                },
+                "state6": {
+                    "name": "Cancelled",
+                    "group": "cancelled",
+                    "color": "#888888",
+                    "slug": "cancelled",
+                },
             }
         }
         mock_fetch.return_value = mock_states
@@ -230,11 +284,139 @@ class TestPlaneCache(unittest.TestCase):
         )
         self.assertEqual(state_name, "In Progress")
 
+        # Test all required states
+        test_cases = [
+            ("state1", "To Do"),
+            ("state2", "In Progress"),
+            ("state3", "Done"),
+            ("state4", "Backlog"),
+            ("state5", "Todo"),
+            ("state6", "Cancelled"),
+        ]
+
+        for state_id, expected_name in test_cases:
+            with self.subTest(state_id=state_id, expected_name=expected_name):
+                state_name = get_state_name_by_id(
+                    self.workspace_slug, self.project_id, state_id, self.api_key
+                )
+                self.assertEqual(
+                    state_name,
+                    expected_name,
+                    f"Failed for state ID '{state_id}', got name '{state_name}' instead of '{expected_name}'",
+                )
+
         # Non-existent state ID
         state_name = get_state_name_by_id(
             self.workspace_slug, self.project_id, "nonexistent", self.api_key
         )
         self.assertIsNone(state_name)
+
+    @patch("heare.developer.clients.plane_cache.fetch_and_cache_states")
+    def test_bidirectional_lookups(self, mock_fetch):
+        """Test that state lookups work bidirectionally (name->ID->name and ID->name->ID)"""
+        # Set up the mock state data
+        mock_states = {
+            "name_to_id": {
+                "done": "state3",
+                "Done": "state3",
+                "in progress": "state2",
+                "In Progress": "state2",
+                "backlog": "state4",
+                "Backlog": "state4",
+                "todo": "state5",
+                "Todo": "state5",
+                "cancelled": "state6",
+                "Cancelled": "state6",
+            },
+            "id_to_details": {
+                "state2": {
+                    "name": "In Progress",
+                    "group": "started",
+                    "color": "#00ff00",
+                    "slug": "in-progress",
+                },
+                "state3": {
+                    "name": "Done",
+                    "group": "completed",
+                    "color": "#0000ff",
+                    "slug": "done",
+                },
+                "state4": {
+                    "name": "Backlog",
+                    "group": "backlog",
+                    "color": "#ffff00",
+                    "slug": "backlog",
+                },
+                "state5": {
+                    "name": "Todo",
+                    "group": "backlog",
+                    "color": "#ff00ff",
+                    "slug": "todo",
+                },
+                "state6": {
+                    "name": "Cancelled",
+                    "group": "cancelled",
+                    "color": "#888888",
+                    "slug": "cancelled",
+                },
+            },
+        }
+        mock_fetch.return_value = mock_states
+
+        # Test name -> ID -> name
+        test_cases = ["Done", "In Progress", "Backlog", "Todo", "Cancelled"]
+
+        for original_name in test_cases:
+            with self.subTest(direction="name->ID->name", original=original_name):
+                # Convert name to ID
+                state_id = get_state_id_by_name(
+                    self.workspace_slug, self.project_id, original_name, self.api_key
+                )
+                self.assertIsNotNone(
+                    state_id, f"Could not find ID for state '{original_name}'"
+                )
+
+                # Convert ID back to name
+                state_name = get_state_name_by_id(
+                    self.workspace_slug, self.project_id, state_id, self.api_key
+                )
+                self.assertEqual(
+                    state_name,
+                    original_name,
+                    f"Name did not match after bidirectional lookup. Expected '{original_name}', got '{state_name}'",
+                )
+
+        # Test ID -> name -> ID (using a variant of the name that's different case)
+        test_cases = [
+            ("state3", "done"),  # Using lowercase for the reverse lookup
+            ("state2", "in progress"),
+            ("state4", "backlog"),
+            ("state5", "todo"),
+            ("state6", "cancelled"),
+        ]
+
+        for original_id, lookup_name_variant in test_cases:
+            with self.subTest(direction="ID->name->ID", original=original_id):
+                # Convert ID to name
+                state_name = get_state_name_by_id(
+                    self.workspace_slug, self.project_id, original_id, self.api_key
+                )
+                self.assertIsNotNone(
+                    state_name, f"Could not find name for ID '{original_id}'"
+                )
+
+                # Convert a variant of the name back to ID
+                state_id = get_state_id_by_name(
+                    self.workspace_slug,
+                    self.project_id,
+                    lookup_name_variant,
+                    self.api_key,
+                )
+                self.assertEqual(
+                    state_id,
+                    original_id,
+                    f"ID did not match after bidirectional lookup. Expected '{original_id}', got '{state_id}'",
+                )
 
     @patch("heare.developer.clients.plane_cache.fetch_and_cache_states")
     @patch("heare.developer.clients.plane_cache.fetch_and_cache_priorities")

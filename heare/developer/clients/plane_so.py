@@ -170,14 +170,18 @@ def _make_plane_request(
             return response.json()
         return {}
 
-    except requests.exceptions.RequestException as e:
+    except Exception as e:
         error_msg = f"Error making request to Plane.so API: {str(e)}"
-        try:
-            if response and response.text:
+        if (
+            isinstance(e, requests.exceptions.RequestException)
+            and response
+            and response.text
+        ):
+            try:
                 error_details = response.json()
                 error_msg = f"{error_msg}. Details: {json.dumps(error_details)}"
-        except Exception:
-            raise
+            except Exception:
+                pass
 
         raise Exception(error_msg)
 
@@ -235,7 +239,7 @@ def create_new_project(
         "identifier": identifier,
     }
 
-    endpoint = f"/api/v1/workspaces/{workspace_slug}/projects"
+    endpoint = f"/api/v1/workspaces/{workspace_slug}/projects/"
     try:
         response = _make_plane_request("POST", endpoint, data=data, api_key=api_key)
         return response.get("id")

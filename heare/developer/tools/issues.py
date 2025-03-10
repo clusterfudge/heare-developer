@@ -41,10 +41,13 @@ def get_issue(context: "AgentContext", issue_id: str) -> str:
 
         # Get comments for the issue
         comments = get_issue_comments(
-            workspace_slug=workspace_slug, project_id=project_id, issue_id=issue["id"]
+            workspace_slug=workspace_slug,
+            project_id=project_id,
+            issue_id=issue["id"],
+            api_key=api_key,
         )
 
-        # Get state information from the cache or API
+        # Get state information using the cache
         state_id = issue.get("state")
         state_name = "Unknown"
 
@@ -55,16 +58,33 @@ def get_issue(context: "AgentContext", issue_id: str) -> str:
             )
             if cached_state_name:
                 state_name = cached_state_name
-            else:
-                # Fall back to the state detail if available
-                state_name = issue.get("state_detail", {}).get("name", "Unknown")
+
+        # Handle user information (without caching)
+        assignee_id = issue.get("assignee")
+        assignee_name = "Unassigned"
+        if assignee_id:
+            # Since there's no user API, we can't get user details
+            # We'll use the ID or any available information directly from the issue
+            assignee_name = issue.get("assignee_detail", {}).get(
+                "display_name", f"User {assignee_id}"
+            )
+
+        # Handle creator information (without caching)
+        created_by_id = issue.get("created_by")
+        created_by_name = "Unknown"
+        if created_by_id:
+            # Since there's no user API, we can't get user details
+            # We'll use the ID or any available information directly from the issue
+            created_by_name = issue.get("created_by_detail", {}).get(
+                "display_name", f"User {created_by_id}"
+            )
 
         # Format issue information as a string
         result = f"# {issue_id}: {issue.get('name')}\n"
         result += f"Status: {state_name}\n"
         result += f"Priority: {issue.get('priority', 'None')}\n"
-        result += f"Assignee: {issue.get('assignee_detail', {}).get('display_name', 'Unassigned')}\n"
-        result += f"Created by: {issue.get('created_by_detail', {}).get('display_name', 'Unknown')}\n"
+        result += f"Assignee: {assignee_name}\n"
+        result += f"Created by: {created_by_name}\n"
         result += f"Created: {issue.get('created_at')}\n"
         result += f"Updated: {issue.get('updated_at')}\n\n"
 
@@ -79,8 +99,17 @@ def get_issue(context: "AgentContext", issue_id: str) -> str:
         if comments:
             result += "## Comments\n"
             for i, comment in enumerate(comments, 1):
-                author = comment.get("actor_detail", {}).get("display_name", "Unknown")
-                text = comment.get("comment_text", "").strip()
+                # Handle commenter information (without caching)
+                actor_id = comment.get("actor")
+                author = "Unknown"
+                if actor_id:
+                    # Since there's no user API, we can't get user details
+                    # We'll use the ID or any available information directly from the comment
+                    author = comment.get("actor_detail", {}).get(
+                        "display_name", f"User {actor_id}"
+                    )
+
+                text = comment.get("comment_stripped", "").strip()
                 created_at = comment.get("created_at", "")
                 result += f"**{author}** ({created_at}):\n{text}\n\n"
 
@@ -118,6 +147,15 @@ def list_issues(context: "AgentContext", project_name: Optional[str] = None) -> 
                 f"No issues found in project '{project_config.get('name', 'Unknown')}'."
             )
 
+        # Ensure caches are available
+        from heare.developer.clients.plane_cache import (
+            fetch_and_cache_states,
+            get_state_name_by_id,
+        )
+
+        # Pre-load caches for better performance
+        fetch_and_cache_states(workspace_slug, project_id, api_key)
+
         # Sort issues by sequence_id
         issues.sort(key=lambda x: x.get("sequence_id", 0))
 
@@ -129,13 +167,29 @@ def list_issues(context: "AgentContext", project_name: Optional[str] = None) -> 
         for issue in issues:
             issue_name = issue.get("name", "Untitled")
             sequence_id = issue.get("sequence_id", "?")
-            state = issue.get("state_detail", {}).get("name", "Unknown")
-            priority = issue.get("priority", "None")
-            assignee = issue.get("assignee_detail", {}).get(
-                "display_name", "Unassigned"
-            )
 
-            result += f"| {project_config.get('identifier', '')}-{sequence_id} | {issue_name} | {state} | {priority} | {assignee} |\n"
+            # Get state from cache
+            state_id = issue.get("state")
+            state_name = "Unknown"
+            if state_id:
+                state_name = (
+                    get_state_name_by_id(workspace_slug, project_id, state_id, api_key)
+                    or "Unknown"
+                )
+
+            priority = issue.get("priority", "None")
+
+            # Handle assignee information (without caching)
+            assignee_id = issue.get("assignee")
+            assignee_name = "Unassigned"
+            if assignee_id:
+                # Since there's no user API, we can't get user details
+                # We'll use the ID or any available information directly from the issue
+                assignee_name = issue.get("assignee_detail", {}).get(
+                    "display_name", f"User {assignee_id}"
+                )
+
+            result += f"| {project_config.get('identifier', '')}-{sequence_id} | {issue_name} | {state_name} | {priority} | {assignee_name} |\n"
 
         return result
 
@@ -257,7 +311,7 @@ def update_issue(
             return "Error: No fields provided to update"
 
         # Update the issue
-        endpoint = f"/api/v1/workspaces/{workspace_slug}/projects/{project_id}/issues/{issue_id_uuid}"
+        endpoint = f"/api/v1/workspaces/{workspace_slug}/projects/{project_id}/issues/{issue_id_uuid}/"
         response = _make_plane_request("PATCH", endpoint, data=update_data)
 
         if "id" in response:
@@ -295,11 +349,10 @@ def comment_on_issue(context: "AgentContext", issue_id: str, comment: str) -> st
         # Prepare comment data according to the API documentation
         comment_data = {
             "comment_html": comment,  # Required field per documentation
-            "access": "INTERNAL",  # Default to internal access
         }
 
         # Add the comment
-        endpoint = f"/api/v1/workspaces/{workspace_slug}/projects/{project_id}/issues/{issue_id_uuid}/comments"
+        endpoint = f"/api/v1/workspaces/{workspace_slug}/projects/{project_id}/issues/{issue_id_uuid}/comments/"
         response = _make_plane_request("POST", endpoint, data=comment_data)
         context.user_interface.handle_system_message(json.dumps(response, indent=2))
         # Check for different possible success responses
