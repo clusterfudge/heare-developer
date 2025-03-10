@@ -260,6 +260,7 @@ def project_selection_flow(config, workspace_slug, api_key):
             "_id": project_id,
             "name": display_name,
             "workspace": workspace_slug,
+            "identifier": selected_project.get("identifier"),
         }
         write_config(config)
         print_message(f"Added project '{project_name}' to configuration.")

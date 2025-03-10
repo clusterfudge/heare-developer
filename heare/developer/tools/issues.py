@@ -89,7 +89,7 @@ def get_issue(context: "AgentContext", issue_id: str) -> str:
         result += f"Updated: {issue.get('updated_at')}\n\n"
 
         result += "## Description\n"
-        description = issue.get("description", "No description")
+        description = issue.get("description_stripped", "No description")
         if description and description.strip():
             result += f"{description}\n\n"
         else:
