@@ -259,6 +259,7 @@ def run(
                             result, append = toolbox.invoke_cli_tool(
                                 name=command_name,
                                 arg_str=user_input[len(command_name) + 1 :].strip(),
+                                chat_history=chat_history,
                             )
                             if append:
                                 tool_result_buffer.append(

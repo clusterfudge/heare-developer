@@ -16,12 +16,12 @@ ALL_TOOLS = [
 ]
 
 
-# TODO: The plane tool specs are a lot of tokens, and don't yet work because of lack of workspace config.
-# Re-enable when we have a root agent solution that has _no_ tools, just tool names/groupings. The tool shelf lives!
-# try:
-#     from heare.developer.tools.issues import PLANE_TOOLS
-#
-#     ALL_TOOLS.extend(PLANE_TOOLS)
-# except ImportError:
-#     # If there's an error importing the Plane tools, just continue without them
-#     pass
+try:
+    from heare.developer.clients.plane_so import get_project_from_config
+    from heare.developer.tools.issues import PLANE_TOOLS
+
+    project = get_project_from_config()
+    if project:
+        ALL_TOOLS += PLANE_TOOLS
+except Exception:
+    pass

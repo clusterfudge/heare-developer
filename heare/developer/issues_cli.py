@@ -23,6 +23,13 @@ from heare.developer.clients.plane_so import (
     get_issue_details,
     get_issue_comments,
     create_new_project,
+    load_issue,
+)
+from heare.developer.clients.plane_cache import (
+    fetch_and_cache_states,
+    fetch_and_cache_priorities,
+    get_state_name_by_id,
+    refresh_all_caches,
 )
 
 console = Console()
@@ -265,6 +272,7 @@ def issues(user_input: str = "", **kwargs):
     Supports:
     1. "issues list" - Lists all issues and allows selection
     2. "issues <project-prefix>-<issue number>" - Directly loads a specific issue
+    3. "issues refresh" - Refreshes the local cache of issue data
     """
     # First check if issues are configured
     config = read_config()
@@ -287,52 +295,70 @@ def issues(user_input: str = "", **kwargs):
 
     subcommand = parts[0]
 
+    # Check if the command is to refresh cache
+    if subcommand == "refresh":
+        if not project_config:
+            print_message(
+                "No project configuration found. Please run '/config issues' first."
+            )
+            return
+
+        api_key = config["workspaces"][project_config["workspace"]]
+        results = refresh_all_caches(
+            project_config["workspace"], project_config["_id"], api_key
+        )
+
+        print_message("Cache refresh complete:")
+        for entity, success in results.items():
+            if "error" not in entity:
+                print_message(f"- {entity}: {'Success' if success else 'Failed'}")
+        return
+
     # Check if the argument matches the <project-prefix>-<issue number> pattern
     if "-" in subcommand and len(subcommand.split("-")) == 2:
         # This looks like a direct issue reference
         project_prefix, issue_number = subcommand.split("-")
         if issue_number.isdigit():
-            issue = _load_issue(subcommand, **kwargs)
+            issue = load_issue(subcommand, **kwargs)
+            api_key = config["workspaces"][project_config["workspace"]]
             comments = get_issue_comments(
                 workspace_slug=project_config["workspace"],
                 project_id=issue["project"],
                 issue_id=issue["id"],
+                api_key=api_key,
             )
+
+            # Ensure we have cached states and priorities
+            fetch_and_cache_states(
+                project_config["workspace"],
+                issue["project"],
+                api_key,
+                force_refresh=False,
+            )
+            fetch_and_cache_priorities(
+                project_config["workspace"],
+                issue["project"],
+                api_key,
+                force_refresh=False,
+            )
+
             return format_issue_details(subcommand, issue, comments, [])
 
     # If not a direct issue reference, handle standard subcommands
     if subcommand == "list":
         return list_issues(user_input, **kwargs)
+    elif subcommand == "refresh":
+        # Already handled above
+        pass
     else:
         print_message(
             f"Unknown subcommand: {subcommand}\n\n"
             "Available commands:\n"
             "- issues list - List and browse issues\n"
-            "- issues <project-prefix>-<issue number> - Directly load a specific issue"
+            "- issues <project-prefix>-<issue number> - Directly load a specific issue\n"
+            "- issues refresh - Refresh the local cache of issue data"
         )
         return
-
-
-def _load_issue(sequence_id: str, **_):
-    """Load a specific issue by its project prefix and issue number.
-
-    Args:
-        sequence_id: An issue identifier that maps to <project-identifier>-<issue number>
-
-    This function directly loads a specific issue based on the project prefix and issue number.
-    It bypasses the project and issue selection process.
-    """
-    config = read_config()
-
-    # Check if issues are configured
-    if not config.get("projects"):
-        raise ValueError(
-            "Issue tracking is not configured yet. Please run '/config issues' first."
-        )
-
-    project = get_project_from_config()
-    endpoint = f"/api/v1/workspaces/{project['workspace']}/issues/{sequence_id}"
-    return _make_plane_request("GET", endpoint)
 
 
 def list_issues(user_input: str = "", **kwargs) -> str:
@@ -394,6 +420,12 @@ def list_issues(user_input: str = "", **kwargs) -> str:
 
     # Get issues for this project
     try:
+        # Ensure we have cached states and priorities first
+        fetch_and_cache_states(workspace_slug, project_id, api_key, force_refresh=False)
+        fetch_and_cache_priorities(
+            workspace_slug, project_id, api_key, force_refresh=False
+        )
+
         issues = get_project_issues(workspace_slug, project_id, api_key)
 
         if not issues:
@@ -417,7 +449,16 @@ def list_issues(user_input: str = "", **kwargs) -> str:
         for issue in issues:
             issue_name = issue.get("name", "Untitled")
             sequence_id = issue.get("sequence_id", "?")
-            state = issue.get("state_detail", {}).get("name", "Unknown")
+
+            # Get the state name from cache if possible
+            state = "Unknown"
+            if issue.get("state"):
+                state = get_state_name_by_id(
+                    workspace_slug, project_id, issue.get("state"), api_key
+                ) or issue.get("state_detail", {}).get("name", "Unknown")
+            else:
+                state = issue.get("state_detail", {}).get("name", "Unknown")
+
             priority = issue.get("priority", "None")
             assignee = issue.get("assignee_detail", {}).get(
                 "display_name", "Unassigned"
@@ -446,7 +487,7 @@ def list_issues(user_input: str = "", **kwargs) -> str:
             workspace_slug, project_id, selected_issue["id"], api_key
         )
         issue_comments = get_issue_comments(
-            workspace_slug, project_id, selected_issue["id"]
+            workspace_slug, project_id, selected_issue["id"], api_key
         )
 
         # Get linked issues if any
@@ -455,8 +496,7 @@ def list_issues(user_input: str = "", **kwargs) -> str:
             try:
                 link_endpoint = f"/api/v1/workspaces/{workspace_slug}/projects/{project_id}/issues/{selected_issue['id']}/links"
                 linked_issues = _make_plane_request(
-                    "GET",
-                    link_endpoint,
+                    "GET", link_endpoint, api_key=api_key
                 )
             except Exception:
                 pass
@@ -511,9 +551,25 @@ def format_issue_details(
         Formatted string with issue details
     """
     result = f"[bold]{sequence_id.upper()}: {issue.get('name')}[/bold]\n"
-    result += (
-        f"[bold]Status:[/bold] {issue.get('state_detail', {}).get('name', 'Unknown')}\n"
-    )
+
+    # Get state name from cache if possible, otherwise fallback to details in the issue
+    state_name = "Unknown"
+    if issue.get("state"):
+        project_config = get_project_from_config()
+        if project_config:
+            api_key = read_config()["workspaces"][project_config["workspace"]]
+            state_name = get_state_name_by_id(
+                project_config["workspace"],
+                issue.get("project"),
+                issue.get("state"),
+                api_key,
+            ) or issue.get("state_detail", {}).get("name", "Unknown")
+        else:
+            state_name = issue.get("state_detail", {}).get("name", "Unknown")
+    else:
+        state_name = issue.get("state_detail", {}).get("name", "Unknown")
+
+    result += f"[bold]Status:[/bold] {state_name}\n"
     result += f"[bold]Priority:[/bold] {issue.get('priority', 'None')}\n"
     result += f"[bold]Assignee:[/bold] {issue.get('assignee_detail', {}).get('display_name', 'Unassigned')}\n"
     result += f"[bold]Created by:[/bold] {issue.get('created_by_detail', {}).get('display_name', 'Unknown')}\n"
@@ -549,7 +605,7 @@ def format_issue_details(
         result += "[bold underline]Comments:[/bold underline]\n"
         for i, comment in enumerate(comments, 1):
             author = comment.get("actor_detail", {}).get("display_name", "Unknown")
-            text = comment.get("comment_text", "").strip()
+            text = comment.get("comment_stripped", "").strip()
             created_at = comment.get("created_at", "")
 
             result += f"[{i}] [bold cyan]{author}[/bold cyan] ([italic]{created_at}[/italic]):\n"

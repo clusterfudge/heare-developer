@@ -199,7 +199,7 @@ def get_issue_details(
     endpoint = (
         f"/api/v1/workspaces/{workspace_slug}/projects/{project_id}/issues/{issue_id}"
     )
-    return _make_plane_request("GET", endpoint)
+    return _make_plane_request("GET", endpoint, api_key=api_key)
 
 
 def get_issue_project_by_id(
@@ -212,12 +212,12 @@ def get_issue_project_by_id(
 
 
 def get_issue_comments(
-    workspace_slug: str, project_id: str, issue_id: str
+    workspace_slug: str, project_id: str, issue_id: str, api_key: str = None
 ) -> List[Dict[str, Any]]:
     """Get comments for an issue."""
 
     endpoint = f"/api/v1/workspaces/{workspace_slug}/projects/{project_id}/issues/{issue_id}/comments"
-    return _make_plane_request("GET", endpoint)["results"]
+    return _make_plane_request("GET", endpoint, api_key=api_key)["results"]
 
 
 def create_new_project(
@@ -241,3 +241,25 @@ def create_new_project(
         return response.get("id")
     except Exception:
         return None
+
+
+def load_issue(sequence_id: str, **_):
+    """Load a specific issue by its project prefix and issue number.
+
+    Args:
+        sequence_id: An issue identifier that maps to <project-identifier>-<issue number>
+
+    This function directly loads a specific issue based on the project prefix and issue number.
+    It bypasses the project and issue selection process.
+    """
+    config = read_config()
+
+    # Check if issues are configured
+    if not config.get("projects"):
+        raise ValueError(
+            "Issue tracking is not configured yet. Please run '/config issues' first."
+        )
+
+    project = get_project_from_config()
+    endpoint = f"/api/v1/workspaces/{project['workspace']}/issues/{sequence_id}"
+    return _make_plane_request("GET", endpoint)

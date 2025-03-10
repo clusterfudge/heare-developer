@@ -1,4 +1,7 @@
+import json
 from typing import Callable, List
+
+from anthropic.types import MessageParam
 
 from .context import AgentContext
 import subprocess
@@ -88,12 +91,14 @@ class Toolbox:
         self,
         name: str,
         arg_str: str,
+        chat_history: list[MessageParam] = None,
         confirm_to_add: bool = True,
     ) -> tuple[str, bool]:
         content = self.local[name]["invoke"](
             sandbox=self.context.sandbox,
             user_interface=self.context.user_interface,
             user_input=arg_str,
+            chat_history=chat_history or [],
         )
 
         self.context.user_interface.handle_system_message(content)
@@ -181,7 +186,7 @@ class Toolbox:
         content = "[bold cyan]System Message:[/bold cyan]\n"
         content += create_system_message(sandbox)
         content += "\n\n[bold cyan]Tool Specifications:[/bold cyan]\n"
-        content += str(self.agent_schema)
+        content += json.dumps(self.agent_schema, indent=2)
         content += (
             "\n\n[bold cyan]Chat History (with inlined file contents):[/bold cyan]\n"
         )
