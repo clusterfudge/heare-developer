@@ -12,8 +12,8 @@ from unittest.mock import patch
 from heare.developer.issues_cli import (
     config_issues,
     issues,
-    write_config,
 )
+from heare.developer.clients.plane_so import write_config
 
 
 @pytest.fixture
@@ -32,9 +32,9 @@ def test_config_file():
         shutil.rmtree(test_config_dir)
 
 
-@patch("heare.developer.issues_cli.CONFIG_FILE")
-@patch("heare.developer.issues_cli.CONFIG_DIR")
-@patch("heare.developer.issues_cli.open", new_callable=unittest.mock.mock_open)
+@patch("heare.developer.clients.plane_so.CONFIG_FILE")
+@patch("heare.developer.clients.plane_so.CONFIG_DIR")
+@patch("heare.developer.clients.plane_so.open", new_callable=unittest.mock.mock_open)
 def test_read_write_config(
     mock_open, mock_config_dir, mock_config_file, test_config_file
 ):
