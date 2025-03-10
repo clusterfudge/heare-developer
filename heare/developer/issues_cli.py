@@ -578,7 +578,7 @@ def format_issue_details(
     result += f"[bold]Updated:[/bold] {issue.get('updated_at')}\n\n"
 
     result += "[bold underline]Description:[/bold underline]\n"
-    description = issue.get("description", "No description")
+    description = issue.get("description_stripped", "No description")
     # Convert markdown to rich format if description is present
     if description and description.strip():
         result += f"{description}\n\n"
