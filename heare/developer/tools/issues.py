@@ -12,6 +12,8 @@ from heare.developer.clients.plane_cache import (
     get_state_id_by_name,
     get_state_name_by_id,
     refresh_all_caches,
+    fetch_and_cache_members,
+    get_member_by_id,
 )
 from typing import Optional
 
@@ -59,25 +61,42 @@ def get_issue(context: "AgentContext", issue_id: str) -> str:
             if cached_state_name:
                 state_name = cached_state_name
 
-        # Handle user information (without caching)
+        # Ensure member cache is populated
+        try:
+            fetch_and_cache_members(workspace_slug, project_id, api_key)
+        except Exception:
+            # Continue even if member cache fails, we'll fall back to the details in the issue
+            pass
+
+        # Handle assignee information (with caching)
         assignee_id = issue.get("assignee")
         assignee_name = "Unassigned"
         if assignee_id:
-            # Since there's no user API, we can't get user details
-            # We'll use the ID or any available information directly from the issue
-            assignee_name = issue.get("assignee_detail", {}).get(
-                "display_name", f"User {assignee_id}"
+            member_details = get_member_by_id(
+                workspace_slug, project_id, assignee_id, api_key
             )
+            if member_details and member_details.get("name"):
+                assignee_name = member_details.get("name")
+            else:
+                # Fall back to the details in the issue if cache lookup fails
+                assignee_name = issue.get("assignee_detail", {}).get(
+                    "display_name", f"User {assignee_id}"
+                )
 
-        # Handle creator information (without caching)
+        # Handle creator information (with caching)
         created_by_id = issue.get("created_by")
         created_by_name = "Unknown"
         if created_by_id:
-            # Since there's no user API, we can't get user details
-            # We'll use the ID or any available information directly from the issue
-            created_by_name = issue.get("created_by_detail", {}).get(
-                "display_name", f"User {created_by_id}"
+            member_details = get_member_by_id(
+                workspace_slug, project_id, created_by_id, api_key
             )
+            if member_details and member_details.get("name"):
+                created_by_name = member_details.get("name")
+            else:
+                # Fall back to the details in the issue if cache lookup fails
+                created_by_name = issue.get("created_by_detail", {}).get(
+                    "display_name", f"User {created_by_id}"
+                )
 
         # Format issue information as a string
         result = f"# {issue_id}: {issue.get('name')}\n"
@@ -99,15 +118,20 @@ def get_issue(context: "AgentContext", issue_id: str) -> str:
         if comments:
             result += "## Comments\n"
             for i, comment in enumerate(comments, 1):
-                # Handle commenter information (without caching)
+                # Handle commenter information (with caching)
                 actor_id = comment.get("actor")
                 author = "Unknown"
                 if actor_id:
-                    # Since there's no user API, we can't get user details
-                    # We'll use the ID or any available information directly from the comment
-                    author = comment.get("actor_detail", {}).get(
-                        "display_name", f"User {actor_id}"
+                    member_details = get_member_by_id(
+                        workspace_slug, project_id, actor_id, api_key
                     )
+                    if member_details and member_details.get("name"):
+                        author = member_details.get("name")
+                    else:
+                        # Fall back to the details in the comment if cache lookup fails
+                        author = comment.get("actor_detail", {}).get(
+                            "display_name", f"User {actor_id}"
+                        )
 
                 text = comment.get("comment_stripped", "").strip()
                 created_at = comment.get("created_at", "")
@@ -120,17 +144,17 @@ def get_issue(context: "AgentContext", issue_id: str) -> str:
 
 
 @tool
-def list_issues(context: "AgentContext", project_name: Optional[str] = None) -> str:
+def list_issues(context: "AgentContext", group: str = None) -> str:
     """List all issues in a project.
 
     Lists all issues from a project, showing their ID, title, status, priority and assignee.
 
     Args:
-        project_name: Optional project name to specify which project to list issues from.
-                     If not provided, will use the current git repository or directory.
+        group: Optional group name to specify to filter issues.
+                Valid groups are: backlog, unstarted, started, completed, cancelled
     """
     # Check if project is configured
-    project_config = get_project_from_config(repo_name=project_name)
+    project_config = get_project_from_config()
     if not project_config:
         return "Error: Issue tracking is not configured. Please run '/config issues' first."
 
@@ -156,8 +180,18 @@ def list_issues(context: "AgentContext", project_name: Optional[str] = None) -> 
         # Pre-load caches for better performance
         fetch_and_cache_states(workspace_slug, project_id, api_key)
 
+        # Try to pre-load member cache, but continue if it fails
+        try:
+            fetch_and_cache_members(workspace_slug, project_id, api_key)
+        except Exception:
+            # Continue even if member cache fails
+            pass
+
         # Sort issues by sequence_id
         issues.sort(key=lambda x: x.get("sequence_id", 0))
+
+        if group.strip():
+            group = group.strip().lower()
 
         # Format the issues as a table
         result = f"# Issues in {project_config.get('name', 'Unknown')}\n\n"
@@ -176,18 +210,25 @@ def list_issues(context: "AgentContext", project_name: Optional[str] = None) -> 
                     get_state_name_by_id(workspace_slug, project_id, state_id, api_key)
                     or "Unknown"
                 )
+            if group and not state_name == group:
+                continue
 
             priority = issue.get("priority", "None")
 
-            # Handle assignee information (without caching)
+            # Handle assignee information (with caching)
             assignee_id = issue.get("assignee")
             assignee_name = "Unassigned"
             if assignee_id:
-                # Since there's no user API, we can't get user details
-                # We'll use the ID or any available information directly from the issue
-                assignee_name = issue.get("assignee_detail", {}).get(
-                    "display_name", f"User {assignee_id}"
+                member_details = get_member_by_id(
+                    workspace_slug, project_id, assignee_id, api_key
                 )
+                if member_details and member_details.get("name"):
+                    assignee_name = member_details.get("name")
+                else:
+                    # Fall back to the details in the issue if cache lookup fails
+                    assignee_name = issue.get("assignee_detail", {}).get(
+                        "display_name", f"User {assignee_id}"
+                    )
 
             result += f"| {project_config.get('identifier', '')}-{sequence_id} | {issue_name} | {state_name} | {priority} | {assignee_name} |\n"
 
@@ -233,12 +274,12 @@ def create_issue(
         # Prepare issue data
         issue_data = {
             "name": title,
-            "description": description,
+            "description_html": description,
             "priority": priority.lower(),
         }
 
         # Create the issue
-        endpoint = f"/api/v1/workspaces/{workspace_slug}/projects/{project_id}/issues"
+        endpoint = f"/api/v1/workspaces/{workspace_slug}/projects/{project_id}/issues/"
         response = _make_plane_request("POST", endpoint, data=issue_data)
 
         if "id" in response:

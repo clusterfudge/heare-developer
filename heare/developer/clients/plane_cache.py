@@ -215,6 +215,93 @@ def fetch_and_cache_priorities(
     return priorities
 
 
+def fetch_and_cache_members(
+    workspace_slug: str, project_id: str, api_key: str, force_refresh: bool = False
+) -> Dict[str, Any]:
+    """
+    Fetch and cache workspace members.
+
+    Args:
+        workspace_slug: The workspace slug
+        project_id: The project ID
+        api_key: The API key for Plane.so
+        force_refresh: Force refresh the cache even if it's valid
+
+    Returns:
+        The fetched members
+    """
+    entity_type = "members"
+    cache_path = get_cache_path(workspace_slug, project_id, entity_type)
+
+    # Check cache first if not forcing refresh
+    if not force_refresh and cache_is_valid(cache_path):
+        cached_data = read_cache(workspace_slug, project_id, entity_type)
+        if cached_data:
+            return cached_data
+
+    # Fetch members from API
+    endpoint = f"/api/workspaces/{workspace_slug}/members"
+    try:
+        response = _make_plane_request("GET", endpoint, api_key=api_key)
+    except Exception:
+        # Try the alternative endpoint format
+        endpoint = f"/api/v1/workspaces/{workspace_slug}/members"
+        response = _make_plane_request("GET", endpoint, api_key=api_key)
+
+    # Create a lookup dict with both name->id and id->name mappings
+    members = {}
+
+    # Handle response format - could be either a list or a dictionary with "results" key
+    if isinstance(response, dict) and "results" in response:
+        members_list = response.get("results", [])
+    else:
+        members_list = response if isinstance(response, list) else []
+
+    # First, add raw results for completeness
+    members["raw_results"] = members_list
+
+    # Then add lookup maps
+    id_to_details = {}
+    email_to_id = {}
+    name_to_id = {}
+
+    for member in members_list:
+        if not isinstance(member, dict):
+            continue
+
+        member_id = member.get("id")
+        email = member.get("email")
+        name = (
+            member.get("display_name")
+            or member.get("first_name", "")
+            or member.get("username", "")
+        )
+
+        if member_id:
+            id_to_details[member_id] = {
+                "email": email,
+                "name": name,
+                "avatar": member.get("avatar"),
+                "role": member.get("role"),
+                "user_id": member.get("id"),
+            }
+
+            if email:
+                email_to_id[email] = member_id
+
+            if name:
+                name_to_id[name] = member_id
+
+    members["id_to_details"] = id_to_details
+    members["email_to_id"] = email_to_id
+    members["name_to_id"] = name_to_id
+
+    # Cache the results
+    write_cache(workspace_slug, project_id, entity_type, members)
+
+    return members
+
+
 def refresh_all_caches(
     workspace_slug: str, project_id: str, api_key: str
 ) -> Dict[str, bool]:
@@ -246,6 +333,13 @@ def refresh_all_caches(
     except Exception as e:
         results["priorities"] = False
         results["priorities_error"] = str(e)
+
+    try:
+        fetch_and_cache_members(workspace_slug, project_id, api_key, force_refresh=True)
+        results["members"] = True
+    except Exception as e:
+        results["members"] = False
+        results["members_error"] = str(e)
 
     return results
 
@@ -304,6 +398,79 @@ def get_state_name_by_id(
 
     if state_details:
         return state_details.get("name")
+
+    return None
+
+
+def get_member_by_id(
+    workspace_slug: str, project_id: str, member_id: str, api_key: str
+) -> Optional[Dict[str, Any]]:
+    """
+    Get member details by their ID.
+
+    Args:
+        workspace_slug: The workspace slug
+        project_id: The project ID
+        member_id: The member ID
+        api_key: The API key for Plane.so
+
+    Returns:
+        The member details or None if not found
+    """
+    members = fetch_and_cache_members(workspace_slug, project_id, api_key)
+
+    id_to_details = members.get("id_to_details", {})
+    return id_to_details.get(member_id)
+
+
+def get_member_by_email(
+    workspace_slug: str, project_id: str, email: str, api_key: str
+) -> Optional[Dict[str, Any]]:
+    """
+    Get member details by their email.
+
+    Args:
+        workspace_slug: The workspace slug
+        project_id: The project ID
+        email: The member's email
+        api_key: The API key for Plane.so
+
+    Returns:
+        The member details or None if not found
+    """
+    members = fetch_and_cache_members(workspace_slug, project_id, api_key)
+
+    email_to_id = members.get("email_to_id", {})
+    member_id = email_to_id.get(email)
+
+    if member_id:
+        return get_member_by_id(workspace_slug, project_id, member_id, api_key)
+
+    return None
+
+
+def get_member_by_name(
+    workspace_slug: str, project_id: str, name: str, api_key: str
+) -> Optional[Dict[str, Any]]:
+    """
+    Get member details by their name.
+
+    Args:
+        workspace_slug: The workspace slug
+        project_id: The project ID
+        name: The member's display name
+        api_key: The API key for Plane.so
+
+    Returns:
+        The member details or None if not found
+    """
+    members = fetch_and_cache_members(workspace_slug, project_id, api_key)
+
+    name_to_id = members.get("name_to_id", {})
+    member_id = name_to_id.get(name)
+
+    if member_id:
+        return get_member_by_id(workspace_slug, project_id, member_id, api_key)
 
     return None
 

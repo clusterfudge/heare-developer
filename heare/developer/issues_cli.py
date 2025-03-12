@@ -28,7 +28,9 @@ from heare.developer.clients.plane_so import (
 from heare.developer.clients.plane_cache import (
     fetch_and_cache_states,
     fetch_and_cache_priorities,
+    fetch_and_cache_members,
     get_state_name_by_id,
+    get_member_by_id,
     refresh_all_caches,
 )
 
@@ -329,7 +331,7 @@ def issues(user_input: str = "", **kwargs):
                 api_key=api_key,
             )
 
-            # Ensure we have cached states and priorities
+            # Ensure we have cached states, priorities, and members
             fetch_and_cache_states(
                 project_config["workspace"],
                 issue["project"],
@@ -342,6 +344,18 @@ def issues(user_input: str = "", **kwargs):
                 api_key,
                 force_refresh=False,
             )
+
+            # Try to pre-load member cache, but continue if it fails
+            try:
+                fetch_and_cache_members(
+                    project_config["workspace"],
+                    issue["project"],
+                    api_key,
+                    force_refresh=False,
+                )
+            except Exception:
+                # Continue even if member cache fails
+                pass
 
             return format_issue_details(subcommand, issue, comments, [])
 
@@ -421,11 +435,20 @@ def list_issues(user_input: str = "", **kwargs) -> str:
 
     # Get issues for this project
     try:
-        # Ensure we have cached states and priorities first
+        # Ensure we have cached states, priorities, and members
         fetch_and_cache_states(workspace_slug, project_id, api_key, force_refresh=False)
         fetch_and_cache_priorities(
             workspace_slug, project_id, api_key, force_refresh=False
         )
+
+        # Try to pre-load member cache, but continue if it fails
+        try:
+            fetch_and_cache_members(
+                workspace_slug, project_id, api_key, force_refresh=False
+            )
+        except Exception:
+            # Continue even if member cache fails
+            pass
 
         issues = get_project_issues(workspace_slug, project_id, api_key)
 
@@ -572,8 +595,62 @@ def format_issue_details(
 
     result += f"[bold]Status:[/bold] {state_name}\n"
     result += f"[bold]Priority:[/bold] {issue.get('priority', 'None')}\n"
-    result += f"[bold]Assignee:[/bold] {issue.get('assignee_detail', {}).get('display_name', 'Unassigned')}\n"
-    result += f"[bold]Created by:[/bold] {issue.get('created_by_detail', {}).get('display_name', 'Unknown')}\n"
+
+    # Get assignee information from cache if possible
+    assignees = []
+    for assignee_id in issue.get("assignees", []):
+        assignee_name = "Unassigned"
+        if assignee_id:
+            project_config = get_project_from_config()
+            if project_config:
+                api_key = read_config()["workspaces"][project_config["workspace"]]
+                workspace_slug = project_config["workspace"]
+
+                member_details = get_member_by_id(
+                    workspace_slug, issue.get("project"), assignee_id, api_key
+                )
+                if member_details and member_details.get("name"):
+                    assignee_name = member_details.get("name")
+                else:
+                    # Fall back to the details in the issue if cache lookup fails
+                    assignee_name = issue.get("assignee_detail", {}).get(
+                        "display_name", "Unassigned"
+                    )
+            else:
+                assignee_name = issue.get("assignee_detail", {}).get(
+                    "display_name", "Unassigned"
+                )
+        assignees.append(assignee_name)
+
+    if not assignees:
+        assignees.append("Unassigned")
+
+    # Get creator information from cache if possible
+    created_by_id = issue.get("created_by")
+    created_by_name = "Unknown"
+    if created_by_id:
+        project_config = get_project_from_config()
+        if project_config:
+            api_key = read_config()["workspaces"][project_config["workspace"]]
+            workspace_slug = project_config["workspace"]
+
+            member_details = get_member_by_id(
+                workspace_slug, issue.get("project"), created_by_id, api_key
+            )
+            if member_details and member_details.get("name"):
+                created_by_name = member_details.get("name")
+            else:
+                # Fall back to the details in the issue if cache lookup fails
+                created_by_name = issue.get("created_by_detail", {}).get(
+                    "display_name", "Unknown"
+                )
+        else:
+            created_by_name = issue.get("created_by_detail", {}).get(
+                "display_name", "Unknown"
+            )
+
+    result += f"[bold]Assignee:[/bold] {','.join(assignees)}\n"
+    result += f"[bold]Created by:[/bold] {created_by_name}\n"
     result += f"[bold]Created:[/bold] {issue.get('created_at')}\n"
     result += f"[bold]Updated:[/bold] {issue.get('updated_at')}\n\n"
 
@@ -605,7 +682,32 @@ def format_issue_details(
     if comments:
         result += "[bold underline]Comments:[/bold underline]\n"
         for i, comment in enumerate(comments, 1):
-            author = comment.get("actor_detail", {}).get("display_name", "Unknown")
+            # Get author information from cache if possible
+            actor_id = comment.get("actor")
+            author = "Unknown"
+            if actor_id:
+                project_config = get_project_from_config()
+                if project_config:
+                    api_key = read_config()["workspaces"][project_config["workspace"]]
+                    workspace_slug = project_config["workspace"]
+
+                    member_details = get_member_by_id(
+                        workspace_slug, issue.get("project"), actor_id, api_key
+                    )
+                    if member_details and member_details.get("name"):
+                        author = member_details.get("name")
+                    else:
+                        # Fall back to the details in the comment if cache lookup fails
+                        author = comment.get("actor_detail", {}).get(
+                            "display_name", "Unknown"
+                        )
+                else:
+                    author = comment.get("actor_detail", {}).get(
+                        "display_name", "Unknown"
+                    )
+            else:
+                author = comment.get("actor_detail", {}).get("display_name", "Unknown")
+
             text = comment.get("comment_stripped", "").strip()
             created_at = comment.get("created_at", "")
 

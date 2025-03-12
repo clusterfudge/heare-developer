@@ -4,7 +4,7 @@ This document explains the cache system used for Plane.so integration.
 
 ## Overview
 
-The cache system stores Plane.so entity data like states and priorities locally to:
+The cache system stores Plane.so entity data like states, priorities, and workspace members locally to:
 
 1. Reduce API calls
 2. Enable mapping between state/priority names and IDs
@@ -19,6 +19,7 @@ The cache is stored in `~/.cache/hdev/plane.so/` with each entity type for each 
 ~/.cache/hdev/plane.so/
   workspace-slug_project-id_states.json
   workspace-slug_project-id_priorities.json
+  workspace-slug_project-id_members.json
   ...
 ```
 
@@ -32,9 +33,10 @@ Each cache file contains:
 
 The cache is used automatically by the Plane.so client and issue tools. When you:
 
-1. View issue details - The system uses the cache to look up state and priority names
+1. View issue details - The system uses the cache to look up state, priority names, and user information
 2. Update an issue state - The system converts readable state names to the required IDs
 3. Create issues - The system validates priorities against known values
+4. Assign issues - The system can look up users by name or email
 
 ## Refreshing the Cache
 
@@ -64,8 +66,13 @@ The cache system is implemented in:
 Key functions:
 
 - `fetch_and_cache_states()` - Fetches states from the API and stores them in the cache
+- `fetch_and_cache_priorities()` - Fetches priorities and stores them in the cache
+- `fetch_and_cache_members()` - Fetches workspace members and stores them in the cache
 - `get_state_id_by_name()` - Converts a state name to its ID using the cache
 - `get_state_name_by_id()` - Converts a state ID to its name using the cache
+- `get_member_by_id()` - Gets member details by their ID
+- `get_member_by_email()` - Gets member details by their email
+- `get_member_by_name()` - Gets member details by their name
 - `refresh_all_caches()` - Refreshes all caches for a project
 - `clear_cache()` - Clears the cache
 
