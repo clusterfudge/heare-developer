@@ -4,12 +4,15 @@ from typing import List
 from rich.status import Status
 
 from heare.developer.context import AgentContext
+from heare.developer.models import MODEL_MAP
 from .framework import tool
 from heare.developer.user_interface import UserInterface
 
 
 @tool
-def agent(context: "AgentContext", prompt: str, tool_names: List[str]):
+def agent(
+    context: "AgentContext", prompt: str, tool_names: List[str], model: str = None
+):
     """Run a prompt through a sub-agent with a limited set of tools.
     Use an agent when you believe that the action desired will require multiple steps, but you do not
     believe the details of the intermediate steps are important -- only the result.
@@ -22,6 +25,13 @@ def agent(context: "AgentContext", prompt: str, tool_names: List[str]):
     Args:
         prompt: the initial prompt question to ask the
         tool_names: a list of tool names from the existing tools to provide to the sub-agent. this should be a subset!
+        model: optional model alias to use for the sub-agent. Supported aliases:
+            - "light": Use Claude 3.5 Haiku - faster and more cost-effective for simple tasks like
+                       information retrieval, basic formatting, or straightforward reasoning
+            - "smart": Use Claude 3.7 Sonnet - better for complex tasks requiring deeper reasoning,
+                       detailed analysis, and more sophisticated responses
+
+              If not provided or invalid, uses the parent context's model.
     """
     from heare.developer.agent import run
 
@@ -30,6 +40,24 @@ def agent(context: "AgentContext", prompt: str, tool_names: List[str]):
 
         # Create a sub-agent context with the current context as parent
         sub_agent_context = context.with_user_interface(ui)
+
+        # Handle the model parameter if provided
+        if model:
+            # Define model aliases to model keys in MODEL_MAP
+            model_aliases = {
+                "light": "haiku",  # Faster, more cost-effective model
+                "smart": "sonnet-3.7",  # More capable for complex reasoning
+            }
+
+            # Check if the provided model alias is valid
+            if model in model_aliases:
+                # Get the model key from aliases
+                model_key = model_aliases[model]
+
+                # Get the model spec from MODEL_MAP
+                if model_key in MODEL_MAP:
+                    # Update the sub_agent_context with the model spec from MODEL_MAP
+                    sub_agent_context.model_spec = MODEL_MAP[model_key]
 
         try:
             # Run the agent with single response mode
