@@ -10,3 +10,4 @@ chat_archive*.json
 .ruff_cache
 dist/
 heare/_version.py
+*.pyc

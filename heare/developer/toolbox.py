@@ -275,7 +275,7 @@ class Toolbox:
         except Exception as e:
             return f"Error executing command: {str(e)}"
 
-    def schemas(self) -> List[dict]:
+    def schemas(self, enable_caching: bool = True) -> List[dict]:
         """Generate schemas for all tools in the toolbox.
 
         Returns a list of schema dictionaries matching the format of TOOLS_SCHEMA.
@@ -285,4 +285,6 @@ class Toolbox:
         for tool in self.agent_tools:
             if hasattr(tool, "schema"):
                 schemas.append(tool.schema())
+        if schemas and enable_caching:
+            schemas[-1]["cache_control"] = {"type": "ephemeral"}
         return schemas

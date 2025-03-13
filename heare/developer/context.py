@@ -96,7 +96,6 @@ class AgentContext:
             cache_creation_input_tokens = usage_entry.cache_creation_input_tokens
             cache_read_input_tokens = usage_entry.cache_read_input_tokens
 
-            input_tokens + output_tokens
             usage_summary["total_input_tokens"] += input_tokens
             usage_summary["total_output_tokens"] += output_tokens
 
