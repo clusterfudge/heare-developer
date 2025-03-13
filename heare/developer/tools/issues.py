@@ -150,7 +150,7 @@ def list_issues(context: "AgentContext", group: str = None) -> str:
     Lists all issues from a project, showing their ID, title, status, priority and assignee.
 
     Args:
-        group: Optional group name to specify to filter issues.
+        group: Optional group name to specify to filter issues. Leave empty to list all.
                 Valid groups are: backlog, unstarted, started, completed, cancelled
     """
     # Check if project is configured

@@ -56,7 +56,9 @@ def create_system_message(sandbox, MAX_ESTIMATED_TOKENS=10_240):
     system_message += sandbox_content
     system_message += "\nYou can read, write, and list files/directories, as well as execute some bash commands."
 
-    return system_message
+    return [
+        {"type": "text", "text": system_message, "cache_control": {"type": "ephemeral"}}
+    ]
 
 
 def estimate_token_count(text):

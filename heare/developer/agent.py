@@ -1,3 +1,4 @@
+import copy
 import os
 import time
 import random
@@ -164,6 +165,10 @@ def _inline_latest_file_mentions(
         # Add the file content as a new text block
         message_to_update["content"].append({"type": "text", "text": file_block})
 
+    # HACK: we just happen to be seeing messages go past, so we'll handle cache_control here.
+    last_message = copy.deepcopy(results[-1])
+    last_message["content"][-1]["cache_control"] = {"type": "ephemeral"}
+    results[-1] = last_message
     return results
 
 
@@ -225,7 +230,9 @@ def run(
 
     # Handle initial prompt if provided
     if initial_prompt:
-        chat_history.append({"role": "user", "content": initial_prompt})
+        chat_history.append(
+            {"role": "user", "content": [{"type": "text", "text": initial_prompt}]}
+        )
         user_interface.handle_user_input(
             f"[bold blue]You:[/bold blue] {initial_prompt}"
         )
@@ -271,7 +278,9 @@ def run(
                         )
                     continue
 
-                chat_history.append({"role": "user", "content": user_input})
+                chat_history.append(
+                    {"role": "user", "content": [{"type": "text", "text": user_input}]}
+                )
                 user_interface.handle_user_input(
                     f"[bold blue]You:[/bold blue] {user_input}"
                 )
