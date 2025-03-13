@@ -124,20 +124,20 @@ def _inline_latest_file_mentions(
         Modified chat history with file contents inlined into the messages
     """
     file_mention_map: dict[Path, list[int]] = defaultdict(list)
+    # Make a deep copy of the chat history to ensure we don't modify the original
     results: list[MessageParam] = []
 
+    # First, make a direct deep copy of each message
     for idx, message in enumerate(chat_history):
-        if message["role"] != "user":
-            results.append(message)
-            continue
-        file_mentions = _extract_file_mentions(message)
-        if file_mentions:
-            results.append(message.copy())
+        message_copy = copy.deepcopy(message)
+        results.append(message_copy)
+
+        if message["role"] == "user":
+            file_mentions = _extract_file_mentions(message)
             for file_mention in file_mentions:
                 file_mention_map[file_mention].append(idx)
-        else:
-            results.append(message)
 
+    # Now update the messages with file contents
     for mentioned_file, message_indexes in file_mention_map.items():
         last_index = message_indexes[-1]
         message_to_update = results[last_index]
@@ -166,9 +166,22 @@ def _inline_latest_file_mentions(
         message_to_update["content"].append({"type": "text", "text": file_block})
 
     # HACK: we just happen to be seeing messages go past, so we'll handle cache_control here.
-    last_message = copy.deepcopy(results[-1])
-    last_message["content"][-1]["cache_control"] = {"type": "ephemeral"}
-    results[-1] = last_message
+    # Add cache_control to the last text block in a user message, ensuring all content is list-type
+    if results and results[-1]["role"] == "user":
+        last_message = results[-1]
+        # Ensure content is in the proper list format
+        if isinstance(last_message["content"], str):
+            last_message["content"] = [
+                {"type": "text", "text": last_message["content"]}
+            ]
+
+        if len(last_message["content"]) > 0:
+            # Only add cache_control to the last text block
+            if (
+                isinstance(last_message["content"][-1], dict)
+                and "text" in last_message["content"][-1]
+            ):
+                last_message["content"][-1]["cache_control"] = {"type": "ephemeral"}
     return results
 
 

@@ -86,17 +86,24 @@ file1.txt
         ]
 
         result = create_system_message(mock_sandbox)
+        # Check the structure is a list with at least one text block
+        self.assertIsInstance(result, list)
+        self.assertTrue(len(result) > 0)
+
+        # Get the text content from the first text block
+        content = result[0]["text"]
+
         self.assertIn(
-            "You are an AI assistant with access to a sandbox environment.", result
+            "You are an AI assistant with access to a sandbox environment.", content
         )
-        self.assertIn("<sandbox_contents>", result)
-        self.assertIn("file1.txt", result)
-        self.assertIn("dir1/", result)
-        self.assertIn("file2.txt", result)
-        self.assertIn("</sandbox_contents>", result)
+        self.assertIn("<sandbox_contents>", content)
+        self.assertIn("file1.txt", content)
+        self.assertIn("dir1/", content)
+        self.assertIn("file2.txt", content)
+        self.assertIn("</sandbox_contents>", content)
         self.assertIn(
             "You can read, write, and list files/directories, as well as execute some bash commands.",
-            result,
+            content,
         )
 
 

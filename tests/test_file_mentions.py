@@ -33,6 +33,7 @@ def temp_files():
 
 
 def test_extract_file_mentions_string_content(temp_files):
+    # Keep the old string format test to ensure backward compatibility
     message = {
         "role": "user",
         "content": f"Check @{temp_files['file1']} and @{temp_files['file2']} but not @nonexistent.txt",
@@ -42,6 +43,22 @@ def test_extract_file_mentions_string_content(temp_files):
     assert len(result) == 2
     assert temp_files["file1"] in result
     assert temp_files["file2"] in result
+
+    # Also test with the new content block format
+    message_with_blocks = {
+        "role": "user",
+        "content": [
+            {
+                "type": "text",
+                "text": f"Check @{temp_files['file1']} and @{temp_files['file2']} but not @nonexistent.txt",
+            }
+        ],
+    }
+
+    result_blocks = _extract_file_mentions(message_with_blocks)
+    assert len(result_blocks) == 2
+    assert temp_files["file1"] in result_blocks
+    assert temp_files["file2"] in result_blocks
 
 
 def test_extract_file_mentions_list_content(temp_files):
@@ -75,9 +92,17 @@ def test_extract_file_mentions_nonexistent_files():
 
 def test_inline_latest_file_mentions_basic(temp_files):
     chat_history = [
-        {"role": "user", "content": f"Check @{temp_files['file1']}"},
-        {"role": "assistant", "content": "Looking at it"},
-        {"role": "user", "content": f"Check @{temp_files['file1']} again"},
+        {
+            "role": "user",
+            "content": [{"type": "text", "text": f"Check @{temp_files['file1']}"}],
+        },
+        {"role": "assistant", "content": [{"type": "text", "text": "Looking at it"}]},
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": f"Check @{temp_files['file1']} again"}
+            ],
+        },
     ]
 
     # Make a deep copy to verify original is not modified
@@ -94,17 +119,28 @@ def test_inline_latest_file_mentions_basic(temp_files):
         f"<mentioned_file path={temp_files['file1'].as_posix()}>" in block["text"]
         for block in result[2]["content"]
     )
-    assert isinstance(result[0]["content"], str)
+    # Both messages should have content in list format
+    assert isinstance(result[0]["content"], list)
 
 
 def test_inline_latest_file_mentions_multiple_files(temp_files):
     chat_history = [
         {
             "role": "user",
-            "content": f"Check @{temp_files['file1']} and @{temp_files['file2']}",
+            "content": [
+                {
+                    "type": "text",
+                    "text": f"Check @{temp_files['file1']} and @{temp_files['file2']}",
+                }
+            ],
         },
-        {"role": "assistant", "content": "Looking at them"},
-        {"role": "user", "content": f"Check @{temp_files['file1']} again"},
+        {"role": "assistant", "content": [{"type": "text", "text": "Looking at them"}]},
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": f"Check @{temp_files['file1']} again"}
+            ],
+        },
     ]
 
     original = copy.deepcopy(chat_history)
@@ -130,9 +166,12 @@ def test_inline_latest_file_mentions_multiple_files(temp_files):
 
 def test_inline_latest_file_mentions_preserves_non_user_messages(temp_files):
     chat_history = [
-        {"role": "user", "content": f"Check @{temp_files['file1']}"},
-        {"role": "assistant", "content": "Looking at it"},
-        {"role": "system", "content": "System message"},
+        {
+            "role": "user",
+            "content": [{"type": "text", "text": f"Check @{temp_files['file1']}"}],
+        },
+        {"role": "assistant", "content": [{"type": "text", "text": "Looking at it"}]},
+        {"role": "system", "content": [{"type": "text", "text": "System message"}]},
     ]
 
     original = copy.deepcopy(chat_history)
@@ -141,6 +180,8 @@ def test_inline_latest_file_mentions_preserves_non_user_messages(temp_files):
     # Verify original is not modified
     assert chat_history == original
 
-    # Check that assistant and system messages are preserved exactly
-    assert result[1] == chat_history[1]
-    assert result[2] == chat_history[2]
+    # Check that assistant and system messages are preserved in role and content
+    assert result[1]["role"] == chat_history[1]["role"]
+    assert result[1]["content"] == chat_history[1]["content"]
+    assert result[2]["role"] == chat_history[2]["role"]
+    assert result[2]["content"] == chat_history[2]["content"]
