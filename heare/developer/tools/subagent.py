@@ -33,6 +33,17 @@ def agent(
 
               If not provided or invalid, uses the parent context's model.
     """
+
+    return run_agent(context, prompt, tool_names, system=None, model=model)
+
+
+def run_agent(
+    context: "AgentContext",
+    prompt: str,
+    tool_names: List[str],
+    system: str | None = None,
+    model: str = None,
+):
     from heare.developer.agent import run
 
     with context.user_interface.status(f"Initiating sub-agent: {prompt}") as status:

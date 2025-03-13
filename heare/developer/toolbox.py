@@ -184,7 +184,7 @@ class Toolbox:
         from .agent import _inline_latest_file_mentions
 
         content = "[bold cyan]System Message:[/bold cyan]\n"
-        content += create_system_message(sandbox)
+        content += create_system_message(self.context)
         content += "\n\n[bold cyan]Tool Specifications:[/bold cyan]\n"
         content += json.dumps(self.agent_schema, indent=2)
         content += (

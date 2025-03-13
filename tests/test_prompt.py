@@ -85,25 +85,31 @@ file1.txt
             "dir1/subdir/file3.txt",
         ]
 
-        result = create_system_message(mock_sandbox)
-        # Check the structure is a list with at least one text block
+        mock_agent_context = MagicMock()
+        mock_agent_context.sandbox = mock_sandbox
+
+        result = create_system_message(mock_agent_context)
+        # Check the structure is a list with at least two text blocks
         self.assertIsInstance(result, list)
-        self.assertTrue(len(result) > 0)
+        self.assertTrue(len(result) >= 2)
 
-        # Get the text content from the first text block
-        content = result[0]["text"]
-
+        # First section contains the AI assistant introduction
+        first_content = result[0]["text"]
         self.assertIn(
-            "You are an AI assistant with access to a sandbox environment.", content
+            "You are an AI assistant with access to a sandbox environment.",
+            first_content,
         )
-        self.assertIn("<sandbox_contents>", content)
-        self.assertIn("file1.txt", content)
-        self.assertIn("dir1/", content)
-        self.assertIn("file2.txt", content)
-        self.assertIn("</sandbox_contents>", content)
+
+        # Second section contains the sandbox contents
+        second_content = result[1]["text"]
+        self.assertIn("<sandbox_contents>", second_content)
+        self.assertIn("file1.txt", second_content)
+        self.assertIn("dir1/", second_content)
+        self.assertIn("file2.txt", second_content)
+        self.assertIn("</sandbox_contents>", second_content)
         self.assertIn(
             "You can read, write, and list files/directories, as well as execute some bash commands.",
-            content,
+            second_content,
         )
 
 

@@ -192,8 +192,7 @@ def run(
     tool_names: list[str] | None = None,
 ) -> list[MessageParam]:
     load_dotenv()
-    sandbox, user_interface, model = (
-        agent_context.sandbox,
+    user_interface, model = (
         agent_context.user_interface,
         agent_context.model_spec,
     )
@@ -306,7 +305,7 @@ def run(
                     tool_result_buffer.clear()
                 initial_prompt = None
 
-            system_message = create_system_message(sandbox)
+            system_message = create_system_message(agent_context)
             ai_response = ""
             with user_interface.status(
                 "[bold green]AI is thinking...[/bold green]", spinner="dots"
