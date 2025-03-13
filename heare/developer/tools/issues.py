@@ -338,7 +338,7 @@ def update_issue(
         if title:
             update_data["name"] = title
         if description:
-            update_data["description"] = description
+            update_data["description_html"] = description
         if priority:
             update_data["priority"] = priority.lower()
         if state:
