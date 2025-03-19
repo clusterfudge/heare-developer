@@ -98,6 +98,7 @@ class UserInterface(ABC):
         completion_tokens: int,
         total_tokens: int,
         total_cost: float,
+        cached_tokens: int | None = None,
     ) -> None:
         """
         Display token count information.

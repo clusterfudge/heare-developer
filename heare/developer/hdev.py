@@ -226,10 +226,14 @@ class CLIUserInterface(UserInterface):
         completion_tokens: int,
         total_tokens: int,
         total_cost: float,
+        cached_tokens: int | None = None,
     ) -> None:
         token_count = Text.assemble(
             ("Token Count:\n", "bold"),
-            (f"Prompt: {prompt_tokens}\n", "cyan"),
+            (
+                f"Prompt: {prompt_tokens}{f' (cached: {cached_tokens})' if cached_tokens else ''}\n",
+                "cyan",
+            ),
             (f"Completion: {completion_tokens}\n", "green"),
             (f"Total: {total_tokens}\n", "yellow"),
             (f"Cost: ${round(total_cost, 2)}", "orange"),

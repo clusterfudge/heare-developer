@@ -30,7 +30,7 @@ def main(args: List[str] = None):
         # Pass remaining arguments to the developer CLI
         # translate tool spec to argparse
         tool_name = args[1]
-        tool_args = " ".join(args[2:])  # TODO: do something with shlex
+        tool_args = " ".join(args[2:])  # TODO(2025-03-19): do something with shlex
         toolbox.invoke_cli_tool(tool_name, arg_str=tool_args, confirm_to_add=False)
     else:
         dev_main(args)

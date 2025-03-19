@@ -83,6 +83,7 @@ class AgentContext:
             "total_input_tokens": 0,
             "total_output_tokens": 0,
             "total_cost": 0.0,
+            "cached_tokens": 0,
             "model_breakdown": {},
         }
 
@@ -98,6 +99,7 @@ class AgentContext:
 
             usage_summary["total_input_tokens"] += input_tokens
             usage_summary["total_output_tokens"] += output_tokens
+            usage_summary["cached_tokens"] += cache_read_input_tokens
 
             total_cost = (
                 input_tokens * pricing["input"]
@@ -111,12 +113,15 @@ class AgentContext:
                     "total_input_tokens": 0,
                     "total_output_tokens": 0,
                     "total_cost": 0.0,
+                    "cached_tokens": 0,
                     "token_breakdown": {},
                 }
 
             model_breakdown = usage_summary["model_breakdown"][model_name]
             model_breakdown["total_input_tokens"] += input_tokens
             model_breakdown["total_output_tokens"] += output_tokens
+            model_breakdown["cached_tokens"] += cache_read_input_tokens
+
             model_breakdown["total_cost"] += total_cost
 
             usage_summary["total_cost"] += total_cost

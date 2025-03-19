@@ -388,6 +388,7 @@ def run(
                 usage_summary["total_input_tokens"]
                 + usage_summary["total_output_tokens"],
                 usage_summary["total_cost"],
+                cached_tokens=usage_summary["cached_tokens"],
             )
 
             if final_message.stop_reason == "tool_use":
