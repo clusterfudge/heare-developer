@@ -7,6 +7,7 @@ from heare.developer.context import AgentContext
 from heare.developer.models import MODEL_MAP
 from .framework import tool
 from heare.developer.user_interface import UserInterface
+from ..utils import wrap_text_as_content_block
 
 
 @tool
@@ -71,10 +72,12 @@ def run_agent(
                     sub_agent_context.model_spec = MODEL_MAP[model_key]
 
         try:
+            system_block = wrap_text_as_content_block(system) if system else None
             # Run the agent with single response mode
             chat_history = run(
                 agent_context=sub_agent_context,
                 initial_prompt=prompt,
+                system_prompt=system_block,
                 single_response=True,
                 tool_names=tool_names,
             )

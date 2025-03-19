@@ -151,3 +151,10 @@ def get_current_project_name() -> str:
 
     # Fallback to current directory name
     return os.path.basename(os.getcwd())
+
+
+def wrap_text_as_content_block(text: str) -> dict[str, Any]:
+    return {
+        "type": "text",
+        "text": text,
+    }

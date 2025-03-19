@@ -4,6 +4,7 @@ import time
 import random
 from collections import defaultdict
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 import anthropic
@@ -190,6 +191,7 @@ def run(
     initial_prompt: str = None,
     single_response: bool = False,
     tool_names: list[str] | None = None,
+    system_prompt: dict[str, Any] | None = None,
 ) -> list[MessageParam]:
     load_dotenv()
     user_interface, model = (
@@ -305,7 +307,9 @@ def run(
                     tool_result_buffer.clear()
                 initial_prompt = None
 
-            system_message = create_system_message(agent_context)
+            system_message = create_system_message(
+                agent_context, system_section=system_prompt
+            )
             ai_response = ""
             with user_interface.status(
                 "[bold green]AI is thinking...[/bold green]", spinner="dots"

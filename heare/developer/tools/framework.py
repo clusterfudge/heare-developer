@@ -16,7 +16,7 @@ def tool(func):
         raise ValueError(f"First parameter of {func.__name__} must be 'context'")
 
     type_hints = inspect.get_annotations(func)
-    if type_hints.get("context") != "AgentContext":
+    if type_hints.get("context") not in ("AgentContext", AgentContext):
         raise ValueError(
             f"First parameter of {func.__name__} must be annotated with 'AgentContext' type"
         )

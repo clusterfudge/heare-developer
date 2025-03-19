@@ -395,7 +395,6 @@ def comment_on_issue(context: "AgentContext", issue_id: str, comment: str) -> st
         # Add the comment
         endpoint = f"/api/v1/workspaces/{workspace_slug}/projects/{project_id}/issues/{issue_id_uuid}/comments/"
         response = _make_plane_request("POST", endpoint, data=comment_data)
-        context.user_interface.handle_system_message(json.dumps(response, indent=2))
         # Check for different possible success responses
         if "id" in response:
             return f"Comment added successfully to issue {issue_id}"

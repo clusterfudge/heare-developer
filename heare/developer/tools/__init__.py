@@ -25,3 +25,10 @@ try:
         ALL_TOOLS += PLANE_TOOLS
 except Exception:
     pass
+
+try:
+    from ..personas import basic_agent, coding_agent, deep_research_agent
+
+    ALL_TOOLS += [basic_agent, coding_agent, deep_research_agent]
+except Exception as e:
+    print(f"Error importing personas: {repr(e)}")
