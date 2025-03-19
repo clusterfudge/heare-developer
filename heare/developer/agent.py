@@ -178,10 +178,7 @@ def _inline_latest_file_mentions(
 
         if len(last_message["content"]) > 0:
             # Only add cache_control to the last text block
-            if (
-                isinstance(last_message["content"][-1], dict)
-                and "text" in last_message["content"][-1]
-            ):
+            if isinstance(last_message["content"][-1], dict):
                 last_message["content"][-1]["cache_control"] = {"type": "ephemeral"}
     return results
 
@@ -321,11 +318,11 @@ def run(
                 for attempt in range(max_retries):
                     try:
                         rate_limiter.check_and_wait(user_interface)
-
+                        messages = _inline_latest_file_mentions(chat_history)
                         with client.messages.stream(
                             system=system_message,
                             max_tokens=model["max_tokens"],
-                            messages=_inline_latest_file_mentions(chat_history),
+                            messages=messages,
                             model=model["title"],
                             tools=toolbox.agent_schema,
                         ) as stream:
