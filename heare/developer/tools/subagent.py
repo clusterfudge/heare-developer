@@ -146,7 +146,7 @@ class CaptureInterface(UserInterface):
         self.output.append(f"Tool {tool_name} result: {result}")
 
     def display_token_count(
-        self, prompt_tokens, completion_tokens, total_tokens, total_cost
+        self, prompt_tokens, completion_tokens, total_tokens, total_cost, cached_tokens
     ):
         pass
 
