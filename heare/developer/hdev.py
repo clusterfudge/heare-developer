@@ -99,6 +99,9 @@ class CLIUserInterface(UserInterface):
     def handle_system_message(self, message: str) -> None:
         from rich.markdown import Markdown
 
+        if not message:
+            return
+
         self.console.print("\n")
 
         # For system messages, use yellow styling but still treat as markdown
