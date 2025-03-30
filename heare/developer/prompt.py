@@ -52,7 +52,7 @@ def render_sandbox_content(sandbox, summarize):
 
 _DEFAULT_SYSTEM_SECTION = {
     "type": "text",
-    "text": "You are an AI assistant with access to a sandbox environment.",
+    "text": f"You are an AI assistant with access to a sandbox environment. Today's date is {__import__('datetime').datetime.now().strftime('%Y-%m-%d')}.",
 }
 
 

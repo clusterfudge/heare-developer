@@ -2,6 +2,16 @@ from .subagent import agent
 from .files import read_file, write_file, list_directory, edit_file
 from .repl import run_bash_command, python_repl
 from .web import web_search, safe_curl
+from .google import (
+    gmail_search,
+    gmail_read,
+    gmail_send,
+    calendar_list_events,
+    calendar_create_event,
+    calendar_delete_event,
+    calendar_setup,
+    calendar_list_calendars,
+)
 
 ALL_TOOLS = [
     read_file,
@@ -13,6 +23,14 @@ ALL_TOOLS = [
     agent,
     safe_curl,
     python_repl,
+    gmail_search,
+    gmail_read,
+    gmail_send,
+    calendar_list_events,
+    calendar_create_event,
+    calendar_delete_event,
+    calendar_setup,
+    calendar_list_calendars,
 ]
 
 

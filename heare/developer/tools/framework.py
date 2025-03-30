@@ -77,9 +77,30 @@ def tool(func):
             # Get parameter description from docstring
             param_desc = param_docs.get(param_name, "")
 
-            # Add to properties
+            # Add to properties with proper type detection
+            param_type = "string"  # Default type
+
+            # Determine proper type based on type hint
+            if param_name in type_hints:
+                hint = type_hints[param_name]
+                # Handle Union types (like Optional)
+                if get_origin(hint) is Union:
+                    args = get_args(hint)
+                    # Get the non-None type for Optional
+                    hint = next((arg for arg in args if arg is not type(None)), hint)
+
+                # Map Python types to JSON Schema types
+                if hint in (int, int) or (
+                    isinstance(hint, type) and issubclass(hint, int)
+                ):
+                    param_type = "integer"
+                elif hint in (float,) or (
+                    isinstance(hint, type) and issubclass(hint, float)
+                ):
+                    param_type = "number"
+
             schema["input_schema"]["properties"][param_name] = {
-                "type": "string",  # Default to string, could be enhanced to detect other types
+                "type": param_type,
                 "description": param_desc,
             }
 
@@ -117,8 +138,45 @@ def invoke_tool(context: "AgentContext", tool_use, tools: List[Callable] = None)
             "content": f"Unknown function: {function_name}",
         }
 
-    # Call the tool function with the sandbox and arguments
-    result = tool_func(context, **arguments)
+    # Convert arguments to the correct type based on function annotations
+    converted_args = {}
+    type_hints = inspect.get_annotations(tool_func)
+
+    for arg_name, arg_value in arguments.items():
+        if arg_name in type_hints:
+            hint = type_hints[arg_name]
+            # Handle Union types (like Optional)
+            if get_origin(hint) is Union:
+                args = get_args(hint)
+                # Get the non-None type for Optional
+                hint = next((arg for arg in args if arg is not type(None)), hint)
+
+            # Convert string to appropriate type
+            if hint == int and isinstance(arg_value, str):  # noqa: E721
+                try:
+                    converted_args[arg_name] = int(arg_value)
+                except ValueError:
+                    return {
+                        "type": "tool_result",
+                        "tool_use_id": tool_use.id,
+                        "content": f"Error: Parameter '{arg_name}' must be an integer, got '{arg_value}'",
+                    }
+            elif hint == float and isinstance(arg_value, str):  # noqa: E721
+                try:
+                    converted_args[arg_name] = float(arg_value)
+                except ValueError:
+                    return {
+                        "type": "tool_result",
+                        "tool_use_id": tool_use.id,
+                        "content": f"Error: Parameter '{arg_name}' must be a number, got '{arg_value}'",
+                    }
+            else:
+                converted_args[arg_name] = arg_value
+        else:
+            converted_args[arg_name] = arg_value
+
+    # Call the tool function with the sandbox and converted arguments
+    result = tool_func(context, **converted_args)
 
     return {"type": "tool_result", "tool_use_id": tool_use.id, "content": result}
 
