@@ -134,9 +134,9 @@ class Toolbox:
     # CLI Tools
     def _help(self, user_interface, sandbox, user_input, *args, **kwargs):
         """Show help"""
-        help_text = "[bold yellow]Available commands:[/bold yellow]\n"
-        help_text += "/restart - Clear chat history and start over\n"
-        help_text += "/quit - Quit the chat\n"
+        help_text = "## Available commands:\n"
+        help_text += "- **/restart** - Clear chat history and start over\n"
+        help_text += "- **/quit** - Quit the chat\n"
 
         displayed_tools = set()
         for tool_name, spec in self.local.items():
@@ -145,7 +145,7 @@ class Toolbox:
                     [f"/{alias}" for alias in spec["aliases"] if alias != tool_name]
                 )
                 alias_text = f" (aliases: {aliases})" if aliases else ""
-                help_text += f"/{tool_name}{alias_text} - {spec['docstring']}\n"
+                help_text += f"- **/{tool_name}**{alias_text} - {spec['docstring']}\n"
                 displayed_tools.add(tool_name)
                 displayed_tools.update(spec["aliases"])
 

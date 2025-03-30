@@ -47,7 +47,13 @@ def run_agent(
 ):
     from heare.developer.agent import run
 
-    with context.user_interface.status(f"Initiating sub-agent: {prompt}") as status:
+    tool_name_str = ",".join(tool_names)
+    if len(tool_name_str) > 64:
+        tool_name_str = ",".join(name[:3] for name in tool_names)
+
+    with context.user_interface.status(
+        f"Initiating sub-agent[{tool_name_str}]: {prompt}"
+    ) as status:
         ui = CaptureInterface(parent=context.user_interface, status=status)
 
         # Create a sub-agent context with the current context as parent

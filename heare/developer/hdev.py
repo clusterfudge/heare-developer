@@ -97,19 +97,30 @@ class CLIUserInterface(UserInterface):
         self.session.completer = CustomCompleter(commands, self.session.history)
 
     def handle_system_message(self, message: str) -> None:
+        from rich.markdown import Markdown
+
         self.console.print("\n")
+
+        # For system messages, use yellow styling but still treat as markdown
+        md = Markdown(message, code_theme="monokai")
+
         self.console.print(
             create_clean_panel(
-                f"[bold yellow]{message}[/bold yellow]",
+                md,
                 title="System Message",
                 style="bold yellow",
             )
         )
 
     def handle_assistant_message(self, message: str) -> None:
+        from rich.markdown import Markdown
+
+        # Render the message as markdown
+        md = Markdown(message, code_theme="monokai")
+
         self.console.print(
             create_clean_panel(
-                f"[bold green]{message}[/bold green]",
+                md,
                 title="AI Assistant",
                 style="bold green",
             )
@@ -143,17 +154,30 @@ class CLIUserInterface(UserInterface):
         resource: str,
         action_arguments: Dict | None,
     ) -> None:
+        from rich.console import Group
+        from rich.text import Text
+
         if not action_arguments:
             action_arguments = {}
+
+        # Create formatted arguments display
         formatted_params = "\n".join(
             [f"  {key}: {value}" for key, value in action_arguments.items()]
         )
 
+        # Create a group with nicely formatted sections
+        permission_group = Group(
+            Text("Action:", style="bold blue"),
+            Text(f"  {action}"),
+            Text("Resource:", style="bold cyan"),
+            Text(f"  {resource}"),
+            Text("Arguments:", style="bold green"),
+            Text(f"{formatted_params}"),
+        )
+
         self.console.print(
             create_clean_panel(
-                f"[bold blue]Action:[/bold blue] {action}\n"
-                f"[bold cyan]Resource:[/bold cyan] {resource}\n"
-                f"[bold green]Arguments:[/bold green]\n{formatted_params}",
+                permission_group,
                 title="Permission Check",
                 style="bold yellow",
             )
@@ -167,6 +191,10 @@ class CLIUserInterface(UserInterface):
         pass
 
     def handle_tool_result(self, name: str, result: Dict[str, Any]) -> None:
+        from rich.markdown import Markdown
+        from rich.console import Group
+        from rich.text import Text
+
         # Get the content based on tool type
         content = (
             result["content"]
@@ -181,15 +209,28 @@ class CLIUserInterface(UserInterface):
                 f"  {key}: {value}" for key, value in result["params"].items()
             )
 
-        display_text = (
-            f"[bold blue]Command:[/bold blue] {name}\n"
-            f"[bold cyan]Parameters:[/bold cyan]\n{params_str}\n"
-            f"[bold green]Result:[/bold green]\n{content}"
+        # Create the header section with command and parameters
+        header = Group(
+            Text("Command:", style="bold blue"),
+            Text(f"  {name}"),
+            Text("Parameters:", style="bold cyan"),
+            Text(f"{params_str}"),
         )
+
+        # Create the result section - treat content as markdown for code blocks, etc.
+        result_header = Text("Result:", style="bold green")
+        result_content = (
+            Markdown(content, code_theme="monokai")
+            if isinstance(content, str)
+            else Text(str(content))
+        )
+
+        # Group all components together
+        display_group = Group(header, Text(""), result_header, result_content)
 
         self.console.print(
             create_clean_panel(
-                display_text,
+                display_group,
                 title="Tool Result",
                 style="bold magenta",
             )
@@ -241,10 +282,22 @@ class CLIUserInterface(UserInterface):
         self.console.print(token_count)
 
     def display_welcome_message(self) -> None:
+        from rich.markdown import Markdown
+
+        welcome_md = """
+## Welcome to the Heare Developer CLI
+
+Your personal coding assistant powered by AI.
+
+**Tips:**
+* For multi-line input, start with `{` on a new line, enter your content, and end with `}` on a new line
+* Markdown formatting is supported for all output
+* Code blocks will be syntax highlighted automatically
+        """
+
         self.console.print(
             create_clean_panel(
-                "[bold green]Welcome to the Heare Developer CLI, your personal coding assistant.[/bold green]\n"
-                "[bold yellow]For multi-line input, start with '{' on a new line, enter your content, and end with '}' on a new line.[/bold yellow]",
+                Markdown(welcome_md),
                 style="bold cyan",
             )
         )

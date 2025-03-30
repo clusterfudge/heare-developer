@@ -368,10 +368,10 @@ def issues(user_input: str = "", **kwargs):
     else:
         print_message(
             f"Unknown subcommand: {subcommand}\n\n"
-            "Available commands:\n"
-            "- issues list - List and browse issues\n"
-            "- issues <project-prefix>-<issue number> - Directly load a specific issue\n"
-            "- issues refresh - Refresh the local cache of issue data"
+            "## Available commands:\n"
+            "- **issues list** - List and browse issues\n"
+            "- **issues <project-prefix>-<issue number>** - Directly load a specific issue\n"
+            "- **issues refresh** - Refresh the local cache of issue data"
         )
         return
 

@@ -218,18 +218,14 @@ def run(
         for tool_name, spec in toolbox.local.items():
             commands[f"/{tool_name}"] = spec["docstring"]
 
-        command_message = "[bold yellow]Available commands:[/bold yellow]\n"
+        command_message = "## Available commands:\n"
 
         for tool_name, spec in toolbox.local.items():
-            command_message += (
-                f"[bold yellow]/{tool_name}: {spec['docstring']}[/bold yellow]\n"
-            )
+            command_message += f"- **/{tool_name}**: {spec['docstring']}\n"
 
-        command_message += "[bold yellow]/quit, /exit - Quit the chat[/bold yellow]\n"
+        command_message += "- **/quit, /exit** - Quit the chat\n"
 
-        command_message += (
-            "[bold yellow]/restart - Clear chat history and start over[/bold yellow]\n"
-        )
+        command_message += "- **/restart** - Clear chat history and start over\n"
 
         user_interface.handle_system_message(command_message)
 
