@@ -5,7 +5,7 @@ from heare.developer.agent import run
 from heare.developer.user_interface import UserInterface
 from heare.developer.sandbox import SandboxMode
 from heare.developer.context import AgentContext
-from typing import List
+from typing import List, Any
 
 
 @dataclass
@@ -120,6 +120,9 @@ class MockUserInterface(UserInterface):
                 pass
 
         return NoOpContextManager()
+
+    def bare(self, message: str | Any) -> None:
+        pass
 
 
 class MockToolbox:

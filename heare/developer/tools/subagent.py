@@ -1,5 +1,5 @@
 import contextlib
-from typing import Any
+from typing import Any, List
 
 from rich.status import Status
 
@@ -33,19 +33,21 @@ def agent(context: "AgentContext", prompt: str, tool_names: str, model: str = No
               If not provided or invalid, uses the parent context's model.
     """
 
-    return run_agent(context, prompt, tool_names, system=None, model=model)
+    tool_names_list = [tool_name.strip(",").strip() for tool_name in tool_names.split()]
+
+    return run_agent(context, prompt, tool_names_list, system=None, model=model)
 
 
 def run_agent(
     context: "AgentContext",
     prompt: str,
-    tool_names: str,
+    tool_names: List[str],
     system: str | None = None,
     model: str = None,
 ):
     from heare.developer.agent import run
 
-    tool_name_str = ",".join(tool_names.split(","))
+    tool_name_str = ",".join(tool_names)
     if len(tool_name_str) > 64:
         tool_name_str = ",".join(name[:3] for name in tool_names)
 

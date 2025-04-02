@@ -49,7 +49,7 @@ def test_agent_tool_with_default_model(agent_context, mock_agent_run):
     ]
 
     # Execute
-    result = agent(agent_context, "test prompt", ["web_search"])
+    result = agent(agent_context, "test prompt", "web_search")
 
     # Verify
     assert mock_agent_run.call_count == 1
@@ -68,7 +68,7 @@ def test_agent_tool_with_custom_model(agent_context, mock_agent_run):
     ]
 
     # Execute with custom model parameter using the 'light' alias
-    result = agent(agent_context, "test prompt", ["web_search"], model="light")
+    result = agent(agent_context, "test prompt", "web_search", model="light")
 
     # Verify that run was called with a context having the specified model
     assert mock_agent_run.call_count == 1
@@ -94,7 +94,7 @@ def test_agent_tool_with_smart_model(agent_context, mock_agent_run):
     ]
 
     # Execute with the 'smart' alias
-    result = agent(agent_context, "test prompt", ["web_search"], model="smart")
+    result = agent(agent_context, "test prompt", "web_search", model="smart")
 
     # Verify
     assert mock_agent_run.call_count == 1
@@ -117,7 +117,7 @@ def test_agent_tool_with_invalid_model(agent_context, mock_agent_run):
     ]
 
     # Execute with an invalid model alias - should fall back to the default
-    result = agent(agent_context, "test prompt", ["web_search"], model="nonexistent")
+    result = agent(agent_context, "test prompt", "web_search", model="nonexistent")
 
     # Verify
     assert mock_agent_run.call_count == 1

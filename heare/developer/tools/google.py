@@ -680,17 +680,71 @@ def calendar_create_event(
 
         # Set start and end times
         if is_all_day:
-            event["start"] = {"date": start_time}
-            event["end"] = {"date": end_time}
+            # All-day events don't need timezone info, just use the date
+            event["start"] = {
+                "date": start_time.split("T")[0] if "T" in start_time else start_time
+            }
+            event["end"] = {
+                "date": end_time.split("T")[0] if "T" in end_time else end_time
+            }
         else:
-            # Ensure timezone is specified
-            if not start_time.endswith("Z") and "+" not in start_time:
-                start_time += "Z"  # Add UTC indicator if none specified
-            if not end_time.endswith("Z") and "+" not in end_time:
-                end_time += "Z"  # Add UTC indicator if none specified
+            # Get user's calendar timezone
+            try:
+                # Get the calendar's timezone from API
+                calendar_info = (
+                    service.calendars().get(calendarId=calendar_id).execute()
+                )
+                user_timezone = calendar_info.get("timeZone", "UTC")
+            except Exception as e:
+                # Log the error and fallback to UTC
+                print(f"Error getting calendar timezone: {str(e)}")
+                user_timezone = "UTC"
 
-            event["start"] = {"dateTime": start_time}
-            event["end"] = {"dateTime": end_time}
+            # Check if timezone is already specified in the datetime strings
+            # Safely check for timezone markers (Z, +, or - after time part)
+            def has_timezone(dt_str):
+                if dt_str.endswith("Z"):
+                    return True
+
+                # Check for proper ISO format with time part
+                time_part_pos = dt_str.find("T")
+                if time_part_pos == -1:
+                    return False  # Not a datetime string with time
+
+                # Standard format should be YYYY-MM-DDThh:mm:ss[.sss](+/-hh:mm or Z)
+                # Look for +/- but make sure it's not the date separator
+                # Also confirm we have proper time format with colons
+                time_part = dt_str[time_part_pos + 1 :]
+                if ":" not in time_part:
+                    return False  # Not a properly formatted time
+
+                # Look for timezone markers after the seconds
+                for pos in range(
+                    time_part_pos + 8, len(dt_str)
+                ):  # At least hh:mm:ss after T
+                    if dt_str[pos] in ("+", "-"):
+                        return True
+
+                return False
+
+            has_timezone_start = has_timezone(start_time)
+            has_timezone_end = has_timezone(end_time)
+
+            # Handle start time
+            if has_timezone_start:
+                # User specified timezone, respect it
+                event["start"] = {"dateTime": start_time}
+            else:
+                # No timezone in string, use calendar's timezone
+                event["start"] = {"dateTime": start_time, "timeZone": user_timezone}
+
+            # Handle end time
+            if has_timezone_end:
+                # User specified timezone, respect it
+                event["end"] = {"dateTime": end_time}
+            else:
+                # No timezone in string, use calendar's timezone
+                event["end"] = {"dateTime": end_time, "timeZone": user_timezone}
 
         # Add attendees if specified
         if attendees:

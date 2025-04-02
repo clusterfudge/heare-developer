@@ -45,6 +45,7 @@ class TestAgentContextFlush(unittest.TestCase):
             display_token_count=lambda *args: None,
             permission_callback=lambda *args: True,
             permission_rendering_callback=lambda *args: True,
+            bare=lambda *args: None,
         )
 
         # Add a status method that returns a context manager
@@ -177,7 +178,7 @@ class TestAgentContextFlush(unittest.TestCase):
                 mock_capture.return_value = mock_capture_instance
 
                 # Call the agent tool
-                agent(parent_context, "Do something", ["read_file"])
+                agent(parent_context, "Do something", "read_file")
 
                 # Verify that run was called with a context that has parent_session_id set
                 args, kwargs = mock_run.call_args

@@ -1,5 +1,5 @@
 import os
-from typing import Dict
+from typing import Dict, Any
 
 import pytest
 import tempfile
@@ -65,6 +65,9 @@ class MockUserInterface(UserInterface):
                 pass
 
         return NoOpContextManager()
+
+    def bare(self, message: str | Any) -> None:
+        pass
 
 
 def test_permission_check_single_line():

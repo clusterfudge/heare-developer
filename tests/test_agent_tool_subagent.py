@@ -44,6 +44,7 @@ class TestAgentToolSubagent(unittest.TestCase):
             display_token_count=lambda *args: None,
             permission_callback=lambda *args: True,
             permission_rendering_callback=lambda *args: True,
+            bare=lambda *args: None,
         )
 
         # Add a status method that returns a context manager
@@ -116,7 +117,7 @@ class TestAgentToolSubagent(unittest.TestCase):
                 mock_run.side_effect = capture_and_return
 
                 # Call the agent tool
-                agent(parent_context, "Do a sub task", ["read_file"])
+                agent(parent_context, "Do a sub task", "read_file")
 
                 # Verify a sub-agent context was created with parent's session ID
                 self.assertIsNotNone(
