@@ -17,6 +17,17 @@ Before using these tools, you must set up authentication with Google:
 5. Download the credentials JSON file
 6. Save the downloaded file as `~/.hdev/credentials/google_clientid.json`
 
+### Remote/Headless Authentication
+
+If you're running the application on a remote server or in a headless environment where browser-based authentication isn't suitable, you can use the device flow authentication method instead:
+
+```bash
+# Set authentication method to device flow
+export HEARE_GOOGLE_AUTH_METHOD="device"
+```
+
+For detailed instructions on remote authentication, see the [Remote Google Authentication](google_remote_auth.md) documentation.
+
 ## Gmail Tools
 
 ### 1. Gmail Search
@@ -190,11 +201,28 @@ You can manually edit this file if needed, or use the `calendar_setup()` and `ca
 ## Authentication Notes
 
 - The first time you use a Gmail or Calendar tool, you'll be prompted to authorize the application
-- A browser window will open where you'll need to sign in and grant permissions
+- By default, a browser window will open where you'll need to sign in and grant permissions
+- In remote/headless environments, a device flow option is available that provides a URL to visit on another device
 - After authorization, token files will be saved in `~/.hdev/credentials/` for future use:
   - `gmail_token.pickle` for Gmail API access
   - `calendar_token.pickle` for Calendar API access
 - Separate token files are used for Gmail and Calendar to minimize requested permissions
+- You can use the Google Token Manager script to generate, export, or import tokens:
+  ```bash
+  # Generate tokens using device flow
+  python scripts/google_token_manager.py generate gmail
+  
+  # Export tokens (to file or stdout)
+  python scripts/google_token_manager.py export gmail --output ~/gmail_token.txt  # to file
+  python scripts/google_token_manager.py export gmail                            # to stdout
+  
+  # Import tokens (from file or stdin)
+  python scripts/google_token_manager.py import gmail --input ~/gmail_token.txt  # from file
+  python scripts/google_token_manager.py import gmail                            # from stdin
+  
+  # Direct transfer over SSH (more secure)
+  python scripts/google_token_manager.py export gmail | ssh user@remote-host "python scripts/google_token_manager.py import gmail"
+  ```
 
 ## Error Handling
 

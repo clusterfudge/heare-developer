@@ -1,11 +1,14 @@
 import pickle
 import yaml
+import os
 from pathlib import Path
 from typing import List
 from datetime import datetime, timedelta
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
+
+from . import google_remote_auth
 
 from heare.developer.context import AgentContext
 from .framework import tool
@@ -66,6 +69,14 @@ def get_credentials(scopes: List[str], token_file: str = "token.pickle"):
     Returns:
         The credentials object
     """
+    # Check if we should use remote/device auth
+    auth_method = os.environ.get("HEARE_GOOGLE_AUTH_METHOD", "auto")
+
+    if auth_method in ["device", "auto"]:
+        # Use the automatic method which will choose the appropriate flow
+        return google_remote_auth.get_credentials_auto(scopes, token_file)
+
+    # Original browser-based flow
     creds = None
     # The file token.pickle stores the user's access and refresh tokens
     token_path = CREDENTIALS_DIR / token_file
@@ -85,14 +96,19 @@ def get_credentials(scopes: List[str], token_file: str = "token.pickle"):
         else:
             # Look for credentials.json file
             credentials_path = CREDENTIALS_DIR / "google_clientid.json"
-            if not credentials_path.exists():
+            client_secrets_file = os.environ.get(
+                "HEARE_GOOGLE_CLIENT_SECRETS", str(credentials_path)
+            )
+
+            if not os.path.exists(client_secrets_file):
                 raise FileNotFoundError(
                     f"Google credentials file not found. Please download your OAuth client ID credentials "
-                    f"from Google Cloud Console and save them as {credentials_path}"
+                    f"from Google Cloud Console and save them as {client_secrets_file} or "
+                    f"set HEARE_GOOGLE_CLIENT_SECRETS environment variable."
                 )
 
             flow = InstalledAppFlow.from_client_secrets_file(
-                str(credentials_path), scopes
+                client_secrets_file, scopes
             )
             creds = flow.run_local_server(port=0)
 
@@ -457,7 +473,17 @@ def calendar_list_events(
     start_date: str = None,
     end_date: str = None,
 ) -> str:
-    """List upcoming events from Google Calendar. Use start_date and end_date for looking up events in the past.
+    """List upcoming events from Google Calendar for specific dates.
+
+    For queries about a specific day (like "tomorrow" or "next Monday"):
+    - Convert relative date references to specific YYYY-MM-DD format dates
+    - Use both start_date AND end_date parameters set to the SAME date
+    - Always verify events are on the requested date before including them in your response
+
+    Example usage:
+    - For "tomorrow": Use start_date="2025-04-02", end_date="2025-04-02"
+    - For "next week": Use days=7 (without start_date/end_date)
+    - For a date range: Use both start_date and end_date with different dates
 
     Args:
         days: Number of days to look ahead (default: 7)
@@ -543,13 +569,16 @@ def calendar_list_events(
             start = event["start"].get("dateTime", event["start"].get("date"))
             end = event["end"].get("dateTime", event["end"].get("date"))
 
+            # Extract event date for comparison and filtering
+            event_date = start.split("T")[0] if "T" in start else start
+
             # Format date/time
             if "T" in start:  # This is a datetime, not just a date
                 start_dt = datetime.fromisoformat(start.replace("Z", "+00:00"))
                 end_dt = datetime.fromisoformat(end.replace("Z", "+00:00"))
                 time_str = f"{start_dt.strftime('%Y-%m-%d %H:%M')} to {end_dt.strftime('%H:%M')}"
             else:
-                time_str = f"{start} (all day)"
+                time_str = f"{event_date} (all day)"
 
             # Get attendees if any
             attendees = []
