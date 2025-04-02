@@ -1,5 +1,5 @@
 import contextlib
-from typing import List
+from typing import Any
 
 from rich.status import Status
 
@@ -11,9 +11,7 @@ from ..utils import wrap_text_as_content_block
 
 
 @tool
-def agent(
-    context: "AgentContext", prompt: str, tool_names: List[str], model: str = None
-):
+def agent(context: "AgentContext", prompt: str, tool_names: str, model: str = None):
     """Run a prompt through a sub-agent with a limited set of tools.
     Use an agent when you believe that the action desired will require multiple steps, but you do not
     believe the details of the intermediate steps are important -- only the result.
@@ -25,7 +23,7 @@ def agent(
 
     Args:
         prompt: the initial prompt question to ask the
-        tool_names: a list of tool names from the existing tools to provide to the sub-agent. this should be a subset!
+        tool_names: a comma separated list of tool names from the existing tools to provide to the sub-agent. this should be a subset!
         model: optional model alias to use for the sub-agent. Supported aliases:
             - "light": Use Claude 3.5 Haiku - faster and more cost-effective for simple tasks like
                        information retrieval, basic formatting, or straightforward reasoning
@@ -41,18 +39,18 @@ def agent(
 def run_agent(
     context: "AgentContext",
     prompt: str,
-    tool_names: List[str],
+    tool_names: str,
     system: str | None = None,
     model: str = None,
 ):
     from heare.developer.agent import run
 
-    tool_name_str = ",".join(tool_names)
+    tool_name_str = ",".join(tool_names.split(","))
     if len(tool_name_str) > 64:
         tool_name_str = ",".join(name[:3] for name in tool_names)
 
     with context.user_interface.status(
-        f"Initiating sub-agent[{tool_name_str}]: {prompt}"
+        f"Initiating sub-agent\\[{tool_name_str}]: {prompt}"
     ) as status:
         ui = CaptureInterface(parent=context.user_interface, status=status)
 
@@ -133,6 +131,7 @@ class CaptureInterface(UserInterface):
         self.output = []
         self.parent = parent
         self._status = status
+        self._prior_renderable = status.renderable
 
     def handle_system_message(self, message):
         self.output.append(message)
@@ -145,6 +144,9 @@ class CaptureInterface(UserInterface):
 
     def handle_tool_use(self, tool_name, tool_input):
         message = f"Using tool {tool_name} with input {tool_input}"
+        self.bare(self._prior_renderable)
+        self.bare("")
+        self._prior_renderable = message
         self.status(message, update=True)
         self.output.append(message)
 
@@ -161,3 +163,6 @@ class CaptureInterface(UserInterface):
 
     def permission_rendering_callback(self, operation, path, action_arguments):
         return True
+
+    def bare(self, message: str | Any) -> None:
+        return self.parent.bare(message)

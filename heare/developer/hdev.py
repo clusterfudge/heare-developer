@@ -308,6 +308,9 @@ Your personal coding assistant powered by AI.
     def status(self, message, spinner=None):
         return self.console.status(message, spinner=spinner or "dots")
 
+    def bare(self, message: str | Any) -> None:
+        self.console.print(message)
+
 
 class CustomCompleter(Completer):
     def __init__(self, commands, history):

@@ -187,7 +187,7 @@ def run(
     agent_context: AgentContext,
     initial_prompt: str = None,
     single_response: bool = False,
-    tool_names: list[str] | None = None,
+    tool_names: list[str] | str | None = None,
     system_prompt: dict[str, Any] | None = None,
 ) -> list[MessageParam]:
     load_dotenv()

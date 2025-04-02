@@ -125,3 +125,11 @@ class UserInterface(ABC):
         :param spinner:
         :return:
         """
+
+    @abstractmethod
+    def bare(self, message: str | Any) -> None:
+        """
+        Display bare message to the user
+        :param message:
+        :return:
+        """
