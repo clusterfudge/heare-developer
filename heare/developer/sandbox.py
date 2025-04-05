@@ -81,7 +81,7 @@ class Sandbox:
                 )
         return PathSpec.from_lines(GitWildMatchPattern, patterns)
 
-    def get_directory_listing(self, path="", recursive=True):
+    def get_directory_listing(self, path="", recursive=True, limit=1000):
         listing = []
         target_dir = os.path.join(self.root_directory, path)
 
@@ -107,6 +107,9 @@ class Sandbox:
 
             if not recursive:
                 break  # Only process the first level for non-recursive listing
+
+            if len(listing) >= limit:
+                return []
 
         return sorted(listing)
 

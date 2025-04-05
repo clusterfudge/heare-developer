@@ -4,10 +4,10 @@ from heare.developer.context import AgentContext
 from heare.developer.sandbox import Sandbox
 
 
-def build_tree(sandbox: Sandbox):
+def build_tree(sandbox: Sandbox, limit=1000):
     root = {"is_leaf": False}
 
-    for path in sandbox.get_directory_listing():
+    for path in sandbox.get_directory_listing(limit=limit):
         parts = path.split("/")
         current = root
 
@@ -42,8 +42,8 @@ def render_tree(tree, indent=""):
     return result
 
 
-def render_sandbox_content(sandbox, summarize):
-    tree = build_tree(sandbox)
+def render_sandbox_content(sandbox, summarize, limit=1000):
+    tree = build_tree(sandbox, limit=limit)
     result = "<sandbox_contents>\n"
     result += render_tree(tree)
     result += "</sandbox_contents>\n"
