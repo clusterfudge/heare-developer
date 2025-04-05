@@ -466,7 +466,7 @@ def main(args: List[str]):
         "--prompt",
         help="Initial prompt for the assistant. If starts with @, will read from file",
     )
-    args = arg_parser.parse_args()
+    args = arg_parser.parse_args(args[1:])  # Skip the program name in args[0]
 
     console = Console()
     user_interface = CLIUserInterface(console, args.sandbox_mode)
@@ -476,8 +476,12 @@ def main(args: List[str]):
         if args.prompt.startswith("@"):
             filename = args.prompt[1:]
             try:
+                console.print(f"Reading prompt from file: {filename}")
                 with open(filename, "r") as f:
                     initial_prompt = f.read().strip()
+                    console.print(
+                        f"File content loaded: {len(initial_prompt)} characters"
+                    )
             except FileNotFoundError:
                 console.print(f"[red]Error: Could not find file {filename}[/red]")
                 return

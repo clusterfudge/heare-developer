@@ -11,3 +11,4 @@ chat_archive*.json
 dist/
 heare/_version.py
 *.pyc
+prompts/
