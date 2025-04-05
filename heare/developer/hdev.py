@@ -74,13 +74,64 @@ class CLIUserInterface(UserInterface):
         self.sandbox_mode = sandbox_mode
         self.toolbox = None  # Will be set after Sandbox is created
 
-        history = FileHistory("./chat_history.txt")
+        # Initialize the session with the history file
+        history_file_path = self._get_history_file_path()
+        history = FileHistory(history_file_path)
         self.session = PromptSession(
             history=history,
             auto_suggest=AutoSuggestFromHistory(),
             enable_history_search=True,
             complete_while_typing=True,
         )
+
+    def _get_history_file_path(self) -> str:
+        """
+        Create a directory for chat history based on the SHA256 hash of the current working directory.
+        Returns the path to the chat history file.
+
+        If a chat_history.txt file exists in the current directory, migrate it to the new location.
+        """
+        import hashlib
+        import shutil
+
+        # Get current working directory and compute its SHA256
+        cwd = os.getcwd()
+        cwd_hash = hashlib.sha256(cwd.encode()).hexdigest()
+
+        # Create the directory structure
+        history_dir = os.path.expanduser(f"~/.cache/hdev/{cwd_hash}")
+        os.makedirs(history_dir, exist_ok=True)
+
+        # Store the current working directory in the cwd file
+        cwd_file_path = os.path.join(history_dir, "cwd")
+        with open(cwd_file_path, "w") as f:
+            f.write(cwd)
+
+        # Path to the new history file
+        new_history_file_path = os.path.join(history_dir, "chat_history.txt")
+
+        # Check if a chat_history.txt exists in the current directory and migrate it
+        old_history_file_path = os.path.join(cwd, "chat_history.txt")
+        if os.path.exists(old_history_file_path) and os.path.isfile(
+            old_history_file_path
+        ):
+            # Only migrate if the destination file doesn't exist or is empty
+            if (
+                not os.path.exists(new_history_file_path)
+                or os.path.getsize(new_history_file_path) == 0
+            ):
+                try:
+                    shutil.copy2(old_history_file_path, new_history_file_path)
+                    # Optionally remove the old file after successful migration
+                    os.remove(old_history_file_path)
+                    print(
+                        f"Migrated chat history from {old_history_file_path} to {new_history_file_path}"
+                    )
+                except (shutil.Error, OSError) as e:
+                    print(f"Error migrating chat history: {e}")
+
+        # Return the path to the chat history file
+        return new_history_file_path
 
     def set_toolbox(self, toolbox: Toolbox):
         """Set the toolbox and initialize the completer with its commands"""
