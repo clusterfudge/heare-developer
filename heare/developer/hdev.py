@@ -456,6 +456,13 @@ def main(args: List[str]):
         help="Set the sandbox mode for file operations",
     )
     arg_parser.add_argument(
+        "--dwr",
+        action="store_const",
+        const=SandboxMode.ALLOW_ALL,
+        dest="sandbox_mode",
+        help="Shorthand for --sandbox-mode dwr",
+    )
+    arg_parser.add_argument(
         "--prompt",
         help="Initial prompt for the assistant. If starts with @, will read from file",
     )
