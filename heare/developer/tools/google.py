@@ -416,6 +416,8 @@ def gmail_send(
     body: str,
     cc: str = "",
     bcc: str = "",
+    reply_to: str = "",
+    in_reply_to: str = "",
 ) -> str:
     """Send an email via Gmail.
 
@@ -425,6 +427,8 @@ def gmail_send(
         body: Body text of the email
         cc: Email address(es) to CC, comma-separated for multiple (optional)
         bcc: Email address(es) to BCC, comma-separated for multiple (optional)
+        reply_to: Email address to set in the Reply-To header (optional)
+        in_reply_to: Message ID of the email being replied to (optional)
     """
     try:
         # Get credentials for Gmail API
@@ -443,23 +447,96 @@ def gmail_send(
             message["cc"] = cc
         if bcc:
             message["bcc"] = bcc
+        if reply_to:
+            message["reply-to"] = reply_to
 
         # Get the sender's email address
         profile = service.users().getProfile(userId="me").execute()
         message["from"] = profile["emailAddress"]
 
+        # Initialize thread information
+        thread_id = None
+
+        # If this is a reply, add the appropriate headers and set thread_id
+        if in_reply_to:
+            try:
+                # Get the original message to extract necessary headers and thread ID
+                original_message = (
+                    service.users()
+                    .messages()
+                    .get(userId="me", id=in_reply_to, format="metadata")
+                    .execute()
+                )
+
+                # Extract the threadId from the original message
+                thread_id = original_message.get("threadId")
+
+                # Extract headers from the original message
+                headers = original_message["payload"]["headers"]
+                message_id = next(
+                    (h["value"] for h in headers if h["name"].lower() == "message-id"),
+                    None,
+                )
+
+                # Set the In-Reply-To and References headers
+                if message_id:
+                    message["In-Reply-To"] = message_id
+
+                    # Check if there's already a References header
+                    references = next(
+                        (
+                            h["value"]
+                            for h in headers
+                            if h["name"].lower() == "references"
+                        ),
+                        None,
+                    )
+
+                    # Set or append to References header
+                    if references:
+                        message["References"] = f"{references} {message_id}"
+                    else:
+                        message["References"] = message_id
+
+                # If subject doesn't already start with Re:, add it
+                if not subject.lower().startswith("re:"):
+                    original_subject = next(
+                        (h["value"] for h in headers if h["name"].lower() == "subject"),
+                        subject,
+                    )
+                    # If original subject already had Re: prefix, don't add another one
+                    if original_subject.lower().startswith("re:"):
+                        message["subject"] = original_subject
+                    else:
+                        message["subject"] = f"Re: {original_subject}"
+
+            except Exception as e:
+                # Log the error but continue sending the email
+                print(f"Error setting reply headers: {str(e)}")
+
         # Encode the message
         encoded_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
 
+        # Create the email message body
+        email_body = {"raw": encoded_message}
+
+        # If replying to an existing message, include the threadId
+        if thread_id:
+            email_body["threadId"] = thread_id
+
         # Send the email
         send_message = (
-            service.users()
-            .messages()
-            .send(userId="me", body={"raw": encoded_message})
-            .execute()
+            service.users().messages().send(userId="me", body=email_body).execute()
         )
 
-        return f"Email sent successfully. Message ID: {send_message['id']}"
+        result = f"Email sent successfully. Message ID: {send_message['id']}"
+        if thread_id:
+            result += f"\nAdded to thread ID: {thread_id}"
+
+        return result
+
+    except Exception as e:
+        return f"Error sending email: {str(e)}"
 
     except Exception as e:
         return f"Error sending email: {str(e)}"

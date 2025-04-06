@@ -11,7 +11,9 @@ from ..utils import wrap_text_as_content_block
 
 
 @tool
-def agent(context: "AgentContext", prompt: str, tool_names: str, model: str = None):
+def agent(
+    context: "AgentContext", prompt: str, tool_names: str = None, model: str = None
+):
     """Run a prompt through a sub-agent with a limited set of tools.
     Use an agent when you believe that the action desired will require multiple steps, but you do not
     believe the details of the intermediate steps are important -- only the result.
@@ -23,7 +25,7 @@ def agent(context: "AgentContext", prompt: str, tool_names: str, model: str = No
 
     Args:
         prompt: the initial prompt question to ask the
-        tool_names: a comma separated list of tool names from the existing tools to provide to the sub-agent. this should be a subset!
+        tool_names: optional, a comma separated list of tool names from the existing tools to provide to the sub-agent. If not specified, the agent will have access to all tools.
         model: optional model alias to use for the sub-agent. Supported aliases:
             - "light": Use Claude 3.5 Haiku - faster and more cost-effective for simple tasks like
                        information retrieval, basic formatting, or straightforward reasoning
@@ -33,7 +35,11 @@ def agent(context: "AgentContext", prompt: str, tool_names: str, model: str = No
               If not provided or invalid, uses the parent context's model.
     """
 
-    tool_names_list = [tool_name.strip(",").strip() for tool_name in tool_names.split()]
+    tool_names_list = (
+        [tool_name.strip(",").strip() for tool_name in tool_names.split()]
+        if tool_names
+        else []
+    )
 
     return run_agent(context, prompt, tool_names_list, system=None, model=model)
 
