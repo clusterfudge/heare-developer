@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import yaml
 from googleapiclient.discovery import build
@@ -27,6 +27,24 @@ CALENDAR_SCOPES = [
     "https://www.googleapis.com/auth/calendar.readonly",
     "https://www.googleapis.com/auth/calendar.events",
 ]
+
+
+def get_user_timezone(service, calendar_id="primary"):
+    """Get the user's calendar timezone.
+
+    Args:
+        service: Google Calendar API service instance
+        calendar_id: ID of the calendar to check (default: primary)
+
+    Returns:
+        String containing timezone ID (e.g., 'America/Los_Angeles') or 'UTC' as fallback
+    """
+    try:
+        calendar_info = service.calendars().get(calendarId=calendar_id).execute()
+        return calendar_info.get("timeZone", "UTC")
+    except Exception as e:
+        print(f"Error getting calendar timezone: {str(e)}")
+        return "UTC"
 
 
 def get_calendar_config():
@@ -231,22 +249,56 @@ def calendar_list_events(
         creds = get_credentials(CALENDAR_SCOPES, token_file="calendar_token.pickle")
         service = build("calendar", "v3", credentials=creds)
 
+        # Get the user's timezone from calendar settings
+        user_timezone = get_user_timezone(
+            service, calendar_id if calendar_id else "primary"
+        )
+
         # Calculate time range based on parameters
         if start_date and end_date:
             # Use the provided date range
             try:
-                start_time = datetime.strptime(start_date, "%Y-%m-%d")
-                end_time = datetime.strptime(end_date, "%Y-%m-%d")
-                # Set end_time to the end of the day
-                end_time = end_time.replace(hour=23, minute=59, second=59)
+                # Parse dates in user's local timezone
+                from datetime import datetime
+                import pytz
+
+                local_tz = pytz.timezone(user_timezone)
+
+                # Create timezone-aware datetime objects for start and end of day in local timezone
+                start_time = local_tz.localize(
+                    datetime.strptime(start_date, "%Y-%m-%d")
+                )
+                end_time = local_tz.localize(
+                    datetime.strptime(end_date, "%Y-%m-%d").replace(
+                        hour=23, minute=59, second=59
+                    )
+                )
+
+                # Convert to UTC for API query
+                start_time = start_time.astimezone(pytz.UTC)
+                end_time = end_time.astimezone(pytz.UTC)
+
                 date_range_description = f"from {start_date} to {end_date}"
             except ValueError:
                 return "Invalid date format. Please use YYYY-MM-DD format for dates."
         else:
             # Use the days parameter
-            now = datetime.utcnow()
-            start_time = now
-            end_time = now + timedelta(days=days)
+            import pytz
+            from datetime import datetime
+
+            local_tz = pytz.timezone(user_timezone)
+
+            # Get current time in user's local timezone
+            now = datetime.now(local_tz)
+
+            # Start from the beginning of the current day
+            start_time = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            end_time = start_time + timedelta(days=days)
+
+            # Convert to UTC for API query
+            start_time = start_time.astimezone(pytz.UTC)
+            end_time = end_time.astimezone(pytz.UTC)
+
             date_range_description = f"in the next {days} days"
 
         # Determine which calendars to query
@@ -265,12 +317,17 @@ def calendar_list_events(
         all_events = []
 
         for cal in calendars_to_query:
+            # Format properly for RFC 3339 format required by Google Calendar API
+            # Note: Don't append 'Z' to a datetime that already has timezone info
+            start_time_str = start_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+            end_time_str = end_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+
             events_result = (
                 service.events()
                 .list(
                     calendarId=cal["id"],
-                    timeMin=start_time.isoformat() + "Z",
-                    timeMax=end_time.isoformat() + "Z",
+                    timeMin=start_time_str,
+                    timeMax=end_time_str,
                     singleEvents=True,
                     orderBy="startTime",
                 )
@@ -290,22 +347,34 @@ def calendar_list_events(
         if not all_events:
             return f"No events found {date_range_description}."
 
-        # Format events
-        formatted_events = []
+        # Group events by date
+        events_by_date = {}
+
         for event in all_events:
             start = event["start"].get("dateTime", event["start"].get("date"))
             end = event["end"].get("dateTime", event["end"].get("date"))
 
-            # Extract event date for comparison and filtering
-            event_date = start.split("T")[0] if "T" in start else start
-
-            # Format date/time
+            # Format date/time in user's timezone
             if "T" in start:  # This is a datetime, not just a date
+                import pytz
+
+                # Parse the datetime strings to datetime objects
                 start_dt = datetime.fromisoformat(start.replace("Z", "+00:00"))
                 end_dt = datetime.fromisoformat(end.replace("Z", "+00:00"))
-                time_str = f"{start_dt.strftime('%Y-%m-%d %H:%M')} to {end_dt.strftime('%H:%M')}"
+
+                # Convert to user's timezone
+                local_tz = pytz.timezone(user_timezone)
+                start_local = start_dt.astimezone(local_tz)
+                end_local = end_dt.astimezone(local_tz)
+
+                # Format with local time
+                time_str = f"{start_local.strftime('%H:%M')} to {end_local.strftime('%H:%M')} ({user_timezone})"
+
+                # Get the local date for grouping
+                event_date = start_local.strftime("%Y-%m-%d")
             else:
-                time_str = f"{event_date} (all day)"
+                time_str = "(all day)"
+                event_date = start.split("T")[0] if "T" in start else start
 
             # Get attendees if any
             attendees = []
@@ -318,6 +387,7 @@ def calendar_list_events(
             event_text = (
                 f"Event: {event.get('summary', 'Untitled Event')}\n"
                 f"Calendar: {event['calendar_name']}\n"
+                f"Date: {event_date}\n"
                 f"Time: {time_str}\n"
                 f"Creator: {event['creator'].get('displayName', 'Unknown')}\n"
             )
@@ -341,10 +411,23 @@ def calendar_list_events(
             # Add event ID
             event_text += f"ID: {event['id']}\n"
 
-            formatted_events.append(event_text)
+            # Add to events by date dictionary
+            if event_date not in events_by_date:
+                events_by_date[event_date] = []
+            events_by_date[event_date].append(event_text)
 
-        return f"Upcoming events {date_range_description}:\n\n" + "\n---\n".join(
-            formatted_events
+        # If no events found
+        if not events_by_date:
+            return f"No events found {date_range_description}."
+
+        # Format output with events grouped by date
+        formatted_output = []
+        for date in sorted(events_by_date.keys()):
+            formatted_output.append(f"Events for {date}:")
+            formatted_output.append("\n---\n".join(events_by_date[date]))
+
+        return f"Upcoming events {date_range_description}:\n\n" + "\n\n".join(
+            formatted_output
         )
 
     except Exception as e:
@@ -454,24 +537,53 @@ def calendar_create_event(
 
                 return False
 
+            # If timestamps don't have timezone info, interpret them in the user's local timezone
+            # and convert to proper ISO format with timezone info
+            import pytz
+            from datetime import datetime
+
             has_timezone_start = has_timezone(start_time)
             has_timezone_end = has_timezone(end_time)
+
+            local_tz = pytz.timezone(user_timezone)
 
             # Handle start time
             if has_timezone_start:
                 # User specified timezone, respect it
                 event["start"] = {"dateTime": start_time}
             else:
-                # No timezone in string, use calendar's timezone
-                event["start"] = {"dateTime": start_time, "timeZone": user_timezone}
+                # No timezone in string, assume it's in local timezone and convert to ISO
+                if "T" in start_time:  # It's a datetime
+                    # Parse the datetime in the local timezone
+                    local_dt = datetime.strptime(start_time, "%Y-%m-%dT%H:%M:%S")
+                    # Make it timezone-aware
+                    aware_dt = local_tz.localize(local_dt)
+                    # Convert to ISO 8601 format with timezone info
+                    iso_dt = aware_dt.isoformat()
+                    # Use this for the event
+                    event["start"] = {"dateTime": iso_dt}
+                else:
+                    # It's just a date (all-day event)
+                    event["start"] = {"dateTime": start_time, "timeZone": user_timezone}
 
             # Handle end time
             if has_timezone_end:
                 # User specified timezone, respect it
                 event["end"] = {"dateTime": end_time}
             else:
-                # No timezone in string, use calendar's timezone
-                event["end"] = {"dateTime": end_time, "timeZone": user_timezone}
+                # No timezone in string, assume it's in local timezone and convert to ISO
+                if "T" in end_time:  # It's a datetime
+                    # Parse the datetime in the local timezone
+                    local_dt = datetime.strptime(end_time, "%Y-%m-%dT%H:%M:%S")
+                    # Make it timezone-aware
+                    aware_dt = local_tz.localize(local_dt)
+                    # Convert to ISO 8601 format with timezone info
+                    iso_dt = aware_dt.isoformat()
+                    # Use this for the event
+                    event["end"] = {"dateTime": iso_dt}
+                else:
+                    # It's just a date (all-day event)
+                    event["end"] = {"dateTime": end_time, "timeZone": user_timezone}
 
         # Add attendees if specified
         if attendees:
@@ -590,10 +702,28 @@ def calendar_search(
         creds = get_credentials(CALENDAR_SCOPES, token_file="calendar_token.pickle")
         service = build("calendar", "v3", credentials=creds)
 
-        # Calculate time range
-        now = datetime.utcnow()
+        # Get the user's timezone
+        user_timezone = get_user_timezone(
+            service, calendar_id if calendar_id else "primary"
+        )
+
+        # Calculate time range in user's local timezone
+        import pytz
+        from datetime import datetime
+
+        local_tz = pytz.timezone(user_timezone)
+
+        # Get current time in user's local timezone
+        now = datetime.now(local_tz)
         start_time = now - timedelta(days=days)
         end_time = now + timedelta(days=days)
+
+        # Description for output
+        date_range_description = f"in the next {days} days"
+
+        # Convert to UTC for API query
+        start_time = start_time.astimezone(pytz.UTC)
+        end_time = end_time.astimezone(pytz.UTC)
 
         # Determine which calendars to query
         calendars_to_query = []
@@ -611,12 +741,16 @@ def calendar_search(
         all_events = []
 
         for cal in calendars_to_query:
+            # Format properly for RFC 3339 format required by Google Calendar API
+            start_time_str = start_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+            end_time_str = end_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+
             events_result = (
                 service.events()
                 .list(
                     calendarId=cal["id"],
-                    timeMin=start_time.isoformat() + "Z",
-                    timeMax=end_time.isoformat() + "Z",
+                    timeMin=start_time_str,
+                    timeMax=end_time_str,
                     singleEvents=True,
                     orderBy="startTime",
                     # We can't use q parameter here because it would only search the summary
@@ -668,19 +802,34 @@ def calendar_search(
         if not matching_events:
             return f"No events found matching '{query}' in the next {days} days."
 
-        # Format events
-        formatted_events = []
+        # Group events by date
+        events_by_date = {}
+
         for event in matching_events:
             start = event["start"].get("dateTime", event["start"].get("date"))
             end = event["end"].get("dateTime", event["end"].get("date"))
 
-            # Format date/time
+            # Format date/time in user's timezone
             if "T" in start:  # This is a datetime, not just a date
+                import pytz
+
+                # Parse the datetime strings to datetime objects
                 start_dt = datetime.fromisoformat(start.replace("Z", "+00:00"))
                 end_dt = datetime.fromisoformat(end.replace("Z", "+00:00"))
-                time_str = f"{start_dt.strftime('%Y-%m-%d %H:%M')} to {end_dt.strftime('%H:%M')}"
+
+                # Convert to user's timezone
+                local_tz = pytz.timezone(user_timezone)
+                start_local = start_dt.astimezone(local_tz)
+                end_local = end_dt.astimezone(local_tz)
+
+                # Format with local time
+                time_str = f"{start_local.strftime('%H:%M')} to {end_local.strftime('%H:%M')} ({user_timezone})"
+
+                # Get the local date for grouping
+                event_date = start_local.strftime("%Y-%m-%d")
             else:
-                time_str = f"{start} (all day)"
+                time_str = "(all day)"
+                event_date = start.split("T")[0] if "T" in start else start
 
             # Get attendees if any
             attendees = []
@@ -693,6 +842,7 @@ def calendar_search(
             event_text = (
                 f"Event: {event.get('summary', 'Untitled Event')}\n"
                 f"Calendar: {event['calendar_name']}\n"
+                f"Date: {event_date}\n"
                 f"Time: {time_str}\n"
                 f"Creator: {event['creator'].get('displayName', 'Unknown')}\n"
             )
@@ -716,11 +866,24 @@ def calendar_search(
             # Add event ID
             event_text += f"ID: {event['id']}\n"
 
-            formatted_events.append(event_text)
+            # Add to events by date dictionary
+            if event_date not in events_by_date:
+                events_by_date[event_date] = []
+            events_by_date[event_date].append(event_text)
+
+        # If no events found
+        if not events_by_date:
+            return f"No events found matching '{query}' in the next {days} days."
+
+        # Format output with events grouped by date
+        formatted_output = []
+        for date in sorted(events_by_date.keys()):
+            formatted_output.append(f"Events for {date} matching '{query}':")
+            formatted_output.append("\n---\n".join(events_by_date[date]))
 
         return (
-            f"Found {len(matching_events)} events matching '{query}' in the next {days} days:\n\n"
-            + "\n---\n".join(formatted_events)
+            f"Found {len(matching_events)} events matching '{query}' {date_range_description}:\n\n"
+            + "\n\n".join(formatted_output)
         )
 
     except Exception as e:
