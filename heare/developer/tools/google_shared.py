@@ -19,8 +19,8 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google_auth_oauthlib.flow import Flow
 
 # Configuration paths from main google.py
-CONFIG_DIR = Path.home() / ".config" / "hdev"
 CREDENTIALS_DIR = Path.home() / ".hdev" / "credentials"
+CONFIG_DIR = Path.home() / ".config" / "hdev"
 
 
 def ensure_dirs():
@@ -283,3 +283,68 @@ def get_credentials_auto(scopes: List[str], token_file: str) -> Credentials:
                 raise
     else:
         raise ValueError(f"Unknown auth method: {auth_method}")
+
+
+def ensure_config_dir():
+    """Ensure the configuration directory exists."""
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def get_credentials(scopes: List[str], token_file: str = "token.pickle"):
+    """Get or refresh credentials for the Google API.
+
+    Args:
+        scopes: List of API scopes to request
+        token_file: Path to the token pickle file (default: 'token.pickle')
+
+    Returns:
+        The credentials object
+    """
+    # Check if we should use remote/device auth
+    auth_method = os.environ.get("HEARE_GOOGLE_AUTH_METHOD", "auto")
+
+    if auth_method in ["device", "auto"]:
+        # Use the automatic method which will choose the appropriate flow
+        return get_credentials_auto(scopes, token_file)
+
+    # Original browser-based flow
+    creds = None
+    # The file token.pickle stores the user's access and refresh tokens
+    token_path = CREDENTIALS_DIR / token_file
+
+    # Create directory if it doesn't exist
+    CREDENTIALS_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Try to load existing credentials
+    if token_path.exists():
+        with open(token_path, "rb") as token:
+            creds = pickle.load(token)
+
+    # If no valid credentials, get new ones
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            # Look for credentials.json file
+            credentials_path = CREDENTIALS_DIR / "google_clientid.json"
+            client_secrets_file = os.environ.get(
+                "HEARE_GOOGLE_CLIENT_SECRETS", str(credentials_path)
+            )
+
+            if not os.path.exists(client_secrets_file):
+                raise FileNotFoundError(
+                    f"Google credentials file not found. Please download your OAuth client ID credentials "
+                    f"from Google Cloud Console and save them as {client_secrets_file} or "
+                    f"set HEARE_GOOGLE_CLIENT_SECRETS environment variable."
+                )
+
+            flow = InstalledAppFlow.from_client_secrets_file(
+                client_secrets_file, scopes
+            )
+            creds = flow.run_local_server(port=0)
+
+        # Save the credentials for the next run
+        with open(token_path, "wb") as token:
+            pickle.dump(creds, token)
+
+    return creds
