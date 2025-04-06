@@ -1078,6 +1078,124 @@ def calendar_search(
 
 
 @tool
+def find_emails_needing_response(
+    context: "AgentContext", recipient_email: str = "me"
+) -> str:
+    """Find email threads that need a response.
+
+    This tool efficiently searches for threads addressed to a specified recipient email
+    and identifies those where the latest message might need a response.
+    It returns information about threads without requiring agent inference for the discovery phase.
+
+    Args:
+        recipient_email: The email address to search for (defaults to "me", which uses the authenticated user's email)
+                        Set to a specific email address to check emails for that address
+    """
+    try:
+        # Process the recipient_email parameter
+        if recipient_email == "me":
+            # Get credentials for Gmail API to find authenticated user's email
+            creds = get_credentials(GMAIL_SCOPES, token_file="gmail_token.pickle")
+            service = build("gmail", "v1", credentials=creds)
+            profile = service.users().getProfile(userId="me").execute()
+            recipient_email = profile["emailAddress"]
+
+        # Get credentials for Gmail API
+        creds = get_credentials(GMAIL_SCOPES, token_file="gmail_token.pickle")
+        service = build("gmail", "v1", credentials=creds)
+
+        # Search for messages sent to the recipient email (without unread filter)
+        query = f"to:{recipient_email}"
+        results = service.users().messages().list(userId="me", q=query).execute()
+        messages = results.get("messages", [])
+
+        if not messages:
+            return f"No emails addressed to {recipient_email} found."
+
+        # Extract unique thread IDs
+        unique_thread_ids = set()
+        for message in messages:
+            # Get the thread ID without fetching the full message
+            msg = (
+                service.users()
+                .messages()
+                .get(userId="me", id=message["id"], format="minimal")
+                .execute()
+            )
+            thread_id = msg.get("threadId")
+            unique_thread_ids.add(thread_id)
+
+        # Process each unique thread to determine if it needs a response
+        threads_needing_response = []
+
+        for thread_id in unique_thread_ids:
+            # Get all messages in the thread
+            thread = service.users().threads().get(userId="me", id=thread_id).execute()
+            thread_messages = thread.get("messages", [])
+
+            # Examine the last message in the thread
+            last_msg = thread_messages[-1]
+
+            # Extract headers from the last message
+            headers = last_msg["payload"]["headers"]
+
+            # Extract key information
+            subject = next(
+                (h["value"] for h in headers if h["name"].lower() == "subject"),
+                "No Subject",
+            )
+            sender = next(
+                (h["value"] for h in headers if h["name"].lower() == "from"),
+                "Unknown Sender",
+            )
+            date = next(
+                (h["value"] for h in headers if h["name"].lower() == "date"),
+                "Unknown Date",
+            )
+            to_field = next(
+                (h["value"] for h in headers if h["name"].lower() == "to"), ""
+            )
+
+            # If the last message was sent TO our recipient email (not FROM it)
+            # This means our recipient hasn't responded yet
+            if recipient_email.lower() in to_field.lower():
+                # Check if the sender is not the recipient (to avoid counting self-sent emails)
+                if recipient_email.lower() not in sender.lower():
+                    # Format thread information
+                    thread_info = {
+                        "thread_id": thread_id,
+                        "message_id": last_msg["id"],
+                        "subject": subject,
+                        "sender": sender,
+                        "date": date,
+                        "message_count": len(thread_messages),
+                    }
+                    threads_needing_response.append(thread_info)
+
+        # Format the results
+        if not threads_needing_response:
+            return f"No threads needing response found for {recipient_email}."
+
+        # Format output
+        output = f"Found {len(threads_needing_response)} threads that may need a response:\n\n"
+
+        for i, thread in enumerate(threads_needing_response, 1):
+            output += (
+                f"{i}. Thread: {thread['thread_id']}\n"
+                f"   Subject: {thread['subject']}\n"
+                f"   From: {thread['sender']}\n"
+                f"   Date: {thread['date']}\n"
+                f"   Messages in thread: {thread['message_count']}\n"
+                f"   Last message ID: {thread['message_id']}\n\n"
+            )
+
+        return output
+
+    except Exception as e:
+        return f"Error finding emails needing response: {str(e)}"
+
+
+@tool
 def calendar_list_calendars(context: "AgentContext") -> str:
     """List available Google Calendars and their configuration status.
 

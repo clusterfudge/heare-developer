@@ -11,6 +11,8 @@ from .google import (
     calendar_delete_event,
     calendar_setup,
     calendar_list_calendars,
+    calendar_search,
+    find_emails_needing_response,
 )
 
 ALL_TOOLS = [
@@ -26,9 +28,11 @@ ALL_TOOLS = [
     gmail_search,
     gmail_read,
     gmail_send,
+    find_emails_needing_response,
     calendar_list_events,
     calendar_create_event,
     calendar_delete_event,
+    calendar_search,
     calendar_setup,
     calendar_list_calendars,
 ]
