@@ -1078,6 +1078,171 @@ def calendar_search(
 
 
 @tool
+def gmail_read_thread(context: "AgentContext", thread_or_message_id: str) -> str:
+    """Read all messages in a Gmail thread without duplicated content.
+
+    This tool takes either a message ID or a thread ID and prints out all
+    individual messages in the thread while excluding duplicate content
+    that appears in reply chains.
+
+    Args:
+        thread_or_message_id: Either a Gmail message ID or thread ID
+    """
+    try:
+        # Get credentials for Gmail API
+        creds = get_credentials(GMAIL_SCOPES, token_file="gmail_token.pickle")
+        service = build("gmail", "v1", credentials=creds)
+
+        # Determine if the ID is a message ID or thread ID
+        # First, try to get it as a message
+        try:
+            message = (
+                service.users()
+                .messages()
+                .get(userId="me", id=thread_or_message_id, format="minimal")
+                .execute()
+            )
+            thread_id = message.get("threadId")
+        except Exception:
+            # If that fails, assume it's a thread ID
+            thread_id = thread_or_message_id
+
+        # Get all messages in the thread
+        thread = (
+            service.users()
+            .threads()
+            .get(userId="me", id=thread_id, format="full")
+            .execute()
+        )
+
+        if not thread or "messages" not in thread:
+            return f"Could not find thread with ID: {thread_id}"
+
+        messages = thread.get("messages", [])
+        if not messages:
+            return "Thread found but contains no messages."
+
+        # Process and format the messages
+        formatted_thread = f"Thread ID: {thread_id}\n"
+        formatted_thread += f"Total messages in thread: {len(messages)}\n\n"
+
+        # Process each message in chronological order (oldest first)
+        messages.sort(key=lambda x: int(x["internalDate"]))
+
+        for i, message in enumerate(messages, 1):
+            # Extract headers
+            headers = message["payload"]["headers"]
+            subject = next(
+                (h["value"] for h in headers if h["name"].lower() == "subject"),
+                "No Subject",
+            )
+            sender = next(
+                (h["value"] for h in headers if h["name"].lower() == "from"),
+                "Unknown Sender",
+            )
+            date = next(
+                (h["value"] for h in headers if h["name"].lower() == "date"),
+                "Unknown Date",
+            )
+            to = next(
+                (h["value"] for h in headers if h["name"].lower() == "to"),
+                "Unknown Recipient",
+            )
+
+            # Format message header
+            formatted_thread += f"--- Message {i}/{len(messages)} ---\n"
+            formatted_thread += f"ID: {message['id']}\n"
+            formatted_thread += f"From: {sender}\n"
+            formatted_thread += f"To: {to}\n"
+            formatted_thread += f"Date: {date}\n"
+            formatted_thread += f"Subject: {subject}\n"
+
+            # Extract message body
+            body = ""
+
+            def extract_body_content(message_part):
+                """Recursively extract the text content from message parts."""
+                if message_part.get(
+                    "mimeType"
+                ) == "text/plain" and "data" in message_part.get("body", {}):
+                    import base64
+
+                    text = base64.urlsafe_b64decode(
+                        message_part["body"]["data"]
+                    ).decode("utf-8")
+                    return text
+
+                if message_part.get("parts"):
+                    for part in message_part["parts"]:
+                        content = extract_body_content(part)
+                        if content:
+                            return content
+
+                return None
+
+            # Try to extract text content
+            if "parts" in message["payload"]:
+                for part in message["payload"]["parts"]:
+                    extracted = extract_body_content(part)
+                    if extracted:
+                        body = extracted
+                        break
+            elif "body" in message["payload"] and "data" in message["payload"]["body"]:
+                import base64
+
+                body = base64.urlsafe_b64decode(
+                    message["payload"]["body"]["data"]
+                ).decode("utf-8")
+
+            # Attempt to remove quoted text/previous messages
+            clean_body = ""
+            if body:
+                # Split by common email quote indicators
+                lines = body.split("\n")
+                clean_lines = []
+                in_quote = False
+                quote_patterns = [
+                    "On ",
+                    "From: ",
+                    "Sent: ",
+                    ">",
+                    "|",
+                    "-----Original Message-----",
+                    "wrote:",
+                    "Reply to this email directly",
+                ]
+
+                for line in lines:
+                    # Skip blank lines at the start
+                    if not line.strip() and not clean_lines:
+                        continue
+
+                    # Check if this line starts a quoted section
+                    if any(
+                        line.lstrip().startswith(pattern) for pattern in quote_patterns
+                    ):
+                        in_quote = True
+
+                    # Keep lines that aren't in quoted sections
+                    if not in_quote:
+                        clean_lines.append(line)
+
+                clean_body = "\n".join(clean_lines).strip()
+
+                # If we removed too much or couldn't parse correctly, use the original
+                if not clean_body or len(clean_body) < len(body) * 0.1:
+                    clean_body = body
+
+            # Add the cleaned body to the output
+            formatted_thread += f"\nBody:\n{clean_body}\n\n"
+
+        return formatted_thread
+
+    except Exception as e:
+        return f"Error reading thread: {str(e)}"
+
+
+@tool
 def find_emails_needing_response(
     context: "AgentContext", recipient_email: str = "me"
 ) -> str:

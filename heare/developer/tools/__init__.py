@@ -13,6 +13,7 @@ from .google import (
     calendar_list_calendars,
     calendar_search,
     find_emails_needing_response,
+    gmail_read_thread,
 )
 
 ALL_TOOLS = [
@@ -28,6 +29,7 @@ ALL_TOOLS = [
     gmail_search,
     gmail_read,
     gmail_send,
+    gmail_read_thread,
     find_emails_needing_response,
     calendar_list_events,
     calendar_create_event,

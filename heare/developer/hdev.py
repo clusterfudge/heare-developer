@@ -479,6 +479,21 @@ def main(args: List[str]):
                 console.print(f"Reading prompt from file: {filename}")
                 with open(filename, "r") as f:
                     initial_prompt = f.read().strip()
+
+                    # Replace environment variables that start with HEARE_DEVELOPER_
+                    # and are contained in double curly braces
+                    def replace_env_var(match):
+                        var_name = match.group(1)
+                        if var_name.startswith("HEARE_DEVELOPER_"):
+                            return os.environ.get(var_name, "")
+                        return match.group(
+                            0
+                        )  # Return the original if not starting with HEARE_DEVELOPER_
+
+                    # Pattern to match {{HEARE_DEVELOPER_*}} but not other {{*}} patterns
+                    pattern = r"\{\{(HEARE_DEVELOPER_[A-Za-z0-9_]+)\}\}"
+                    initial_prompt = re.sub(pattern, replace_env_var, initial_prompt)
+
                     console.print(
                         f"File content loaded: {len(initial_prompt)} characters"
                     )
