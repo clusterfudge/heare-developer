@@ -246,7 +246,9 @@ def run(
 
     while True:
         try:
-            if not tool_result_buffer and not single_response and not initial_prompt:
+            if chat_history and chat_history[-1]["role"] == "user":
+                pass
+            elif not tool_result_buffer and not single_response and not initial_prompt:
                 cost = f"${agent_context.usage_summary()['total_cost']:.2f}"
                 user_input = ""
                 while not user_input.strip():
@@ -413,14 +415,14 @@ def run(
                                     # Add the alternate prompt to the previous user message
                                     if isinstance(chat_history[i]["content"], str):
                                         chat_history[i]["content"] += (
-                                            f"\n\nAlternate request: {alternate_prompt}"
+                                            f"\n\nI viewed your response, and have updated my instructions: {alternate_prompt}"
                                         )
                                     elif isinstance(chat_history[i]["content"], list):
                                         # Handle content as list of blocks
                                         chat_history[i]["content"].append(
                                             {
                                                 "type": "text",
-                                                "text": f"\n\nAlternate request: {alternate_prompt}",
+                                                "text": f"I viewed your response, and have updated my instructions: {alternate_prompt}",
                                             }
                                         )
                                     break
