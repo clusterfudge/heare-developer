@@ -427,7 +427,10 @@ def run(
 
                             # Clear the tool result buffer to avoid processing the current tool request
                             tool_result_buffer.clear()
-                            break
+
+                            # Skip to the next iteration to immediately process the updated chat history
+                            # instead of breaking out of the loop which would wait for next user input
+                            continue
             elif final_message.stop_reason == "max_tokens":
                 user_interface.handle_assistant_message(
                     "[bold red]Hit max tokens.[/bold red]"

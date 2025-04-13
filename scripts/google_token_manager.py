@@ -31,8 +31,9 @@ from pathlib import Path
 # Add the parent directory to the sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from heare.developer.tools.google import GMAIL_SCOPES, CALENDAR_SCOPES
-from heare.developer.tools.google_remote_auth import (
+from heare.developer.tools.gcal import CALENDAR_SCOPES
+from heare.developer.tools.gmail import GMAIL_SCOPES
+from heare.developer.tools.google_shared import (
     get_credentials_using_device_flow,
     export_token,
     import_token,
