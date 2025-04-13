@@ -78,3 +78,6 @@ Document all significant decisions in the issue tracker, including:
 - Dependencies introduced or modified
 
 Remember: You must work autonomously. Do not request clarification on requirements.
+
+# Task
+You are working on `{{HEARE_TASK_IDENTIFIER}}`. If the prior is blank, do nothing else and exit. 
