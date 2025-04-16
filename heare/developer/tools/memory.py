@@ -59,15 +59,21 @@ class MemoryManager:
         """
         if prefix is None:
             start_path = self.base_dir
+            base_path = self.base_dir
         else:
             start_path = self.base_dir / prefix
+            # For prefix queries, we want the base_path to be the parent of the start_path
+            # This ensures the prefix is included as a top-level key
+            base_path = start_path.parent
 
         if not start_path.exists():
             return {"error": f"Path {prefix} does not exist"}
 
-        return self._build_tree(
-            start_path, self.base_dir, current_depth=0, max_depth=depth
-        )
+        # Special handling for depth=0 at root level
+        if depth == 0 and prefix is None:
+            return {"root": {"...": "depth limit reached"}}
+
+        return self._build_tree(start_path, base_path, current_depth=0, max_depth=depth)
 
     def _build_tree(
         self, path: Path, base_path: Path, current_depth: int, max_depth: int
@@ -85,34 +91,40 @@ class MemoryManager:
         """
         result = {}
 
-        # Check depth limit
-        if max_depth != -1 and current_depth > max_depth:
-            return {"...": "depth limit reached"}
-
         # Process directory
         if path.is_dir():
             items = {}
-            for item in path.iterdir():
-                str(item.relative_to(base_path))
-                if item.is_dir():
-                    items[item.name] = self._build_tree(
-                        item, base_path, current_depth + 1, max_depth
-                    )
-                elif item.suffix == ".json":
-                    try:
-                        with open(item, "r") as f:
-                            data = json.load(f)
-                        # Just show a preview of content for tree view
-                        content_preview = (
-                            data.get("content", "")[:50] + "..."
-                            if len(data.get("content", "")) > 50
-                            else data.get("content", "")
-                        )
-                        items[item.stem] = content_preview
-                    except Exception:
-                        items[item.stem] = "Error: Could not read memory file"
 
-            result[path.name if current_depth > 0 else "root"] = items
+            # Apply depth limit at this level
+            if max_depth != -1 and current_depth > max_depth:
+                items = {"...": "depth limit reached"}
+            else:
+                for item in path.iterdir():
+                    str(item.relative_to(base_path))
+                    if item.is_dir():
+                        items[item.name] = self._build_tree(
+                            item, base_path, current_depth + 1, max_depth
+                        )
+                    elif item.suffix == ".json":
+                        try:
+                            with open(item, "r") as f:
+                                data = json.load(f)
+                            # Just show a preview of content for tree view
+                            content_preview = (
+                                data.get("content", "")[:50] + "..."
+                                if len(data.get("content", "")) > 50
+                                else data.get("content", "")
+                            )
+                            items[item.stem] = content_preview
+                        except Exception:
+                            items[item.stem] = "Error: Could not read memory file"
+
+            # Use "root" only if we're at the base directory
+            if path == base_path:
+                result["root"] = items
+            else:
+                # For prefixed paths, return the items directly with the prefix as the key
+                result[path.name] = items
 
         return result
 
@@ -158,37 +170,35 @@ class MemoryManager:
             except Exception as e:
                 print(f"Error reading memory file {file}: {e}")
 
-        # Use Claude to search through memories
-        system_prompt = """You are a memory search system. 
-        Your task is to search through the provided memory entries and find relevant information 
-        based on the user's query. Return only the entries that match the query, with the path and a brief 
-        explanation of why they match. If nothing matches, say so clearly."""
-
-        user_prompt = f"""
-        QUERY: {query}
-        
-        MEMORY ENTRIES:
-        {json.dumps(memory_contents, indent=2)}
-        
-        Find all entries relevant to the query and format the results as follows:
-        
-        ## Search Results
-        
-        1. [Path to memory]: Brief explanation of why this matches
-        2. [Path to memory]: Brief explanation of why this matches
-        
-        If no results match, say "No matching memory entries found."
-        """
-
         try:
-            message = _call_anthropic_with_retry(
+            # Use the agent tool to kick off an agentic search with the light model
+            from heare.developer.tools.subagent import agent
+
+            prompt = f"""
+            TASK: Search through memory entries to find information relevant to this query: "{query}"
+            
+            MEMORY ENTRIES:
+            {json.dumps(memory_contents, indent=2)}
+            
+            Find all entries relevant to the query and format the results as follows:
+            
+            ## Search Results
+            
+            1. [Path to memory]: Brief explanation of why this matches
+            2. [Path to memory]: Brief explanation of why this matches
+            
+            If no results match, say "No matching memory entries found."
+            """
+
+            # Use the subagent tool to perform the search
+            result = agent(
                 context=context,
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                max_tokens=1000,
-                model="claude-3-haiku-20240307",
+                prompt=prompt,
+                tool_names="",  # No additional tools needed
+                model="claude-3-haiku-20240307",  # Use light model as specified
             )
-            return message.content[0].text
+
+            return result
         except Exception as e:
             return f"Error searching memory: {str(e)}"
 

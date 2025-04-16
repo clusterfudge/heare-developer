@@ -147,24 +147,24 @@ def test_write_and_read_memory_entry(mock_call, test_memory_dir, mock_context):
     assert "Error" in result
 
 
-@patch("heare.developer.tools.memory._call_anthropic_with_retry")
-def test_search_memory(mock_call, test_memory_dir, mock_context):
+@patch("heare.developer.tools.subagent.agent")
+def test_search_memory(mock_agent, test_memory_dir, mock_context):
     """Test searching memory."""
-    # Configure the mock to return a response object with content attribute
-    mock_message = MagicMock()
-    mock_message.content = [MagicMock()]
-    mock_message.content[0].text = "Mocked search response"
-    mock_call.return_value = mock_message
+    # Configure the mock to return a mocked response
+    mock_agent.return_value = "Mocked search response"
 
     # Test searching
     result = search_memory(mock_context, "project")
     assert result == "Mocked search response"
 
-    # Verify the API was called with expected parameters
-    mock_call.assert_called_once()
+    # Verify the subagent was called
+    mock_agent.assert_called_once()
+
+    # Verify that the model argument was passed correctly
+    assert mock_agent.call_args[1]["model"] == "claude-3-haiku-20240307"
 
     # Test searching with prefix
-    mock_call.reset_mock()
+    mock_agent.reset_mock()
     result = search_memory(mock_context, "react", prefix="projects")
     assert result == "Mocked search response"
 
