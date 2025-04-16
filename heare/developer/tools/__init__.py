@@ -17,6 +17,13 @@ from .gmail import (
     gmail_read_thread,
     find_emails_needing_response,
 )
+from .memory import (
+    get_memory_tree,
+    search_memory,
+    read_memory_entry,
+    write_memory_entry,
+    critique_memory,
+)
 
 ALL_TOOLS = [
     read_file,
@@ -39,6 +46,11 @@ ALL_TOOLS = [
     calendar_search,
     calendar_setup,
     calendar_list_calendars,
+    get_memory_tree,
+    search_memory,
+    read_memory_entry,
+    write_memory_entry,
+    critique_memory,
 ]
 
 
