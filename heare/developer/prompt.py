@@ -61,6 +61,7 @@ def create_system_message(
     max_estimated_tokens: int = 10_240,
     system_section: dict[str, Any] | None = None,
     include_sandbox: bool = True,
+    include_memory: bool = True,
 ):
     sections: list[dict[str, Any]] = [system_section or _DEFAULT_SYSTEM_SECTION]
 
@@ -73,18 +74,19 @@ def create_system_message(
         system_message += sandbox_content
         system_message += "\nYou can read, write, and list files/directories, as well as execute some bash commands."
         sections.append({"type": "text", "text": system_message})
+    if include_memory and agent_context.memory_manager.get_tree(depth=1):
+        system_message = f"""\n\nYou have a memory system with which you can interact. Here are the current top-level topics
+<memory_topics>
+{'\n'.join(agent_context.memory_manager.get_tree(depth=1).keys())}
+</memory_topics>
+        """
+
+        sections.append({"type": "text", "text": system_message})
 
     # add cache_control
     sections[-1]["cache_control"] = {"type": "ephemeral"}
 
-    return [
-        system_section or _DEFAULT_SYSTEM_SECTION,
-        {
-            "type": "text",
-            "text": system_message,
-            "cache_control": {"type": "ephemeral"},
-        },
-    ]
+    return sections
 
 
 def estimate_token_count(text):

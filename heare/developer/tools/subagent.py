@@ -141,7 +141,7 @@ class CaptureInterface(UserInterface):
         self._status = status
         self._prior_renderable = status.renderable
 
-    def handle_system_message(self, message):
+    def handle_system_message(self, message, markdown=True):
         self.output.append(message)
 
     def handle_user_input(self, message):

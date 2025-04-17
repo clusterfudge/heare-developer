@@ -15,7 +15,7 @@ class UserInterface(ABC):
         """
 
     @abstractmethod
-    def handle_system_message(self, message: str) -> None:
+    def handle_system_message(self, message: str, markdown=True) -> None:
         """
         Handle and display a new system message.
 

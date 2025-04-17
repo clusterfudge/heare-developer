@@ -5,24 +5,18 @@ import pytest
 
 from heare.developer.context import AgentContext
 from heare.developer.tools.memory import (
-    get_memory_tree,
     search_memory,
     read_memory_entry,
     write_memory_entry,
-    critique_memory,
-    memory_manager,
 )
+from heare.developer.memory import MemoryManager
 
 
 @pytest.fixture
-def test_memory_dir(tmp_path):
-    """Create a temporary memory directory for testing."""
-    # Save the original base_dir
-    original_base_dir = memory_manager.base_dir
-
-    # Set the base_dir to a temporary directory
-    memory_manager.base_dir = tmp_path / "memory"
-    memory_manager.base_dir.mkdir(parents=True, exist_ok=True)
+def test_memory_manager(tmp_path):
+    """Create a memory manager with a temporary memory directory for testing."""
+    # Create a memory manager
+    memory_manager = MemoryManager(base_dir=tmp_path / "memory")
 
     # Create some test memory entries
     (memory_manager.base_dir / "global.json").write_text(
@@ -72,53 +66,44 @@ def test_memory_dir(tmp_path):
         )
     )
 
-    yield tmp_path
-
-    # Restore the original base_dir
-    memory_manager.base_dir = original_base_dir
+    return memory_manager
 
 
 @pytest.fixture
-def mock_context():
+def mock_context(test_memory_manager):
     """Create a mock AgentContext for testing."""
     context = MagicMock(spec=AgentContext)
     context.report_usage = MagicMock()
+    context.memory_manager = test_memory_manager
+    context.user_interface = MagicMock()
     return context
 
 
-@patch("heare.developer.tools.memory._call_anthropic_with_retry")
-def test_get_memory_tree(_, test_memory_dir, mock_context):
-    """Test getting the memory tree."""
-    result = get_memory_tree(mock_context)
-    tree = json.loads(result)
+def test_get_memory_tree(mock_context):
+    """Test getting the memory tree with only node names."""
+
+    tree = mock_context.memory_manager.get_tree()
 
     # Check that the root contains expected entries
-    assert "root" in tree
-    assert "global" in tree["root"]
-    assert "projects" in tree["root"]
+    assert "global" in tree
+    assert "projects" in tree
+
+    # Verify no content is included, just structure
+    assert isinstance(tree["global"], dict)
+    assert len(tree["global"]) == 0  # Should be empty as we no longer include content
 
     # Test with a prefix
-    result = get_memory_tree(mock_context, prefix="projects")
-    tree = json.loads(result)
-    assert "projects" in tree
-    assert "project1" in tree["projects"]
-    assert "frontend" in tree["projects"]
+    tree = mock_context.memory_manager.get_tree("projects")
+    assert "project1" in tree
+    assert "frontend" in tree
 
-    # Test with depth limit
-    result = get_memory_tree(mock_context, depth=0)
-    tree = json.loads(result)
-    assert "..." in tree["root"]
+    # Verify the JSON node has empty content
+    assert isinstance(tree["project1"], dict)
+    assert len(tree["project1"]) == 0
 
 
-@patch("heare.developer.tools.memory._call_anthropic_with_retry")
-def test_write_and_read_memory_entry(mock_call, test_memory_dir, mock_context):
+def test_write_and_read_memory_entry(mock_context):
     """Test writing and reading memory entries."""
-    # Configure the mock to return a response object with content attribute
-    mock_message = MagicMock()
-    mock_message.content = [MagicMock()]
-    mock_message.content[0].text = "Mocked search response"
-    mock_call.return_value = mock_message
-
     # Test writing a new entry
     result = write_memory_entry(
         mock_context, "notes/important.json", "This is an important note"
@@ -126,7 +111,7 @@ def test_write_and_read_memory_entry(mock_call, test_memory_dir, mock_context):
     assert "successfully" in result
 
     # Verify the file was created
-    assert (memory_manager.base_dir / "notes" / "important.json").exists()
+    assert (mock_context.memory_manager.base_dir / "notes" / "important.json").exists()
 
     # Test reading the entry
     result = read_memory_entry(mock_context, "notes/important.json")
@@ -148,7 +133,7 @@ def test_write_and_read_memory_entry(mock_call, test_memory_dir, mock_context):
 
 
 @patch("heare.developer.tools.subagent.agent")
-def test_search_memory(mock_agent, test_memory_dir, mock_context):
+def test_search_memory(mock_agent, mock_context):
     """Test searching memory."""
     # Configure the mock to return a mocked response
     mock_agent.return_value = "Mocked search response"
@@ -161,7 +146,7 @@ def test_search_memory(mock_agent, test_memory_dir, mock_context):
     mock_agent.assert_called_once()
 
     # Verify that the model argument was passed correctly
-    assert mock_agent.call_args[1]["model"] == "claude-3-haiku-20240307"
+    assert mock_agent.call_args[1]["model"] == "haiku"
 
     # Test searching with prefix
     mock_agent.reset_mock()
@@ -169,18 +154,26 @@ def test_search_memory(mock_agent, test_memory_dir, mock_context):
     assert result == "Mocked search response"
 
 
-@patch("heare.developer.tools.memory._call_anthropic_with_retry")
-def test_critique_memory(mock_call, test_memory_dir, mock_context):
-    """Test memory critique."""
-    # Configure the mock to return a response object with content attribute
-    mock_message = MagicMock()
-    mock_message.content = [MagicMock()]
-    mock_message.content[0].text = "Mocked critique response"
-    mock_call.return_value = mock_message
+@patch("heare.developer.tools.memory.agent")
+def test_critique_memory(mock_agent, mock_context):
+    """Test critiquing memory organization."""
+    # Configure the mock to return a mocked response
+    mock_agent.return_value = "Mocked critique response"
+
+    # Import the function to test
+    from heare.developer.tools.memory import critique_memory
 
     # Test critiquing
     result = critique_memory(mock_context)
     assert result == "Mocked critique response"
 
-    # Verify the API was called with expected parameters
-    mock_call.assert_called_once()
+    # Verify the agent was called
+    mock_agent.assert_called_once()
+
+    # Verify that the model argument was passed correctly
+    assert mock_agent.call_args[1]["model"] == "haiku"
+
+    # Check that the prompt contains the expected structural information
+    prompt = mock_agent.call_args[1]["prompt"]
+    assert "memory organization tree" in prompt
+    assert "memory entry paths" in prompt

@@ -10,6 +10,7 @@ from anthropic.types import Usage
 from heare.developer.sandbox import Sandbox, SandboxMode
 from heare.developer.user_interface import UserInterface
 from pydantic import BaseModel
+from heare.developer.memory import MemoryManager
 
 
 class PydanticJSONEncoder(json.JSONEncoder):
@@ -38,6 +39,7 @@ class AgentContext:
     sandbox: Sandbox
     user_interface: UserInterface
     usage: list[tuple[Any, Any]]
+    memory_manager: "MemoryManager"
 
     @staticmethod
     def create(
@@ -53,6 +55,8 @@ class AgentContext:
             permission_check_rendering_callback=user_interface.permission_rendering_callback,
         )
 
+        memory_manager = MemoryManager()
+
         return AgentContext(
             session_id=str(uuid4()),
             parent_session_id=None,
@@ -60,6 +64,7 @@ class AgentContext:
             sandbox=sandbox,
             user_interface=user_interface,
             usage=[],
+            memory_manager=memory_manager,
         )
 
     def with_user_interface(self, user_interface: UserInterface) -> "AgentContext":
@@ -70,6 +75,7 @@ class AgentContext:
             sandbox=self.sandbox,
             user_interface=user_interface,
             usage=self.usage,
+            memory_manager=self.memory_manager,
         )
 
     def _report_usage(self, usage: Usage, model_spec: ModelSpec):

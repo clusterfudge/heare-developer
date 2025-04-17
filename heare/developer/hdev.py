@@ -147,34 +147,37 @@ class CLIUserInterface(UserInterface):
 
         self.session.completer = CustomCompleter(commands, self.session.history)
 
-    def handle_system_message(self, message: str) -> None:
+    def handle_system_message(self, message: str, markdown=True) -> None:
         from rich.markdown import Markdown
 
         if not message:
             return
 
-        self.console.print("\n")
-
-        # For system messages, use yellow styling but still treat as markdown
-        md = Markdown(message, code_theme="monokai")
+        if markdown:
+            # For system messages, use yellow styling but still treat as markdown
+            content = Markdown(message, code_theme="monokai")
+        else:
+            content = message
 
         self.console.print(
             create_clean_panel(
-                md,
+                content,
                 title="System Message",
                 style="bold yellow",
             )
         )
 
-    def handle_assistant_message(self, message: str) -> None:
+    def handle_assistant_message(self, message: str, markdown=True) -> None:
         from rich.markdown import Markdown
 
-        # Render the message as markdown
-        md = Markdown(message, code_theme="monokai")
+        if markdown:
+            content = Markdown(message, code_theme="monokai")
+        else:
+            content = message
 
         self.console.print(
             create_clean_panel(
-                md,
+                content,
                 title="AI Assistant",
                 style="bold green",
             )
@@ -244,7 +247,9 @@ class CLIUserInterface(UserInterface):
     ):
         pass
 
-    def handle_tool_result(self, name: str, result: Dict[str, Any]) -> None:
+    def handle_tool_result(
+        self, name: str, result: Dict[str, Any], markdown=True
+    ) -> None:
         from rich.markdown import Markdown
         from rich.console import Group
         from rich.text import Text
@@ -275,7 +280,7 @@ class CLIUserInterface(UserInterface):
         result_header = Text("Result:", style="bold green")
         result_content = (
             Markdown(content, code_theme="monokai")
-            if isinstance(content, str)
+            if isinstance(content, str) and markdown
             else Text(str(content))
         )
 
