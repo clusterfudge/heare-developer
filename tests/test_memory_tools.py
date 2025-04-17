@@ -146,7 +146,7 @@ def test_search_memory(mock_agent, mock_context):
     mock_agent.assert_called_once()
 
     # Verify that the model argument was passed correctly
-    assert mock_agent.call_args[1]["model"] == "haiku"
+    assert mock_agent.call_args[1]["model"] == "smart"
 
     # Test searching with prefix
     mock_agent.reset_mock()
