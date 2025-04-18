@@ -18,10 +18,61 @@ def generate_commit_message(diff):
     anthropic = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
     system_message = """You are a helpful assistant that generates commit messages based on git diffs. 
+    # Commit and PR Tagging System
+
+This document outlines a simple tagging system for commit messages and pull requests. Tags should be placed in square brackets at the beginning of the title.
+
+## Primary Tags (Change Type)
+
+| Tag | Description |
+|-----|-------------|
+| `[FIX]` | Bug fixes |
+| `[FEAT]` | New features |
+| `[REFACTOR]` | Code restructuring without changing functionality |
+| `[DOCS]` | Documentation updates |
+| `[TEST]` | Adding or modifying tests |
+| `[STYLE]` | Formatting, white-space, styling changes |
+| `[PERF]` | Performance improvements |
+| `[CHORE]` | Build process, dependency updates, config changes |
+
+## Secondary Tags (Optional)
+
+These can be combined with primary tags as needed:
+
+| Tag | Description |
+|-----|-------------|
+| `[WIP]` | Work in progress |
+| `[BREAKING]` | Breaking changes that require attention |
+| `[HOTFIX]` | Urgent fixes for production issues |
+| `[SECURITY]` | Security-related changes |
+
+## Examples
+
+```
+[FEAT] Add user authentication
+[FIX][SECURITY] Patch SQL injection vulnerability 
+[REFACTOR][PERF] Optimize database queries
+[DOCS] Update API documentation
+[TEST] Add unit tests for payment processor
+[CHORE] Update dependencies to latest versions
+[STYLE] Fix indentation in controller files
+[WIP][FEAT] Implement shopping cart functionality
+[BREAKING][REFACTOR] Redesign public API endpoints
+```
+
+## Usage Guidelines
+
+- Always use a primary tag
+- Add secondary tags when applicable
+- Keep the remainder of the title concise but descriptive
+- Use present tense, imperative mood for consistency (e.g., "Add" not "Added")
+- If multiple primary tags apply, choose the most significant one
+
+    
     Please use the following template for the commit message:
 
     ```
-    [A brief, one-line summary of the changes]
+    [TAG] A brief, one-line summary of the changes
 
     Detailed Changes:
     - [List the main changes, one per line]
@@ -29,6 +80,8 @@ def generate_commit_message(diff):
     Impact: [Briefly describe the potential impact of these changes]
 
     Additional Notes: [Any other relevant information, if necessary]
+    
+    Related Issues: [for each related issue slug, include a link [<slug>](https://go/issues/<slug>) ]
     ```
     """
 
