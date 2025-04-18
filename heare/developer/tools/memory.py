@@ -64,27 +64,20 @@ def search_memory(
         from heare.developer.tools.subagent import agent
 
         prompt = f"""
-        You are an expert in using grep to search through JSON files. 
+        You are an expert in using grep to search through files. 
         
         TASK: Search through memory entries in the directory "{search_path}" to find information relevant to this query: "{query}"
         
-        The memory system stores entries as JSON files with a structure like:
-        {{
-            "content": "The actual memory content text",
-            "metadata": {{
-                "created": "timestamp",
-                "updated": "timestamp",
-                "version": 1,
-                ...
-            }}
-        }}
+        The memory system stores entries as:
+        1. .md files for content
+        2. .metadata.json files for metadata
         
-        Use grep to search through these JSON files and find matches for the query. Focus your search on the "content" field of the JSON files.
+        Use grep to search through the .md files and find matches for the query.
         
         Here are some grep commands you might use:
-        - `grep -r --include="*.json" "{query}" {search_path}`
-        - `grep -r --include="*.json" -i "{query}" {search_path}` (case insensitive)
-        - `grep -r --include="*.json" -l "{query}" {search_path}` (just list files)
+        - `grep -r --include="*.md" "{query}" {search_path}`
+        - `grep -r --include="*.md" -i "{query}" {search_path}` (case insensitive)
+        - `grep -r --include="*.md" -l "{query}" {search_path}` (just list files)
         
         After finding matches, examine the matching files to provide context around the matches. Format your results as:
         
@@ -92,6 +85,8 @@ def search_memory(
         
         1. [Path to memory]: Brief explanation of why this matches
         2. [Path to memory]: Brief explanation of why this matches
+        
+        For the paths, strip off the .md extension and the base directory path to present clean memory paths.
         
         If no results match, say "No matching memory entries found."
         """
@@ -145,7 +140,7 @@ def critique_memory(context: "AgentContext", prefix: str | None = None) -> str:
     tree = context.memory_manager.get_tree(prefix, -1)  # Get full tree
 
     # Get all memory entries for content analysis
-    memory_files = list(context.memory_manager.base_dir.glob("**/*.json"))
+    memory_files = list(context.memory_manager.base_dir.glob("**/*.md"))
     if not memory_files:
         return "No memory entries found to critique."
 
@@ -153,8 +148,12 @@ def critique_memory(context: "AgentContext", prefix: str | None = None) -> str:
     memory_structure = []
     for file in memory_files:
         try:
+            # Skip metadata files
+            if ".metadata." in file.name:
+                continue
             relative_path = file.relative_to(context.memory_manager.base_dir)
-            memory_structure.append(str(relative_path))
+            # Strip .md extension for display
+            memory_structure.append(str(relative_path).replace(".md", ""))
         except Exception as e:
             print(f"Error processing memory file {file}: {e}")
 
