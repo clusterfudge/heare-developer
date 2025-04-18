@@ -19,15 +19,14 @@ def test_memory_manager(tmp_path):
     memory_manager = MemoryManager(base_dir=tmp_path / "memory")
 
     # Create some test memory entries
-    (memory_manager.base_dir / "global.json").write_text(
+    # Create global memory with new format
+    (memory_manager.base_dir / "global.md").write_text("Global memory for testing")
+    (memory_manager.base_dir / "global.metadata.json").write_text(
         json.dumps(
             {
-                "content": "Global memory for testing",
-                "metadata": {
-                    "created": "123456789",
-                    "updated": "123456789",
-                    "version": 1,
-                },
+                "created": "123456789",
+                "updated": "123456789",
+                "version": 1,
             }
         )
     )
@@ -36,15 +35,14 @@ def test_memory_manager(tmp_path):
     projects_dir = memory_manager.base_dir / "projects"
     projects_dir.mkdir(exist_ok=True)
 
-    (projects_dir / "project1.json").write_text(
+    # Write project1 with new format
+    (projects_dir / "project1.md").write_text("Information about project 1")
+    (projects_dir / "project1.metadata.json").write_text(
         json.dumps(
             {
-                "content": "Information about project 1",
-                "metadata": {
-                    "created": "123456789",
-                    "updated": "123456789",
-                    "version": 1,
-                },
+                "created": "123456789",
+                "updated": "123456789",
+                "version": 1,
             }
         )
     )
@@ -53,15 +51,14 @@ def test_memory_manager(tmp_path):
     frontend_dir = projects_dir / "frontend"
     frontend_dir.mkdir(exist_ok=True)
 
-    (frontend_dir / "react.json").write_text(
+    # Write react with new format
+    (frontend_dir / "react.md").write_text("React components and patterns")
+    (frontend_dir / "react.metadata.json").write_text(
         json.dumps(
             {
-                "content": "React components and patterns",
-                "metadata": {
-                    "created": "123456789",
-                    "updated": "123456789",
-                    "version": 1,
-                },
+                "created": "123456789",
+                "updated": "123456789",
+                "version": 1,
             }
         )
     )
@@ -97,7 +94,7 @@ def test_get_memory_tree(mock_context):
     assert "project1" in tree
     assert "frontend" in tree
 
-    # Verify the JSON node has empty content
+    # Verify the entry has empty content
     assert isinstance(tree["project1"], dict)
     assert len(tree["project1"]) == 0
 
@@ -106,29 +103,30 @@ def test_write_and_read_memory_entry(mock_context):
     """Test writing and reading memory entries."""
     # Test writing a new entry
     result = write_memory_entry(
-        mock_context, "notes/important.json", "This is an important note"
+        mock_context, "notes/important", "This is an important note"
     )
     assert "successfully" in result
 
-    # Verify the file was created
-    assert (mock_context.memory_manager.base_dir / "notes" / "important.json").exists()
+    # Verify the files were created
+    assert (mock_context.memory_manager.base_dir / "notes" / "important.md").exists()
+    assert (
+        mock_context.memory_manager.base_dir / "notes" / "important.metadata.json"
+    ).exists()
 
     # Test reading the entry
-    result = read_memory_entry(mock_context, "notes/important.json")
+    result = read_memory_entry(mock_context, "notes/important")
     assert "This is an important note" in result
 
     # Test overwriting an existing entry
-    result = write_memory_entry(
-        mock_context, "notes/important.json", "Updated note content"
-    )
+    result = write_memory_entry(mock_context, "notes/important", "Updated note content")
     assert "successfully" in result
 
     # Verify content was updated
-    result = read_memory_entry(mock_context, "notes/important.json")
+    result = read_memory_entry(mock_context, "notes/important")
     assert "Updated note content" in result
 
     # Test reading non-existent entry
-    result = read_memory_entry(mock_context, "nonexistent/entry.json")
+    result = read_memory_entry(mock_context, "nonexistent/entry")
     assert "Error" in result
 
 
