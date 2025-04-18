@@ -246,3 +246,40 @@ class MemoryManager:
             return f"Memory entry written successfully to {path}"
         except Exception as e:
             return f"Error writing memory entry: {str(e)}"
+
+    def delete_entry(self, path: str) -> str:
+        """Delete a memory entry.
+
+        Args:
+            path: Path to the memory entry or directory to delete
+
+        Returns:
+            Status message
+        """
+        try:
+            import shutil
+
+            full_path = self.base_dir / path
+
+            # Handle directory case
+            if full_path.is_dir():
+                if not full_path.exists():
+                    return f"Error: Directory {path} does not exist"
+
+                # Delete the directory and all its contents
+                shutil.rmtree(full_path)
+                return f"Successfully deleted directory {path} and all its contents"
+
+            # Handle file case - add .json extension if not present
+            if not full_path.suffix:
+                full_path = full_path.with_suffix(".json")
+
+            if not full_path.exists():
+                return f"Error: Memory entry at {path} does not exist"
+
+            # Delete the file
+            full_path.unlink()
+            return f"Successfully deleted memory entry {path}"
+
+        except Exception as e:
+            return f"Error deleting memory entry: {str(e)}"

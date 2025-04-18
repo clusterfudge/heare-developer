@@ -196,3 +196,16 @@ def critique_memory(context: "AgentContext", prefix: str | None = None) -> str:
         return result
     except Exception as e:
         return f"Error generating critique: {str(e)}"
+
+
+@tool
+def delete_memory_entry(context: "AgentContext", path: str) -> str:
+    """Delete a memory entry.
+
+    Args:
+        path: Path to the memory entry to delete
+
+    Returns:
+        Status message indicating success or failure
+    """
+    return context.memory_manager.delete_entry(path)

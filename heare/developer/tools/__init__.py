@@ -23,6 +23,7 @@ from .memory import (
     read_memory_entry,
     write_memory_entry,
     critique_memory,
+    delete_memory_entry,
 )
 
 ALL_TOOLS = [
@@ -51,6 +52,7 @@ ALL_TOOLS = [
     read_memory_entry,
     write_memory_entry,
     critique_memory,
+    delete_memory_entry,
 ]
 
 
