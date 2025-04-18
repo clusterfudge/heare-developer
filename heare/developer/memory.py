@@ -8,6 +8,10 @@ class MemoryManager:
 
     Organizes memories into modular files where keys are memory file paths and values contain the file
     contents. Supports hierarchical organization through a tree-like structure.
+
+    The memory is stored in two files per entry:
+    1. A markdown file (.md) containing the content
+    2. A JSON file (.metadata.json) containing the metadata
     """
 
     def __init__(self, base_dir: Path | None = None):
@@ -26,17 +30,22 @@ class MemoryManager:
 
     def _ensure_global_memory(self):
         """Ensure that the global memory file exists."""
-        global_path = self.base_dir / "global.json"
-        if not global_path.exists():
-            with open(global_path, "w") as f:
+        global_md_path = self.base_dir / "global.md"
+        global_metadata_path = self.base_dir / "global.metadata.json"
+
+        if not global_md_path.exists() or not global_metadata_path.exists():
+            # Create the content file
+            with open(global_md_path, "w") as f:
+                f.write("Global memory storage for critical information")
+
+            # Create the metadata file
+            current_time = str(Path.home().stat().st_ctime)
+            with open(global_metadata_path, "w") as f:
                 json.dump(
                     {
-                        "content": "Global memory storage for critical information",
-                        "metadata": {
-                            "created": str(Path.home().stat().st_ctime),
-                            "updated": str(Path.home().stat().st_ctime),
-                            "version": 1,
-                        },
+                        "created": current_time,
+                        "updated": current_time,
+                        "version": 1,
                     },
                     f,
                     indent=2,
@@ -123,8 +132,9 @@ class MemoryManager:
                     path_to_items[item] = {}
                     # Link this directory to its parent
                     items[item.name] = path_to_items[item]
-                elif item.suffix == ".json":
-                    # Only include the node name without any content
+                elif item.suffix == ".md" and not item.name.endswith(".metadata.json"):
+                    # Only include the memory entries (markdown files) without content
+                    # Skip metadata files, as they're associated with markdown files
                     items[item.stem] = {}
 
             # Store items in result dictionary
@@ -154,8 +164,10 @@ class MemoryManager:
                     item_path = str(item.relative_to(self.base_dir))
                     if item.is_dir():
                         paths.append(f"- [NODE] {item_path}")
-                    elif item.suffix == ".json":
-                        paths.append(f"- [LEAF] {item_path.replace('.json', '')}")
+                    elif item.suffix == ".md" and not item.name.endswith(
+                        ".metadata.json"
+                    ):
+                        paths.append(f"- [LEAF] {item_path.replace('.md', '')}")
 
                 if not paths:
                     result += "  (empty directory)"
@@ -164,20 +176,25 @@ class MemoryManager:
 
                 return result
 
-            # Add .json extension if not present
-            if not full_path.suffix:
-                full_path = full_path.with_suffix(".json")
+            # Construct paths for content and metadata files
+            content_path = full_path.with_suffix(".md")
+            metadata_path = full_path.parent / f"{full_path.name}.metadata.json"
 
-            if not full_path.exists():
-                return f"Error: Memory entry at {path} does not exist"
+            # Check if files exist
+            if not content_path.exists():
+                return f"Error: Memory entry content at {path}.md does not exist"
 
-            with open(full_path, "r") as f:
-                data = json.load(f)
+            if not metadata_path.exists():
+                return f"Error: Memory entry metadata at {path}.metadata.json does not exist"
+
+            # Read content and metadata
+            with open(content_path, "r") as f:
+                content = f.read()
+
+            with open(metadata_path, "r") as f:
+                metadata = json.load(f)
 
             # Format the output
-            content = data.get("content", "No content")
-            metadata = data.get("metadata", {})
-
             result = f"Memory entry: {path}\n\n"
             result += f"Content:\n{content}\n\n"
             result += "Metadata:\n"
@@ -204,20 +221,19 @@ class MemoryManager:
         try:
             full_path = self.base_dir / path
 
-            # Add .json extension if not present
-            if not full_path.suffix:
-                full_path = full_path.with_suffix(".json")
+            # Construct paths for content and metadata files
+            content_path = full_path.with_suffix(".md")
+            metadata_path = full_path.parent / f"{full_path.name}.metadata.json"
 
             # Create parent directories if they don't exist
-            full_path.parent.mkdir(parents=True, exist_ok=True)
+            content_path.parent.mkdir(parents=True, exist_ok=True)
 
-            # Check if the file exists to preserve metadata
+            # Check if the metadata file exists to preserve existing metadata
             existing_metadata = {}
-            if full_path.exists():
+            if metadata_path.exists():
                 try:
-                    with open(full_path, "r") as f:
-                        data = json.load(f)
-                        existing_metadata = data.get("metadata", {})
+                    with open(metadata_path, "r") as f:
+                        existing_metadata = json.load(f)
                 except Exception:
                     pass
 
@@ -231,17 +247,19 @@ class MemoryManager:
                 "version": existing_metadata.get("version", 0) + 1,
             }
 
-            if not full_path.exists():
+            if not content_path.exists():
                 new_metadata["created"] = current_time
 
             # Combine existing metadata with updates
             updated_metadata = {**existing_metadata, **new_metadata, **metadata}
 
-            # Write the file
-            with open(full_path, "w") as f:
-                json.dump(
-                    {"content": content, "metadata": updated_metadata}, f, indent=2
-                )
+            # Write the content file
+            with open(content_path, "w") as f:
+                f.write(content)
+
+            # Write the metadata file
+            with open(metadata_path, "w") as f:
+                json.dump(updated_metadata, f, indent=2)
 
             return f"Memory entry written successfully to {path}"
         except Exception as e:
@@ -270,15 +288,20 @@ class MemoryManager:
                 shutil.rmtree(full_path)
                 return f"Successfully deleted directory {path} and all its contents"
 
-            # Handle file case - add .json extension if not present
-            if not full_path.suffix:
-                full_path = full_path.with_suffix(".json")
+            # Handle file case - check for both content and metadata files
+            content_path = full_path.with_suffix(".md")
+            metadata_path = full_path.parent / f"{full_path.name}.metadata.json"
 
-            if not full_path.exists():
+            if not content_path.exists() and not metadata_path.exists():
                 return f"Error: Memory entry at {path} does not exist"
 
-            # Delete the file
-            full_path.unlink()
+            # Delete the files if they exist
+            if content_path.exists():
+                content_path.unlink()
+
+            if metadata_path.exists():
+                metadata_path.unlink()
+
             return f"Successfully deleted memory entry {path}"
 
         except Exception as e:
