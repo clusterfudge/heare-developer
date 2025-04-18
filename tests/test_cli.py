@@ -17,7 +17,7 @@ class MockUserInterface(UserInterface):
     def handle_assistant_message(self, message: str) -> None:
         self.messages.append(("assistant", message))
 
-    def handle_system_message(self, message: str) -> None:
+    def handle_system_message(self, message: str, markdown=True) -> None:
         self.messages.append(("system", message))
 
     def get_user_input(self, prompt: str = "") -> str:

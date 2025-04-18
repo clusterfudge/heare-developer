@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from heare.developer.context import AgentContext
 from heare.developer.tools.subagent import agent
+from heare.developer.memory import MemoryManager
 
 
 class JsonSerializableMock:
@@ -23,6 +24,9 @@ class TestAgentToolSubagent(unittest.TestCase):
         self.home_dir_patch = patch("pathlib.Path.home")
         self.mock_home = self.home_dir_patch.start()
         self.mock_home.return_value = Path(self.temp_dir.name)
+
+        # Create a mock memory manager
+        self.mock_memory_manager = MagicMock(spec=MemoryManager)
 
         # Create a mock sandbox
         self.mock_sandbox = JsonSerializableMock(
@@ -80,6 +84,7 @@ class TestAgentToolSubagent(unittest.TestCase):
             sandbox=self.mock_sandbox,
             user_interface=self.mock_user_interface,
             usage=[],
+            memory_manager=self.mock_memory_manager,
         )
 
     def test_agent_tool_nested_context_save(self):

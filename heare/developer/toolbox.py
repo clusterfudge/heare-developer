@@ -9,6 +9,7 @@ import inspect
 from .commit import run_commit
 
 from .tools import ALL_TOOLS
+from .utils import render_tree
 
 try:
     from heare.developer.issues_cli import ISSUE_CLI_TOOLS
@@ -55,6 +56,7 @@ class Toolbox:
         self.register_cli_tool(
             "commit", self._commit, "Generate and execute a commit message"
         )
+        self.register_cli_tool("memory", self._memory, "Interact with agent memory")
 
         # Register issue tracking CLI tools
         for name, tool_info in ISSUE_CLI_TOOLS.items():
@@ -101,7 +103,7 @@ class Toolbox:
             chat_history=chat_history or [],
         )
 
-        self.context.user_interface.handle_system_message(content)
+        self.context.user_interface.handle_system_message(content, markdown=False)
         add_to_buffer = confirm_to_add
         if confirm_to_add:
             add_to_buffer = (
@@ -274,6 +276,23 @@ class Toolbox:
             return "Error: Command execution timed out"
         except Exception as e:
             return f"Error executing command: {str(e)}"
+
+    def _memory(self, user_interface, sandbox, user_input, *args, **kwargs) -> str:
+        if user_input:
+            from .tools.subagent import agent
+
+            result = agent(
+                context=self.context,
+                prompt=f"Store this fact in your memory.\n\n{user_input}",
+                model="light",
+            )
+            return result
+        else:
+            lines = []
+            render_tree(
+                lines, self.context.memory_manager.get_tree(depth=-1), is_root=True
+            )
+            return "\n".join(lines)
 
     def schemas(self, enable_caching: bool = True) -> List[dict]:
         """Generate schemas for all tools in the toolbox.

@@ -40,6 +40,7 @@ class TestAgentContext(unittest.TestCase):
             sandbox=context.sandbox,
             user_interface=context.user_interface,
             usage=[(mock_usage_1, model_spec), (mock_usage_2, model_spec)],
+            memory_manager=context.memory_manager,
         )
 
         expected_summary = {

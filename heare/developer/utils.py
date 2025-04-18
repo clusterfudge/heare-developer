@@ -158,3 +158,50 @@ def wrap_text_as_content_block(text: str) -> dict[str, Any]:
         "type": "text",
         "text": text,
     }
+
+
+def render_tree(
+    lines: list[str],
+    node: dict[str, Any],
+    prefix: str = "",
+    is_last=True,
+    is_root=False,
+) -> str:
+    if not node:
+        return ""
+
+    # Skip rendering the root object name itself
+    if not is_root:
+        # Characters for tree structure
+        branch = "└── " if is_last else "├── "
+
+        # Get node name and add to lines
+        if isinstance(node, dict):
+            node_names = list(node.keys())
+            if node_names:
+                node_name = node_names[0]
+                lines.append(f"{prefix}{branch}{node_name}")
+
+                # Process children
+                new_prefix = prefix + ("    " if is_last else "│   ")
+                child_dict = node.get(node_name, {})
+                child_keys = list(child_dict.keys())
+
+                for i, key in enumerate(child_keys):
+                    is_last_child = i == len(child_keys) - 1
+                    child_node = (
+                        {key: child_dict[key]}
+                        if isinstance(child_dict[key], dict)
+                        else {}
+                    )
+                    render_tree(lines, child_node, new_prefix, is_last_child)
+        else:
+            # Handle leaf nodes or special messages
+            lines.append(f"{prefix}{branch}{node}")
+    else:
+        # Root level processing
+        root_keys = list(node.keys())
+        for i, key in enumerate(root_keys):
+            is_last_child = i == len(root_keys) - 1
+            child_node = {key: node[key]} if isinstance(node[key], dict) else {}
+            render_tree(lines, child_node, prefix, is_last_child)

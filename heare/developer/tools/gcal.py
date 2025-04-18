@@ -385,11 +385,11 @@ def calendar_list_events(
 
             # Format event
             event_text = (
-                f"Event: {event.get('summary', 'Untitled Event')}\n"
+                f"Event: {event.get('summary', f"Busy ({event['calendar_name']}")}\n"
                 f"Calendar: {event['calendar_name']}\n"
                 f"Date: {event_date}\n"
                 f"Time: {time_str}\n"
-                f"Creator: {event['creator'].get('displayName', 'Unknown')}\n"
+                f"Creator: {event.get('creator', {}).get('displayName', 'Unknown')}\n"
             )
 
             # Add location if present

@@ -6,6 +6,7 @@ from heare.developer.models import MODEL_MAP
 from heare.developer.tools.subagent import agent
 from heare.developer.user_interface import UserInterface
 from heare.developer.sandbox import Sandbox
+from heare.developer.memory import MemoryManager
 
 
 @pytest.fixture
@@ -27,6 +28,7 @@ def agent_context():
     # Create mocks
     mock_ui = MagicMock(spec=UserInterface)
     mock_sandbox = MagicMock(spec=Sandbox)
+    mock_memory_manager = MagicMock(spec=MemoryManager)
 
     # Create context
     context = AgentContext(
@@ -36,6 +38,7 @@ def agent_context():
         sandbox=mock_sandbox,
         user_interface=mock_ui,
         usage=[],
+        memory_manager=mock_memory_manager,
     )
 
     return context
