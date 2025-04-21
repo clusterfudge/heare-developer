@@ -79,9 +79,14 @@ def mock_context(test_memory_manager):
 def test_get_memory_tree(mock_context):
     """Test getting the memory tree with only node names."""
 
-    tree = mock_context.memory_manager.get_tree()
+    result = mock_context.memory_manager.get_tree()
 
-    # Check that the root contains expected entries
+    # Check that the result is structured properly
+    assert result["type"] == "tree"
+    assert result["success"]
+
+    # Check that the tree items contains expected entries
+    tree = result["items"]
     assert "global" in tree
     assert "projects" in tree
 
@@ -90,7 +95,8 @@ def test_get_memory_tree(mock_context):
     assert len(tree["global"]) == 0  # Should be empty as we no longer include content
 
     # Test with a prefix
-    tree = mock_context.memory_manager.get_tree("projects")
+    result = mock_context.memory_manager.get_tree("projects")
+    tree = result["items"]
     assert "project1" in tree
     assert "frontend" in tree
 
@@ -105,7 +111,7 @@ def test_write_and_read_memory_entry(mock_context):
     result = write_memory_entry(
         mock_context, "notes/important", "This is an important note"
     )
-    assert "successfully" in result
+    assert "successfully" in result.lower()
 
     # Verify the files were created
     assert (mock_context.memory_manager.base_dir / "notes" / "important.md").exists()
@@ -119,7 +125,7 @@ def test_write_and_read_memory_entry(mock_context):
 
     # Test overwriting an existing entry
     result = write_memory_entry(mock_context, "notes/important", "Updated note content")
-    assert "successfully" in result
+    assert "successfully" in result.lower()
 
     # Verify content was updated
     result = read_memory_entry(mock_context, "notes/important")

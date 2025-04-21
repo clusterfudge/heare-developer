@@ -44,7 +44,8 @@ def test_write_and_read_memory(temp_memory_dir):
 
     # Write a test memory entry
     result = memory_manager.write_entry("test/example", "This is a test memory")
-    assert "successfully" in result
+    assert result["success"] is True
+    assert "successfully" in result["message"]
 
     # Check that the files were created
     assert (temp_memory_dir / "test" / "example.md").exists()
@@ -64,8 +65,9 @@ def test_write_and_read_memory(temp_memory_dir):
 
     # Read the memory entry
     result = memory_manager.read_entry("test/example")
-    assert "This is a test memory" in result
-    assert "version: 1" in result
+    assert result["success"] is True
+    assert result["content"] == "This is a test memory"
+    assert result["metadata"]["version"] == 1
 
 
 def test_update_memory(temp_memory_dir):
@@ -78,7 +80,8 @@ def test_update_memory(temp_memory_dir):
 
     # Update the memory entry
     result = memory_manager.write_entry("test/update", "Updated content")
-    assert "successfully" in result
+    assert result["success"] is True
+    assert "successfully" in result["message"]
 
     # Check the content was updated
     with open(temp_memory_dir / "test" / "update.md", "r") as f:
@@ -105,7 +108,8 @@ def test_delete_memory(temp_memory_dir):
 
     # Delete the memory entry
     result = memory_manager.delete_entry("test/delete")
-    assert "Successfully deleted" in result
+    assert result["success"] is True
+    assert "Successfully deleted" in result["message"]
 
     # Check that the files were deleted
     assert not (temp_memory_dir / "test" / "delete.md").exists()
@@ -123,7 +127,11 @@ def test_get_tree(temp_memory_dir):
     memory_manager.write_entry("dir2/subdir/entry3", "Content 3")
 
     # Get the tree
-    tree = memory_manager.get_tree()
+    result = memory_manager.get_tree()
+    assert result["success"] is True
+
+    # Get the actual tree items
+    tree = result["items"]
 
     # Check that the tree has the correct structure
     assert "dir1" in tree

@@ -84,15 +84,21 @@ class MemoryWebApp:
         else:
             clean_prefix = prefix
 
-        tree = self.memory_manager.get_tree(
+        tree_result = self.memory_manager.get_tree(
             Path(clean_prefix) if clean_prefix else None
         )
+
+        if not tree_result["success"]:
+            content_block = render_template("error.html", error=tree_result["error"])
+            return render_template(
+                "base.html", content_block=content_block, breadcrumbs=[], title="Error"
+            )
 
         # Create breadcrumb navigation
         breadcrumbs = self._create_breadcrumbs(clean_prefix) if clean_prefix else []
 
         content_block = render_template(
-            "tree.html", tree=tree, current_path=clean_prefix or ""
+            "tree.html", tree=tree_result["items"], current_path=clean_prefix or ""
         )
 
         return render_template(
@@ -117,47 +123,21 @@ class MemoryWebApp:
         if full_path.is_dir():
             return self.render_memory_directory(memory_path)
 
-        # Get the memory entry content and parse it according to the new structure
-        content = self.memory_manager.read_entry(memory_path, format="markdown")
+        # Get the memory entry content as structured data
+        result = self.memory_manager.read_entry(memory_path)
 
-        # Separate content and metadata
-        metadata = {}
-        content_text = ""
+        if not result["success"]:
+            content_block = render_template("error.html", error=result["error"])
+            return render_template(
+                "base.html", content_block=content_block, breadcrumbs=[], title="Error"
+            )
 
         # Create breadcrumb navigation
         breadcrumbs = self._create_breadcrumbs(memory_path)
 
-        # Parse the structured response from read_entry
-        # Format: "Memory entry: path\n\nContent:\ncontent\n\nMetadata:\n- key: value\n..."
-        try:
-            if (
-                "Memory entry:" in content
-                and "Content:" in content
-                and "Metadata:" in content
-            ):
-                # Split the content into header, content, and metadata sections
-                parts = content.split("\n\n", 1)
-
-                # Skip the first part which is "Memory entry: path"
-                if len(parts) >= 2:
-                    # Extract content (removing "Content:" prefix)
-                    for i, part in enumerate(parts):
-                        if part.startswith("Content:"):
-                            content_text = part[len("Content:") :].strip()
-                            break
-
-                # Extract metadata
-                metadata_section = content.split("Metadata:", 1)
-                if len(metadata_section) > 1:
-                    metadata_text = metadata_section[1].strip()
-                    for line in metadata_text.split("\n"):
-                        if line.startswith("- ") and ":" in line:
-                            key, value = line[2:].split(":", 1)
-                            metadata[key.strip()] = value.strip()
-        except Exception as e:
-            content_text = (
-                f"Error parsing memory entry: {str(e)}\n\nRaw content:\n{content}"
-            )
+        # Get data from the structured response
+        content_text = result["content"] or ""
+        metadata = result["metadata"] or {}
 
         # Convert markdown to HTML
         content_html = markdown.markdown(content_text)
@@ -187,39 +167,51 @@ class MemoryWebApp:
         """
         try:
             # Get directory content using the memory manager
-            directory_content = self.memory_manager.read_entry(directory_path)
+            result = self.memory_manager.read_entry(directory_path)
 
-            # Parse the content to extract the list of contained paths
+            if not result["success"]:
+                content_block = render_template("error.html", error=result["error"])
+                return render_template(
+                    "base.html",
+                    content_block=content_block,
+                    breadcrumbs=[],
+                    title="Error",
+                )
+
+            if result["type"] != "directory":
+                content_block = render_template(
+                    "error.html", error=f"Expected directory, found {result['type']}"
+                )
+                return render_template(
+                    "base.html",
+                    content_block=content_block,
+                    breadcrumbs=[],
+                    title="Error",
+                )
+
+            # Get the items directly from the structured data
             items = []
-            if "Contained paths:" in directory_content:
-                # Split the content at "Contained paths:" to get the directory listing
-                parts = directory_content.split("Contained paths:")
-                if len(parts) > 1:
-                    lines = parts[1].strip().split("\n")
-                    for line in lines:
-                        if line.startswith("- [NODE]") or line.startswith("- [LEAF]"):
-                            is_directory = line.startswith("- [NODE]")
-                            path = line.split("] ", 1)[1].strip()
+            for item in result["items"]:
+                path = item["path"]
 
-                            # Make sure we have clean path with proper structure
-                            # If the path does not start with the directory_path, prepend it
-                            if directory_path and not path.startswith(directory_path):
-                                if directory_path.endswith("/"):
-                                    full_path = directory_path + path
-                                else:
-                                    full_path = f"{directory_path}/{path}"
-                                # Clean up any double slashes
-                                full_path = full_path.replace("//", "/")
-                            else:
-                                full_path = path
+                # Make sure we have clean path with proper structure
+                if directory_path and not path.startswith(directory_path):
+                    if directory_path.endswith("/"):
+                        full_path = directory_path + path
+                    else:
+                        full_path = f"{directory_path}/{path}"
+                    # Clean up any double slashes
+                    full_path = full_path.replace("//", "/")
+                else:
+                    full_path = path
 
-                            items.append(
-                                {
-                                    "name": Path(path).name,
-                                    "path": full_path,
-                                    "is_directory": is_directory,
-                                }
-                            )
+                items.append(
+                    {
+                        "name": Path(path).name,
+                        "path": full_path,
+                        "is_directory": item["type"] == "node",
+                    }
+                )
 
             # Create breadcrumb navigation
             breadcrumbs = self._create_breadcrumbs(directory_path)
