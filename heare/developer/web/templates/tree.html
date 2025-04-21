@@ -4,26 +4,28 @@
     <ul>
         {% for key, value in tree.items() recursive %}
             <li>
-                {% if value is mapping and key != '...' %}
+                {% if key == '...' %}
+                    <span class="more">⋯</span> {{ value }}
+                {% elif value.is_file is defined and value.is_file %}
+                    <span class="file">📄</span>
+                    <a href="/view/{{ value.path }}">{{ value.name }}</a>
+                {% elif value.children is defined %}
                     <span class="directory">📁</span>
-                    {% if current_path %}
-                        <a href="/browse/{{ (current_path + '/' + key) | replace('//', '/') }}">{{ key }}</a>
-                    {% else %}
-                        <a href="/browse/{{ key }}">{{ key }}</a>
-                    {% endif %}
-                    {% if value|length > 0 %}
+                    <a href="/browse/{{ value.path }}">{{ value.name }}</a>
+                    {% if value.children|length > 0 %}
                     <ul>
-                        {{ loop(value.items()) }}
+                        {{ loop(value.children.items()) }}
                     </ul>
                     {% endif %}
-                {% elif key == '...' %}
-                    <span class="more">⋯</span> {{ value }}
                 {% else %}
-                    <span class="file">📄</span>
-                    {% if current_path %}
-                        <a href="/view/{{ (current_path + '/' + key) | replace('//', '/') }}">{{ key }}</a>
+                    <!-- If no children are defined and it's not explicitly marked as a file, 
+                         we need to determine if it's a leaf node -->
+                    {% if value|length == 0 or (value.path is defined and not value.children) %}
+                        <span class="file">📄</span>
+                        <a href="/view/{{ value.path }}">{{ value.name }}</a>
                     {% else %}
-                        <a href="/view/{{ key }}">{{ key }}</a>
+                        <span class="directory">📁</span>
+                        <a href="/browse/{{ value.path }}">{{ value.name }}</a>
                     {% endif %}
                 {% endif %}
             </li>

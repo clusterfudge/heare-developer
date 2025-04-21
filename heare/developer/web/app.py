@@ -97,8 +97,13 @@ class MemoryWebApp:
         # Create breadcrumb navigation
         breadcrumbs = self._create_breadcrumbs(clean_prefix) if clean_prefix else []
 
+        # Process the tree to add full paths to all nodes
+        processed_tree = self._process_tree_paths(
+            tree_result["items"], clean_prefix or ""
+        )
+
         content_block = render_template(
-            "tree.html", tree=tree_result["items"], current_path=clean_prefix or ""
+            "tree.html", tree=processed_tree, current_path=clean_prefix or ""
         )
 
         return render_template(
@@ -107,6 +112,60 @@ class MemoryWebApp:
             breadcrumbs=breadcrumbs,
             title="Memory Browser",
         )
+
+    def _process_tree_paths(self, tree, current_path=""):
+        """Process the tree to add full paths to all node keys.
+
+        This function modifies the tree structure to include the full path in each node key,
+        which makes it easier to generate correct links in the template.
+
+        Args:
+            tree: The tree structure to process
+            current_path: The current path prefix
+
+        Returns:
+            A new tree structure with modified keys that include the full path
+        """
+        result = {}
+
+        for key, value in tree.items():
+            if key == "...":
+                # Special case for ellipsis nodes
+                result[key] = value
+                continue
+
+            # Skip empty keys
+            if not key:
+                continue
+
+            # Construct the full path for this node
+            if current_path:
+                full_path = f"{current_path}/{key}".replace("//", "/")
+            else:
+                full_path = key
+
+            if isinstance(value, dict) and value:
+                # This is a directory node with children, process its children recursively
+                processed_children = self._process_tree_paths(value, full_path)
+
+                # Create a new dict with path information
+                node_info = {
+                    "name": key,
+                    "path": full_path,
+                    "children": processed_children,
+                    "is_file": False,
+                }
+
+                result[key] = node_info
+            else:
+                # This is a leaf node (file or empty directory)
+                # Check if it's an actual file by looking for the .md file
+                md_path = self.memory_manager.base_dir / (full_path + ".md")
+                is_file = md_path.exists()
+
+                result[key] = {"name": key, "path": full_path, "is_file": is_file}
+
+        return result
 
     def render_memory_entry(self, memory_path: str):
         """Render a specific memory entry.
