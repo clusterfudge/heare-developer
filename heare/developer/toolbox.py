@@ -10,6 +10,7 @@ from .commit import run_commit
 
 from .tools import ALL_TOOLS
 from .utils import render_tree
+from .web.app import run_memory_webapp
 
 try:
     from heare.developer.issues_cli import ISSUE_CLI_TOOLS
@@ -57,6 +58,10 @@ class Toolbox:
             "commit", self._commit, "Generate and execute a commit message"
         )
         self.register_cli_tool("memory", self._memory, "Interact with agent memory")
+
+        self.register_cli_tool(
+            "view-memory", self._launch_memory_webapp, "Launch memory webapp"
+        )
 
         # Register issue tracking CLI tools
         for name, tool_info in ISSUE_CLI_TOOLS.items():
@@ -293,6 +298,11 @@ class Toolbox:
                 lines, self.context.memory_manager.get_tree(depth=-1), is_root=True
             )
             return "\n".join(lines)
+
+    def _launch_memory_webapp(
+        self, user_interface, sandbox, user_input, *args, **kwargs
+    ):
+        run_memory_webapp()
 
     def schemas(self, enable_caching: bool = True) -> List[dict]:
         """Generate schemas for all tools in the toolbox.

@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from heare.developer.context import AgentContext
 from heare.developer.tools import agent
@@ -21,21 +21,23 @@ def get_memory_tree(
         depth: How deep to traverse (-1 for unlimited)
     """
     prefix_path = Path(prefix) if prefix else None
-    tree = context.memory_manager.get_tree(prefix_path, depth)
+    result = context.memory_manager.get_tree(prefix_path, depth)
+
+    if not result["success"]:
+        return result["error"]
 
     # Render the tree using ASCII characters
     lines = []
 
     # Start rendering from the root
-    result = render_tree(lines, tree, is_root=True)
+    render_tree(lines, result["items"], is_root=True)
 
     # If no items were rendered, return a message
     if not lines:
-        if "error" in tree:
-            return tree["error"]
         return "Empty memory tree."
 
-    return result
+    # Convert lines to a single string
+    return "\n".join(lines)
 
 
 @tool
@@ -104,6 +106,41 @@ def search_memory(
         return f"Error searching memory: {str(e)}"
 
 
+def _format_entry_as_markdown(entry_data: Dict[str, Any]) -> str:
+    """Format a file entry as markdown.
+
+    Args:
+        entry_data: The structured entry data
+
+    Returns:
+        A markdown-formatted string representation
+    """
+    if not entry_data["success"]:
+        return f"Error: {entry_data['error']}"
+
+    if entry_data["type"] == "file":
+        result = f"Memory entry: {entry_data['path']}\n\n"
+        result += f"Content:\n{entry_data['content']}\n\n"
+        result += "Metadata:\n"
+        for key, value in entry_data["metadata"].items():
+            result += f"- {key}: {value}\n"
+    elif entry_data["type"] == "directory":
+        result = f"Directory: {entry_data['path']}\n\nContained paths:\n"
+
+        if not entry_data["items"]:
+            result += "  (empty directory)"
+        else:
+            for item in entry_data["items"]:
+                if item["type"] == "node":
+                    result += f"- [NODE] {item['path']}\n"
+                else:
+                    result += f"- [LEAF] {item['path']}\n"
+    else:
+        result = f"Unknown entry type: {entry_data['type']}"
+
+    return result
+
+
 @tool
 def read_memory_entry(context: "AgentContext", path: str) -> str:
     """Read a memory entry.
@@ -115,7 +152,22 @@ def read_memory_entry(context: "AgentContext", path: str) -> str:
         The memory entry content or a list of contained memory paths if it's a directory,
         indicating whether each path is a node (directory) or leaf (entry)
     """
-    return context.memory_manager.read_entry(path)
+    result = context.memory_manager.read_entry(path)
+    return _format_entry_as_markdown(result)
+
+
+def _format_write_result_as_markdown(result: Dict[str, Any]) -> str:
+    """Format a write operation result as markdown.
+
+    Args:
+        result: The structured result data
+
+    Returns:
+        A markdown-formatted string representation
+    """
+    if not result["success"]:
+        return f"Error: {result['error']}"
+    return result["message"]
 
 
 @tool
@@ -126,7 +178,8 @@ def write_memory_entry(context: "AgentContext", path: str, content: str) -> str:
         path: Path to the memory entry
         content: Content to write
     """
-    return context.memory_manager.write_entry(path, content)
+    result = context.memory_manager.write_entry(path, content)
+    return _format_write_result_as_markdown(result)
 
 
 @tool
@@ -137,7 +190,12 @@ def critique_memory(context: "AgentContext", prefix: str | None = None) -> str:
     for improving organization, reducing redundancy, and identifying gaps.
     """
     # First get the tree structure for organization analysis
-    tree = context.memory_manager.get_tree(prefix, -1)  # Get full tree
+    tree_result = context.memory_manager.get_tree(prefix, -1)  # Get full tree
+
+    if not tree_result["success"]:
+        return f"Error getting memory tree: {tree_result['error']}"
+
+    tree = tree_result["items"]
 
     # Get all memory entries for content analysis
     memory_files = list(context.memory_manager.base_dir.glob("**/*.md"))
@@ -207,4 +265,7 @@ def delete_memory_entry(context: "AgentContext", path: str) -> str:
     Returns:
         Status message indicating success or failure
     """
-    return context.memory_manager.delete_entry(path)
+    result = context.memory_manager.delete_entry(path)
+    if not result["success"]:
+        return f"Error: {result['error']}"
+    return result["message"]

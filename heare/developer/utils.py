@@ -166,9 +166,9 @@ def render_tree(
     prefix: str = "",
     is_last=True,
     is_root=False,
-) -> str:
+):
     if not node:
-        return ""
+        return
 
     # Skip rendering the root object name itself
     if not is_root:
