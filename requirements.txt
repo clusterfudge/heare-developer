@@ -84,3 +84,5 @@ uritemplate==4.1.1
 urllib3==2.3.0
 virtualenv==20.29.3
 wcwidth==0.2.13
+flask==3.0.1
+markdown==3.6

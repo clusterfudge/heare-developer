@@ -1,0 +1,17 @@
+<h1>Directory: {{ directory_path }}</h1>
+
+<div class="memory-tree">
+    <ul>
+        {% for item in items %}
+            <li>
+                {% if item.is_directory %}
+                    <span class="directory">📁</span>
+                    <a href="/browse/{{ item.path | replace('//', '/') }}">{{ item.name }}</a>
+                {% else %}
+                    <span class="file">📄</span>
+                    <a href="/view/{{ item.path | replace('//', '/') }}">{{ item.name }}</a>
+                {% endif %}
+            </li>
+        {% endfor %}
+    </ul>
+</div>

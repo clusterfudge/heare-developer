@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Literal
 
 
 class MemoryManager:
@@ -143,7 +143,12 @@ class MemoryManager:
         # Extract the final result
         return path_to_items[path]
 
-    def read_entry(self, path: str) -> str:
+    def _render_entry_markdown(self, entry: Dict[str, Any]) -> str:
+        pass
+
+    def read_entry(
+        self, path: str, format: Literal["markdown", "json"] = "markdown"
+    ) -> str:
         """Read a memory entry.
 
         Args:

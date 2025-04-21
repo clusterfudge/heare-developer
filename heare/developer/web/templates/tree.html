@@ -1,0 +1,32 @@
+<h1>Memory Browser</h1>
+
+<div class="memory-tree">
+    <ul>
+        {% for key, value in tree.items() recursive %}
+            <li>
+                {% if value is mapping and key != '...' %}
+                    <span class="directory">📁</span>
+                    {% if current_path %}
+                        <a href="/browse/{{ (current_path + '/' + key) | replace('//', '/') }}">{{ key }}</a>
+                    {% else %}
+                        <a href="/browse/{{ key }}">{{ key }}</a>
+                    {% endif %}
+                    {% if value|length > 0 %}
+                    <ul>
+                        {{ loop(value.items()) }}
+                    </ul>
+                    {% endif %}
+                {% elif key == '...' %}
+                    <span class="more">⋯</span> {{ value }}
+                {% else %}
+                    <span class="file">📄</span>
+                    {% if current_path %}
+                        <a href="/view/{{ (current_path + '/' + key) | replace('//', '/') }}">{{ key }}</a>
+                    {% else %}
+                        <a href="/view/{{ key }}">{{ key }}</a>
+                    {% endif %}
+                {% endif %}
+            </li>
+        {% endfor %}
+    </ul>
+</div>
