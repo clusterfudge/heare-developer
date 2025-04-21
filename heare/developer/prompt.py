@@ -72,10 +72,10 @@ def create_system_message(
             sandbox_content = render_sandbox_content(agent_context.sandbox, True)
 
         system_message += sandbox_content
-        system_message += "\nYou can read, write, and list files/directories, as well as execute some bash commands."
+        system_message += "\nYou can read, write, and list files/directories, as well as execute some bash commands.\n\n"
         sections.append({"type": "text", "text": system_message})
     if include_memory and agent_context.memory_manager.get_tree(depth=1):
-        system_message = f"""\n\nYou have a memory system with which you can interact. Here are the current top-level topics
+        system_message = f"""You have a memory system with which you can interact. Here are the current top-level topics
 <memory_topics>
 {'\n'.join(agent_context.memory_manager.get_tree(depth=1).keys())}
 </memory_topics>
