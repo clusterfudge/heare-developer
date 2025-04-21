@@ -5,6 +5,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="{{ url_for('static_files', filename='style.css') }}">
+    <script>
+        // Helper function to toggle folder expansion
+        function toggleFolder(id) {
+            const checkbox = document.getElementById(id);
+            if (checkbox) {
+                checkbox.checked = !checkbox.checked;
+            }
+        }
+    </script>
 </head>
 <body>
     <div class="navbar">
