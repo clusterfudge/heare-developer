@@ -383,9 +383,12 @@ def calendar_list_events(
                     attendee.get("email", "Unknown") for attendee in event["attendees"]
                 ]
 
+            def _make_busy(e):
+                return f"Busy ({e['calendar_name']})"
+
             # Format event
             event_text = (
-                f"Event: {event.get('summary', f"Busy ({event['calendar_name']}")}\n"
+                f"Event: {event.get('summary', _make_busy(event))}\n"
                 f"Calendar: {event['calendar_name']}\n"
                 f"Date: {event_date}\n"
                 f"Time: {time_str}\n"
