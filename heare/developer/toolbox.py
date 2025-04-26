@@ -17,6 +17,11 @@ try:
 except ImportError:
     ISSUE_CLI_TOOLS = {}
 
+try:
+    from heare.developer.tools.google_auth_cli import GOOGLE_AUTH_CLI_TOOLS
+except ImportError:
+    GOOGLE_AUTH_CLI_TOOLS = {}
+
 
 class Toolbox:
     def __init__(self, context: AgentContext, tool_names: List[str] | None = None):
@@ -65,6 +70,15 @@ class Toolbox:
 
         # Register issue tracking CLI tools
         for name, tool_info in ISSUE_CLI_TOOLS.items():
+            self.register_cli_tool(
+                name,
+                tool_info["func"],
+                tool_info["docstring"],
+                aliases=tool_info.get("aliases", []),
+            )
+            
+        # Register Google Auth CLI tools
+        for name, tool_info in GOOGLE_AUTH_CLI_TOOLS.items():
             self.register_cli_tool(
                 name,
                 tool_info["func"],
