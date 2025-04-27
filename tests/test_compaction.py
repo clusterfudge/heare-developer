@@ -31,38 +31,52 @@ class MockAnthropicClient:
         self.count_tokens_called = False
         self.messages_create_called = False
 
-    def count_tokens(self, model, prompt):
-        """Mock for the count_tokens method."""
-        self.count_tokens_called = True
+        # Create a messages attribute for the new API style
+        self.messages = self.MessagesClient(self)
 
-        # Return a token count based on text length if not in token_counts
-        token_count = self.token_counts.get(prompt, len(prompt.split()) // 3 + 1)
+    class MessagesClient:
+        """Mock for the messages client."""
 
-        # Create a response object with a token_count attribute
-        class TokenResponse:
-            def __init__(self, count):
-                self.token_count = count
+        def __init__(self, parent):
+            self.parent = parent
 
-        return TokenResponse(token_count)
+        def count_tokens(self, model, messages):
+            """Mock for the messages.count_tokens method."""
+            self.parent.count_tokens_called = True
 
-    def messages(self):
-        """Mock for the messages object."""
-        return self
+            # Extract content from messages
+            prompt = ""
+            if isinstance(messages, list) and len(messages) > 0:
+                message = messages[0]
+                if isinstance(message, dict) and "content" in message:
+                    prompt = message["content"]
 
-    def create(self, model, system, messages, max_tokens):
-        """Mock for the messages.create method."""
-        self.messages_create_called = True
+            # Return a token count based on text length if not in token_counts
+            token_count = self.parent.token_counts.get(
+                prompt, len(prompt.split()) // 3 + 1
+            )
 
-        # Create a response object with content
-        class ContentItem:
-            def __init__(self, text):
-                self.text = text
+            # Create a response object with a token_count attribute
+            class TokenResponse:
+                def __init__(self, count):
+                    self.token_count = count
 
-        class MessageResponse:
-            def __init__(self, content_text):
-                self.content = [ContentItem(content_text)]
+            return TokenResponse(token_count)
 
-        return MessageResponse(self.response_content)
+        def create(self, model, system, messages, max_tokens):
+            """Mock for the messages.create method."""
+            self.parent.messages_create_called = True
+
+            # Create a response object with content
+            class ContentItem:
+                def __init__(self, text):
+                    self.text = text
+
+            class MessageResponse:
+                def __init__(self, content_text):
+                    self.content = [ContentItem(content_text)]
+
+            return MessageResponse(self.parent.response_content)
 
 
 class MockUserInterface(UserInterface):
@@ -92,6 +106,8 @@ class MockUserInterface(UserInterface):
         total_tokens,
         total_cost,
         cached_tokens=None,
+        conversation_size=None,
+        context_window=None,
     ):
         """Do nothing."""
 
@@ -155,6 +171,7 @@ class TestConversationCompaction(unittest.TestCase):
             "pricing": {"input": 3.00, "output": 15.00},
             "cache_pricing": {"write": 3.75, "read": 0.30},
             "max_tokens": 8192,
+            "context_window": 200000,
         }
 
     def tearDown(self):
@@ -164,11 +181,14 @@ class TestConversationCompaction(unittest.TestCase):
     @mock.patch("anthropic.Client")
     def test_count_tokens(self, mock_client_class):
         """Test token counting."""
-        # Setup mock
-        mock_client_class.return_value = self.mock_client
+        # Setup mock with an updated structure to support messages.count_tokens
+        mock_client = MockAnthropicClient()
+        mock_client_class.return_value = mock_client
 
         # Create compacter with the mock client directly
-        compacter = ConversationCompacter(client=self.mock_client)
+        compacter = ConversationCompacter(client=mock_client)
+
+        # The client object should already have the messages.count_tokens method properly set up
 
         # Count tokens
         tokens = compacter.count_tokens(
@@ -176,7 +196,7 @@ class TestConversationCompaction(unittest.TestCase):
         )
 
         # Assert token count was called
-        self.assertTrue(self.mock_client.count_tokens_called)
+        self.assertTrue(mock_client.count_tokens_called)
 
         # Token count should be positive
         self.assertGreater(tokens, 0)
@@ -188,13 +208,16 @@ class TestConversationCompaction(unittest.TestCase):
         mock_client = MockAnthropicClient(token_counts={"any": 200000})
         mock_client_class.return_value = mock_client
 
-        # Create compacter with low threshold and mock client
-        compacter = ConversationCompacter(token_threshold=1000, client=mock_client)
+        # Create compacter with high threshold ratio (99% of context window) and mock client
+        compacter = ConversationCompacter(threshold_ratio=0.5, client=mock_client)
 
-        # Mock the count_tokens method to always return a high number
-        compacter.count_tokens = mock.MagicMock(return_value=200000)
+        # Override the model_context_windows dictionary to have a known test value
+        compacter.model_context_windows = {"claude-3-5-sonnet-latest": 100000}
 
-        # Should compact should return True
+        # Mock the count_tokens method to always return a high number (60% of context window)
+        compacter.count_tokens = mock.MagicMock(return_value=60000)
+
+        # Should compact should return True because 60000 > 50000 (50% of 100000)
         self.assertTrue(
             compacter.should_compact(self.sample_messages, "claude-3-5-sonnet-latest")
         )
@@ -217,13 +240,17 @@ class TestConversationCompaction(unittest.TestCase):
         messages_mock = mock.MagicMock()
         messages_mock.create.return_value = MockResponse()
 
-        # Setup mock client
+        # Setup mock client with messages namespace for newer API style
         mock_client_instance = mock.MagicMock()
         mock_client_instance.messages = messages_mock
-        mock_client_instance.count_tokens.side_effect = lambda model, prompt: type(
-            "obj",
-            (object,),
-            {"token_count": 50000 if len(self.sample_messages) > 2 else 100},
+
+        # Mock count_tokens now using messages.count_tokens
+        mock_client_instance.messages.count_tokens = mock.MagicMock(
+            side_effect=lambda model, messages: type(
+                "obj",
+                (object,),
+                {"token_count": 50000 if len(self.sample_messages) > 2 else 100},
+            )
         )
 
         mock_client_class.return_value = mock_client_instance
