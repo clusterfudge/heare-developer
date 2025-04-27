@@ -73,7 +73,8 @@ class ConversationCompacter:
             int: Number of tokens in the conversation
         """
         # Convert messages to a string representation
-        messages_str = self._messages_to_string(messages)
+        # Use for_summary=False to ensure we include file mentions in the token count
+        messages_str = self._messages_to_string(messages, for_summary=False)
 
         # Call Anthropic's token counting API
         try:
@@ -105,11 +106,14 @@ class ConversationCompacter:
             # Fallback to an estimate if API call fails
             return self._estimate_token_count(messages_str)
 
-    def _messages_to_string(self, messages: List[MessageParam]) -> str:
+    def _messages_to_string(
+        self, messages: List[MessageParam], for_summary: bool = False
+    ) -> str:
         """Convert message objects to a string representation.
 
         Args:
             messages: List of messages in the conversation
+            for_summary: If True, filter out content elements containing mentioned_file blocks
 
         Returns:
             str: String representation of the messages
@@ -129,7 +133,27 @@ class ConversationCompacter:
                 for item in content:
                     if isinstance(item, dict):
                         if "text" in item:
-                            content_parts.append(item["text"])
+                            text = item["text"]
+                            # If processing for summary, skip content blocks containing mentioned_file
+                            if for_summary and "<mentioned_file" in text:
+                                try:
+                                    # Extract the path attribute from the mentioned_file tag
+                                    import re
+
+                                    match = re.search(
+                                        r"<mentioned_file path=([^ >]+)", text
+                                    )
+                                    if match:
+                                        file_path = match.group(1)
+                                        content_parts.append(
+                                            f"[Referenced file: {file_path}]"
+                                        )
+                                    else:
+                                        content_parts.append("[Referenced file]")
+                                except Exception:
+                                    content_parts.append("[Referenced file]")
+                            else:
+                                content_parts.append(text)
                         elif item.get("type") == "tool_use":
                             tool_name = item.get("name", "unnamed_tool")
                             input_str = json.dumps(item.get("input", {}))
@@ -195,12 +219,13 @@ class ConversationCompacter:
         Returns:
             CompactionSummary: Summary of the compacted conversation
         """
-        # Get original token count
+        # Get original token count (including file mentions)
         original_token_count = self.count_tokens(messages, model)
         original_message_count = len(messages)
 
         # Convert messages to a string for the summarization prompt
-        conversation_str = self._messages_to_string(messages)
+        # This will exclude file content blocks from the summary
+        conversation_str = self._messages_to_string(messages, for_summary=True)
 
         # Create summarization prompt
         system_prompt = """
@@ -210,6 +235,9 @@ class ConversationCompacter:
         2. Current state of development/discussion
         3. Any outstanding questions or tasks
         4. The most recent context that future messages will reference
+        
+        Note: File references like [Referenced file: path] indicate files that were mentioned in the conversation.
+        Acknowledge these references where relevant but don't spend time describing file contents.
         
         Be comprehensive yet concise. The summary will be used to start a new conversation 
         that continues where this one left off.
