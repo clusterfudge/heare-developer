@@ -471,6 +471,11 @@ def main(args: List[str]):
         "--prompt",
         help="Initial prompt for the assistant. If starts with @, will read from file",
     )
+    arg_parser.add_argument(
+        "--disable-compaction",
+        action="store_true",
+        help="Disable automatic conversation compaction",
+    )
     args = arg_parser.parse_args(args[1:])  # Skip the program name in args[0]
 
     console = Console()
@@ -525,6 +530,7 @@ def main(args: List[str]):
         agent_context=context,
         initial_prompt=initial_prompt,
         single_response=bool(initial_prompt),
+        enable_compaction=not args.disable_compaction,
     )
 
 

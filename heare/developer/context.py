@@ -136,7 +136,7 @@ class AgentContext:
 
         return usage_summary
 
-    def flush(self, chat_history):
+    def flush(self, chat_history, compact=True):
         """Save the agent context and chat history to a file.
 
         For root contexts (parent_session_id is None), saves to:
@@ -147,9 +147,47 @@ class AgentContext:
 
         Args:
             chat_history: The chat history to save
+            compact: Whether to check and perform compaction on long conversations
         """
         if not chat_history:
             return
+
+        # Perform compaction if needed
+        compaction_summary = None
+        if compact and self.parent_session_id is None:  # Only compact root contexts
+            try:
+                from heare.developer.compacter import ConversationCompacter
+
+                compacter = ConversationCompacter()
+
+                # Check if conversation needs compaction
+                model_name = self.model_spec.get("title", "claude-3-5-sonnet-latest")
+                if compacter.should_compact(chat_history, model_name):
+                    # Create a compact version
+                    original_session_id = self.session_id
+                    chat_history, compaction_summary = compacter.compact_conversation(
+                        chat_history, model_name
+                    )
+
+                    # If we compacted, we need to update the session_id
+                    # Preserve the relationship by adding metadata
+                    self.parent_session_id = original_session_id
+
+                    # Add a system log about compaction to the user interface if available
+                    if hasattr(self.user_interface, "handle_system_message"):
+                        self.user_interface.handle_system_message(
+                            f"[bold green]Conversation compacted: "
+                            f"{compaction_summary.original_message_count} messages, "
+                            f"{compaction_summary.original_token_count} tokens → "
+                            f"{compaction_summary.summary_token_count} tokens "
+                            f"(ratio: {compaction_summary.compaction_ratio:.2f})[/bold green]"
+                        )
+            except Exception as e:
+                # Log the error but continue with normal flushing
+                import traceback
+
+                print(f"Error during conversation compaction: {e}")
+                print(traceback.format_exc())
 
         # Base history directory
         history_dir = Path.home() / ".hdev" / "history"
@@ -178,6 +216,21 @@ class AgentContext:
             "usage": self.usage,
             "messages": chat_history,
         }
+
+        # Add compaction metadata if available
+        if compaction_summary:
+            context_data["compaction"] = {
+                "original_session_id": self.parent_session_id,
+                "original_message_count": compaction_summary.original_message_count,
+                "original_token_count": compaction_summary.original_token_count,
+                "summary_token_count": compaction_summary.summary_token_count,
+                "compaction_ratio": compaction_summary.compaction_ratio,
+                "timestamp": str(
+                    Path(history_file).stat().st_mtime
+                    if Path(history_file).exists()
+                    else None
+                ),
+            }
 
         # Write the data to the file
         with open(history_file, "w") as f:

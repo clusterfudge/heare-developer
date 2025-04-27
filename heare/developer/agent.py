@@ -189,6 +189,7 @@ def run(
     single_response: bool = False,
     tool_names: list[str] | None = None,
     system_prompt: dict[str, Any] | None = None,
+    enable_compaction: bool = True,
 ) -> list[MessageParam]:
     load_dotenv()
     user_interface, model = (
@@ -466,5 +467,6 @@ def run(
                     "[/bold yellow]"
                 )
         finally:
-            agent_context.flush(chat_history)
+            # Flush with compaction based on setting
+            agent_context.flush(chat_history, compact=enable_compaction)
     return chat_history
