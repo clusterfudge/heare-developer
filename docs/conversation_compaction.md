@@ -14,7 +14,7 @@ When a conversation becomes too long, the compactor automatically creates a summ
 ### Process Flow
 
 1. **Token Counting**: Each conversation's tokens are counted using Anthropic's `/v1/count_tokens` API
-2. **Threshold Check**: When the token count exceeds the configured threshold (default: 100,000 tokens)
+2. **Threshold Check**: When the token count exceeds 85% of the model's context window size
 3. **Summary Generation**: The conversation is sent to Claude to create a comprehensive summary
 4. **New Conversation**: A new conversation is started with the summary as the initial context
 5. **Metadata Preservation**: Relationship between original and compacted conversations is recorded
@@ -35,16 +35,21 @@ The summary is designed to preserve key information:
 --disable-compaction    Disable automatic conversation compaction
 ```
 
-### Token Threshold
+### Compaction Threshold
 
-The default token threshold is 100,000 tokens. To customize this, you can:
+The default compaction threshold is set at 85% of the model's context window size. This ensures that conversations are compacted before reaching the model's maximum capacity. The context window sizes for each model are:
 
-1. Modify the `DEFAULT_TOKEN_THRESHOLD` constant in `compacter.py`
+- Claude 3.5/3.7 Sonnet: 200,000 tokens
+- Claude 3.5 Haiku: 100,000 tokens
+
+To customize the threshold ratio, you can:
+
+1. Modify the `DEFAULT_COMPACTION_THRESHOLD_RATIO` constant in `compacter.py`
 2. Or create a configuration file at `~/.config/hdev/config.json` with:
    ```json
    {
      "compaction": {
-       "token_threshold": 50000
+       "threshold_ratio": 0.75
      }
    }
    ```
@@ -86,7 +91,7 @@ When a conversation is compacted, metadata is stored including:
 
 ## Future Improvements
 
-- Auto-adjust compaction threshold based on model context window
 - Prioritize which parts of conversations to retain in summaries
 - Track topics across compacted conversations
 - Implement progressive compaction for very long-running sessions
+- Dynamic threshold adjustment based on conversation complexity

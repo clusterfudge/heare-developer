@@ -14,8 +14,8 @@ import anthropic
 from anthropic.types import MessageParam
 from dotenv import load_dotenv
 
-# Constants for token limits
-DEFAULT_TOKEN_THRESHOLD = 100000  # Example threshold, adjust based on actual needs
+# Default threshold ratio of model's context window to trigger compaction
+DEFAULT_COMPACTION_THRESHOLD_RATIO = 0.85  # Trigger compaction at 85% of context window
 
 
 @dataclass
@@ -32,14 +32,24 @@ class CompactionSummary:
 class ConversationCompacter:
     """Handles the compaction of long conversations into summaries."""
 
-    def __init__(self, token_threshold: int = DEFAULT_TOKEN_THRESHOLD, client=None):
+    def __init__(
+        self, threshold_ratio: float = DEFAULT_COMPACTION_THRESHOLD_RATIO, client=None
+    ):
         """Initialize the conversation compacter.
 
         Args:
-            token_threshold: Maximum number of tokens before compaction is triggered
+            threshold_ratio: Ratio of model's context window to trigger compaction
             client: Anthropic client instance (optional, for testing)
         """
-        self.token_threshold = token_threshold
+        self.threshold_ratio = threshold_ratio
+
+        # Get model context window information
+        from heare.developer.models import MODEL_MAP
+
+        self.model_context_windows = {
+            model_data["title"]: model_data.get("context_window", 100000)
+            for model, model_data in MODEL_MAP.items()
+        }
 
         if client:
             self.client = client
@@ -67,8 +77,29 @@ class ConversationCompacter:
 
         # Call Anthropic's token counting API
         try:
-            response = self.client.count_tokens(model=model, prompt=messages_str)
-            return response.token_count
+            # New method for token counting in the updated Anthropic SDK
+            response = self.client.messages.count_tokens(
+                model=model, messages=[{"role": "user", "content": messages_str}]
+            )
+            # Check if response contains either 'token_count' or 'tokens' attribute
+            if hasattr(response, "token_count"):
+                return response.token_count
+            elif hasattr(response, "tokens"):
+                return response.tokens
+            else:
+                # Access the dictionary form to handle API changes
+                response_dict = (
+                    response if isinstance(response, dict) else response.__dict__
+                )
+                if "token_count" in response_dict:
+                    return response_dict["token_count"]
+                elif "tokens" in response_dict:
+                    return response_dict["tokens"]
+                elif "input_tokens" in response_dict:
+                    return response_dict["input_tokens"]
+                else:
+                    print(f"Token count not found in response: {response}")
+                    return self._estimate_token_count(messages_str)
         except Exception as e:
             print(f"Error counting tokens: {e}")
             # Fallback to an estimate if API call fails
@@ -143,7 +174,14 @@ class ConversationCompacter:
             bool: True if the conversation should be compacted
         """
         token_count = self.count_tokens(messages, model)
-        return token_count > self.token_threshold
+
+        # Get context window size for this model, default to 100k if not found
+        context_window = self.model_context_windows.get(model, 100000)
+
+        # Calculate threshold based on context window and threshold ratio
+        token_threshold = int(context_window * self.threshold_ratio)
+
+        return token_count > token_threshold
 
     def generate_summary(
         self, messages: List[MessageParam], model: str

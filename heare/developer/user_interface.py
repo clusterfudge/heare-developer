@@ -99,6 +99,8 @@ class UserInterface(ABC):
         total_tokens: int,
         total_cost: float,
         cached_tokens: int | None = None,
+        conversation_size: int | None = None,
+        context_window: int | None = None,
     ) -> None:
         """
         Display token count information.
@@ -107,6 +109,9 @@ class UserInterface(ABC):
         :param completion_tokens: Number of tokens in the completion
         :param total_tokens: Total number of tokens
         :param total_cost: Total cost of the operation
+        :param cached_tokens: Number of tokens read from cache
+        :param conversation_size: Current size of the conversation in tokens
+        :param context_window: Total context window size for the current model
         """
 
     @abstractmethod
