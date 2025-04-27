@@ -1,29 +1,32 @@
-# Calendar Tool Improvements
+# Conversation Compaction Feature (HDEV-34)
 
-## Issues Fixed
+## Overview
 
-1. **Fixed the datetime format for API calls**
-   - Problem: The calendar API was receiving malformed timeMin and timeMax parameters
-   - The code was incorrectly appending 'Z' to the ISO format strings that already contained timezone information (e.g., `+00:00Z`)
-   - Solution: Use `strftime` to format the datetime in RFC 3339 format (`%Y-%m-%dT%H:%M:%SZ`) instead of using `isoformat() + "Z"`
+This PR implements the conversation compaction feature requested in issue HDEV-34. It addresses the problem of conversations becoming too long by automatically summarizing them and starting a new conversation when they exceed a token threshold.
 
-2. **Fixed missing variable in calendar_search**
-   - Added the `date_range_description` variable that was missing in the `calendar_search` function
+## Implementation Details
 
-## Testing
+1. Created a new `ConversationCompacter` class in `compacter.py` that:
+   - Counts tokens using Anthropic's `/v1/count_tokens` API
+   - Generates conversation summaries
+   - Creates new compacted conversations
+   
+2. Integrated compaction with the context flushing mechanism in `context.py`
+3. Added CLI options to enable/disable compaction in `hdev.py`
+4. Added comprehensive documentation in `docs/conversation_compaction.md`
+5. Created unit tests in `tests/test_compaction.py`
 
-The fixes were verified by creating a test script (`test_calendar_fixed.py`) that tests both direct API calls and the tool function. Both approaches now work correctly.
+## How to Use
 
-## Impact
+By default, conversation compaction is enabled and will trigger automatically when a conversation exceeds the token threshold. To disable it, use:
 
-These fixes ensure that:
-1. Calendar events can be listed correctly
-2. Date parameters are properly formatted when making API requests
-3. Both specific date queries and relative time-frame queries function properly
+```
+hdev --disable-compaction
+```
 
-## Future Improvement Suggestions
+## Benefits
 
-1. Consider adding consistent error handling for timezone issues
-2. Add more comprehensive validation of date inputs
-3. Consider caching timezone information to reduce API calls
-4. Add option to filter events by type (all-day vs. timed events)
+- Reduces token usage while preserving important context
+- Lowers API costs for long conversations
+- Keeps conversations focused on current topics
+- Prevents hitting context window limits

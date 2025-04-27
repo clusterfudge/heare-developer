@@ -189,6 +189,7 @@ def run(
     single_response: bool = False,
     tool_names: list[str] | None = None,
     system_prompt: dict[str, Any] | None = None,
+    enable_compaction: bool = True,
 ) -> list[MessageParam]:
     load_dotenv()
     user_interface, model = (
@@ -380,6 +381,27 @@ def run(
             agent_context.report_usage(final_message.usage)
             usage_summary = agent_context.usage_summary()
             user_interface.handle_assistant_message(ai_response)
+
+            # Calculate conversation size in tokens if compaction is enabled
+            conversation_size = None
+            context_window = None
+            if enable_compaction:
+                try:
+                    from heare.developer.compacter import ConversationCompacter
+
+                    compacter = ConversationCompacter()
+                    model_name = model["title"]
+
+                    # Get context window size for this model
+                    context_window = compacter.model_context_windows.get(
+                        model_name, 100000
+                    )
+
+                    # Count tokens in the current conversation
+                    conversation_size = compacter.count_tokens(chat_history, model_name)
+                except Exception as e:
+                    print(f"Error calculating conversation size: {e}")
+
             user_interface.display_token_count(
                 usage_summary["total_input_tokens"],
                 usage_summary["total_output_tokens"],
@@ -387,6 +409,8 @@ def run(
                 + usage_summary["total_output_tokens"],
                 usage_summary["total_cost"],
                 cached_tokens=usage_summary["cached_tokens"],
+                conversation_size=conversation_size,
+                context_window=context_window,
             )
 
             if final_message.stop_reason == "tool_use":
@@ -466,5 +490,6 @@ def run(
                     "[/bold yellow]"
                 )
         finally:
-            agent_context.flush(chat_history)
+            # Flush with compaction based on setting
+            agent_context.flush(chat_history, compact=enable_compaction)
     return chat_history
