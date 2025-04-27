@@ -76,7 +76,7 @@ class Toolbox:
                 tool_info["docstring"],
                 aliases=tool_info.get("aliases", []),
             )
-            
+
         # Register Google Auth CLI tools
         for name, tool_info in GOOGLE_AUTH_CLI_TOOLS.items():
             self.register_cli_tool(
