@@ -327,8 +327,10 @@ class CLIUserInterface(UserInterface):
         total_tokens: int,
         total_cost: float,
         cached_tokens: int | None = None,
+        conversation_size: int | None = None,
+        context_window: int | None = None,
     ) -> None:
-        token_count = Text.assemble(
+        token_components = [
             ("Token Count:\n", "bold"),
             (
                 f"Prompt: {prompt_tokens}{f' (cached: {cached_tokens})' if cached_tokens else ''}\n",
@@ -336,8 +338,41 @@ class CLIUserInterface(UserInterface):
             ),
             (f"Completion: {completion_tokens}\n", "green"),
             (f"Total: {total_tokens}\n", "yellow"),
-            (f"Cost: ${round(total_cost, 2)}", "orange"),
-        )
+        ]
+
+        # Add conversation size and context window information if available
+        if conversation_size is not None and context_window is not None:
+            # Calculate percentage of context window used
+            usage_percentage = (conversation_size / context_window) * 100
+
+            # Calculate tokens remaining before compaction threshold (85% by default)
+            compaction_threshold = int(context_window * 0.85)
+            tokens_remaining = max(0, compaction_threshold - conversation_size)
+
+            # Choose color based on how full the context window is
+            color = "green"
+            if usage_percentage > 70:
+                color = "yellow"
+            if usage_percentage > 80:
+                color = "orange"
+            if usage_percentage > 90:
+                color = "red"
+
+            token_components.extend(
+                [
+                    (f"Conversation size: {conversation_size:,} tokens ", color),
+                    (f"({usage_percentage:.1f}% of {context_window:,})\n", color),
+                    (
+                        f"Remaining before compaction: {tokens_remaining:,} tokens\n",
+                        color,
+                    ),
+                ]
+            )
+
+        # Add cost information
+        token_components.append((f"Cost: ${round(total_cost, 6)}", "orange"))
+
+        token_count = Text.assemble(*token_components)
         self.console.print(token_count)
 
     def display_welcome_message(self) -> None:
