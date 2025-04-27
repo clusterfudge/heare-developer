@@ -49,6 +49,21 @@ class MockAnthropicClient:
         """Mock for the messages object."""
         return self
 
+    def create(self, model, system, messages, max_tokens):
+        """Mock for the messages.create method."""
+        self.messages_create_called = True
+
+        # Create a response object with content
+        class ContentItem:
+            def __init__(self, text):
+                self.text = text
+
+        class MessageResponse:
+            def __init__(self, content_text):
+                self.content = [ContentItem(content_text)]
+
+        return MessageResponse(self.response_content)
+
 
 class MockUserInterface(UserInterface):
     """Mock for the user interface."""
@@ -152,8 +167,8 @@ class TestConversationCompaction(unittest.TestCase):
         # Setup mock
         mock_client_class.return_value = self.mock_client
 
-        # Create compacter
-        compacter = ConversationCompacter()
+        # Create compacter with the mock client directly
+        compacter = ConversationCompacter(client=self.mock_client)
 
         # Count tokens
         tokens = compacter.count_tokens(
@@ -170,12 +185,11 @@ class TestConversationCompaction(unittest.TestCase):
     def test_should_compact(self, mock_client_class):
         """Test should_compact method."""
         # Setup mock with high token count
-        mock_client_class.return_value = MockAnthropicClient(
-            token_counts={"any": 200000}
-        )
+        mock_client = MockAnthropicClient(token_counts={"any": 200000})
+        mock_client_class.return_value = mock_client
 
-        # Create compacter with low threshold
-        compacter = ConversationCompacter(token_threshold=1000)
+        # Create compacter with low threshold and mock client
+        compacter = ConversationCompacter(token_threshold=1000, client=mock_client)
 
         # Mock the count_tokens method to always return a high number
         compacter.count_tokens = mock.MagicMock(return_value=200000)

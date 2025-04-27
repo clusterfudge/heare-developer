@@ -32,20 +32,25 @@ class CompactionSummary:
 class ConversationCompacter:
     """Handles the compaction of long conversations into summaries."""
 
-    def __init__(self, token_threshold: int = DEFAULT_TOKEN_THRESHOLD):
+    def __init__(self, token_threshold: int = DEFAULT_TOKEN_THRESHOLD, client=None):
         """Initialize the conversation compacter.
 
         Args:
             token_threshold: Maximum number of tokens before compaction is triggered
+            client: Anthropic client instance (optional, for testing)
         """
         self.token_threshold = token_threshold
-        load_dotenv()
-        self.api_key = os.getenv("ANTHROPIC_API_KEY")
 
-        if not self.api_key:
-            raise ValueError("ANTHROPIC_API_KEY environment variable not set")
+        if client:
+            self.client = client
+        else:
+            load_dotenv()
+            self.api_key = os.getenv("ANTHROPIC_API_KEY")
 
-        self.client = anthropic.Client(api_key=self.api_key)
+            if not self.api_key:
+                raise ValueError("ANTHROPIC_API_KEY environment variable not set")
+
+            self.client = anthropic.Client(api_key=self.api_key)
 
     def count_tokens(self, messages: List[MessageParam], model: str) -> int:
         """Count tokens in a conversation using Anthropic's token counting API.
