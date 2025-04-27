@@ -136,3 +136,9 @@ This project uses:
    - Create, update, and link issues
    - Add comments and create subtasks
    - See `docs/plane_tools_examples.md` for detailed usage examples
+
+5. **Google Services Integration**:
+   - Manage Google API authentication tokens for Gmail and Calendar
+   - Generate, export, and import authentication tokens
+   - Support for headless/remote environments
+   - See `docs/google_auth_cli.md` for auth setup and `docs/google_tools_examples.md` for usage examples
