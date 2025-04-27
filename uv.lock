@@ -396,7 +396,7 @@ wheels = [
 
 [[package]]
 name = "heare-developer"
-version = "0.7.7.dev0+gb1dbc28.d20250427"
+version = "0.7.7.dev1+g97c6973.d20250427"
 source = { editable = "." }
 dependencies = [
     { name = "anthropic" },
@@ -405,7 +405,6 @@ dependencies = [
     { name = "flask" },
     { name = "google-api-python-client" },
     { name = "google-auth-oauthlib" },
-    { name = "ipython" },
     { name = "markdown" },
     { name = "markdownify" },
     { name = "pathspec" },
@@ -417,6 +416,7 @@ dependencies = [
 
 [package.optional-dependencies]
 dev = [
+    { name = "ipython" },
     { name = "pre-commit" },
     { name = "pytest" },
 ]
@@ -429,7 +429,7 @@ requires-dist = [
     { name = "flask", specifier = ">=3.1.0" },
     { name = "google-api-python-client", specifier = ">=2.166.0" },
     { name = "google-auth-oauthlib", specifier = ">=1.2.1" },
-    { name = "ipython", extras = ["dev"], specifier = ">=9.2.0" },
+    { name = "ipython", marker = "extra == 'dev'", specifier = ">=9.2.0" },
     { name = "markdown", specifier = ">=3.8" },
     { name = "markdownify", specifier = ">=1.0.0" },
     { name = "pathspec", specifier = "==0.12.1" },

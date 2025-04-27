@@ -25,35 +25,43 @@ from .memory import (
     critique_memory,
     delete_memory_entry,
 )
+from .github import GITHUB_TOOLS
+from .github_comments import (
+    GITHUB_COMMENT_TOOLS,
+)
 
-ALL_TOOLS = [
-    read_file,
-    write_file,
-    list_directory,
-    run_bash_command,
-    edit_file,
-    web_search,
-    agent,
-    safe_curl,
-    python_repl,
-    gmail_search,
-    gmail_read,
-    gmail_send,
-    gmail_read_thread,
-    find_emails_needing_response,
-    calendar_list_events,
-    calendar_create_event,
-    calendar_delete_event,
-    calendar_search,
-    calendar_setup,
-    calendar_list_calendars,
-    get_memory_tree,
-    search_memory,
-    read_memory_entry,
-    write_memory_entry,
-    critique_memory,
-    delete_memory_entry,
-]
+ALL_TOOLS = (
+    [
+        read_file,
+        write_file,
+        list_directory,
+        run_bash_command,
+        edit_file,
+        web_search,
+        agent,
+        safe_curl,
+        python_repl,
+        gmail_search,
+        gmail_read,
+        gmail_send,
+        gmail_read_thread,
+        find_emails_needing_response,
+        calendar_list_events,
+        calendar_create_event,
+        calendar_delete_event,
+        calendar_search,
+        calendar_setup,
+        calendar_list_calendars,
+        get_memory_tree,
+        search_memory,
+        read_memory_entry,
+        write_memory_entry,
+        critique_memory,
+        delete_memory_entry,
+    ]
+    + GITHUB_TOOLS
+    + GITHUB_COMMENT_TOOLS
+)
 
 
 try:
