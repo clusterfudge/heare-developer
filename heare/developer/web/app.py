@@ -3,6 +3,7 @@
 Provides a web interface for browsing and viewing memory content.
 """
 
+import os
 import webbrowser
 from pathlib import Path
 from typing import Optional
@@ -412,7 +413,7 @@ class MemoryWebApp:
 
         return breadcrumbs
 
-    def run(self, host: str = "127.0.0.1", port: int = 5000, open_browser: bool = True):
+    def run(self, host: str = "127.0.0.1", port: int = 5500, open_browser: bool = True):
         """Run the web application.
 
         Args:
@@ -426,7 +427,7 @@ class MemoryWebApp:
 
 
 def run_memory_webapp(
-    memory_dir: Optional[Path] = None, host: str = "127.0.0.1", port: int = 5500
+    memory_dir: Optional[Path] = None, host: str = "127.0.0.1", port: int | None = None
 ):
     """Run the memory webapp.
 
@@ -435,6 +436,11 @@ def run_memory_webapp(
         host: Hostname to bind to
         port: Port to bind to
     """
+    if not port:
+        try:
+            port = int(os.getenv("PORT"))
+        except ValueError:
+            port = 5500
     memory_manager = MemoryManager(memory_dir)
     app = MemoryWebApp(memory_manager)
 
