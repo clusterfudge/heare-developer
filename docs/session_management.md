@@ -7,6 +7,7 @@ Heare Developer now includes CLI tools for managing and resuming previous develo
 - List previous sessions with metadata
 - Filter sessions by working directory
 - Resume a previous session from its ID
+- Improved state management within AgentContext
 
 ## Using the Session Management Tools
 
@@ -65,6 +66,20 @@ Sessions are stored in the `~/.hdev/history` directory, with each session having
 ### Integration with Heare Developer
 
 When resuming a session, the CLI loads the previous conversation history and continues from where you left off. This allows you to maintain context across multiple development sessions.
+
+### AgentContext Encapsulation
+
+The session state (chat history and tool results) is now fully encapsulated within the AgentContext class. This design improvement provides several benefits:
+
+1. **State Consistency**: All session state is stored in one place, making it easier to manage.
+2. **Cleaner Resumption**: When resuming a session, the entire context is loaded at once with its state.
+3. **Improved Agent Loop**: The agent run loop no longer needs to manage and track state separately.
+
+The key properties of AgentContext for session management are:
+- `chat_history`: Contains all messages in the conversation
+- `tool_result_buffer`: Stores pending tool results to be processed
+
+This encapsulation ensures state is managed consistently across all operations, including during session resumption and agent sub-context creation.
 
 ## Requirements
 

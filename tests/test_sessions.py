@@ -128,6 +128,61 @@ class TestSessionManagement(unittest.TestCase):
         session_data = get_session_data("nonexistent")
         self.assertIsNone(session_data)
 
+    def test_agent_context_chat_history(self):
+        # Test that AgentContext properly initializes and manages chat history
+        from heare.developer.context import AgentContext
+        from unittest.mock import MagicMock
+
+        # Create a mock context
+        mock_sandbox = MagicMock()
+        mock_ui = MagicMock()
+        mock_memory = MagicMock()
+
+        # Create context with empty chat history
+        context = AgentContext(
+            session_id="test-session",
+            parent_session_id=None,
+            model_spec={
+                "title": "test-model",
+                "pricing": {"input": 1, "output": 1},
+                "cache_pricing": {"read": 0, "write": 0},
+                "max_tokens": 1000,
+                "context_window": 100000,
+            },
+            sandbox=mock_sandbox,
+            user_interface=mock_ui,
+            usage=[],
+            memory_manager=mock_memory,
+        )
+
+        # Verify chat_history is initialized as empty list
+        self.assertEqual(context.chat_history, [])
+
+        # Add a message to chat history
+        context.chat_history.append({"role": "user", "content": "Hello"})
+        self.assertEqual(len(context.chat_history), 1)
+
+        # Create a new context with explicit chat history
+        test_history = [{"role": "user", "content": "Test"}]
+        context2 = AgentContext(
+            session_id="test-session2",
+            parent_session_id=None,
+            model_spec={
+                "title": "test-model",
+                "pricing": {"input": 1, "output": 1},
+                "cache_pricing": {"read": 0, "write": 0},
+                "max_tokens": 1000,
+                "context_window": 100000,
+            },
+            sandbox=mock_sandbox,
+            user_interface=mock_ui,
+            usage=[],
+            memory_manager=mock_memory,
+            _chat_history=test_history,
+        )
+
+        self.assertEqual(context2.chat_history, test_history)
+
     @patch("heare.developer.context.load_session_data")
     def test_load_session_data(self, mock_load_session_data):
         # Test load_session_data function with a successful load
@@ -136,6 +191,7 @@ class TestSessionManagement(unittest.TestCase):
 
         # Create a mock context
         mock_context = MagicMock(spec=AgentContext)
+        # Access the chat_history property
         mock_context.chat_history = [{"role": "user", "content": "Hello"}]
         mock_context.session_id = "test-session"
 

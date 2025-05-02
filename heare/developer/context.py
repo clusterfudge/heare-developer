@@ -42,8 +42,25 @@ class AgentContext:
     user_interface: UserInterface
     usage: list[tuple[Any, Any]]
     memory_manager: "MemoryManager"
-    chat_history: list[MessageParam] = None
-    tool_result_buffer: list[dict] = None
+    _chat_history: list[MessageParam] = None
+    _tool_result_buffer: list[dict] = None
+
+    def __post_init__(self):
+        """Initialize the chat history and tool result buffer if they are None."""
+        if self._chat_history is None:
+            self._chat_history = []
+        if self._tool_result_buffer is None:
+            self._tool_result_buffer = []
+
+    @property
+    def chat_history(self) -> list[MessageParam]:
+        """Get the chat history."""
+        return self._chat_history
+
+    @property
+    def tool_result_buffer(self) -> list[dict]:
+        """Get the tool result buffer."""
+        return self._tool_result_buffer
 
     @staticmethod
     def create(
@@ -73,8 +90,6 @@ class AgentContext:
             user_interface=user_interface,
             usage=[],
             memory_manager=memory_manager,
-            chat_history=[],
-            tool_result_buffer=[],
         )
 
         # If a session_id was provided, attempt to load that session
@@ -104,10 +119,8 @@ class AgentContext:
             user_interface=user_interface,
             usage=self.usage,
             memory_manager=self.memory_manager,
-            chat_history=self.chat_history.copy() if self.chat_history else [],
-            tool_result_buffer=self.tool_result_buffer.copy()
-            if self.tool_result_buffer
-            else [],
+            _chat_history=self.chat_history.copy(),
+            _tool_result_buffer=self.tool_result_buffer.copy(),
         )
 
     def _report_usage(self, usage: Usage, model_spec: ModelSpec):
@@ -359,7 +372,7 @@ def load_session_data(
         if not base_context:
             return None
 
-        # Update the context with session data
+        # Extract data from the session file
         chat_history = session_data.get("messages", [])
         usage_data = session_data.get("usage", [])
         model_spec = session_data.get("model_spec", base_context.model_spec)
@@ -374,9 +387,15 @@ def load_session_data(
             user_interface=base_context.user_interface,
             usage=usage_data if usage_data else base_context.usage,
             memory_manager=base_context.memory_manager,
-            chat_history=chat_history,
-            tool_result_buffer=[],  # Always start with empty tool buffer
+            _chat_history=chat_history,
+            _tool_result_buffer=[],  # Always start with empty tool buffer
         )
+
+        # If base_context has user_interface.handle_system_message, report success
+        if hasattr(base_context.user_interface, "handle_system_message"):
+            base_context.user_interface.handle_system_message(
+                f"Successfully loaded session {session_id} with {len(chat_history)} messages"
+            )
 
         return updated_context
 
