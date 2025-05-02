@@ -25,6 +25,10 @@ from .memory import (
     critique_memory,
     delete_memory_entry,
 )
+from .todos import (
+    todo_read,
+    todo_write,
+)
 from .github import GITHUB_TOOLS
 from .github_comments import (
     GITHUB_COMMENT_TOOLS,
@@ -58,6 +62,8 @@ ALL_TOOLS = (
         write_memory_entry,
         critique_memory,
         delete_memory_entry,
+        todo_read,
+        todo_write,
     ]
     + GITHUB_TOOLS
     + GITHUB_COMMENT_TOOLS
