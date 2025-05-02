@@ -3,7 +3,7 @@ import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, TypedDict, Optional, List, Dict
+from typing import Any, TypedDict, Optional
 from uuid import uuid4
 
 from anthropic.types import Usage, MessageParam
