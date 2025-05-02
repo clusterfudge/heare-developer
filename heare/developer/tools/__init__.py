@@ -29,6 +29,10 @@ from .todos import (
     todo_read,
     todo_write,
 )
+from .sessions import (
+    list_sessions_tool,
+    get_session_tool,
+)
 from .github import GITHUB_TOOLS
 from .github_comments import (
     GITHUB_COMMENT_TOOLS,
@@ -64,6 +68,8 @@ ALL_TOOLS = (
         delete_memory_entry,
         todo_read,
         todo_write,
+        list_sessions_tool,
+        get_session_tool,
     ]
     + GITHUB_TOOLS
     + GITHUB_COMMENT_TOOLS

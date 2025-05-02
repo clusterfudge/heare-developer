@@ -3,7 +3,7 @@ import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import Any, TypedDict, Tuple, Optional, List
 from uuid import uuid4
 
 from anthropic.types import Usage
@@ -320,3 +320,67 @@ class AgentContext:
         # Write the data to the file
         with open(history_file, "w") as f:
             json.dump(context_data, f, indent=2, cls=PydanticJSONEncoder)
+
+
+def load_session_data(session_id: str) -> Tuple[list, list, Any, Optional[str]]:
+    """
+    Load session data from a file.
+
+    This shared function can be used by both the Agent and session management tools
+    to load a previous session's data.
+
+    Args:
+        session_id: The ID of the session to load
+
+    Returns:
+        Tuple containing:
+        - chat_history: List of messages
+        - usage_data: List of usage records
+        - model_spec: The model specification used in the session
+        - error_message: Error message if loading failed, None otherwise
+    """
+    history_dir = Path.home() / ".hdev" / "history" / session_id
+    root_file = history_dir / "root.json"
+
+    chat_history = []
+    usage_data = []
+    model_spec = None
+    error_message = None
+
+    if not root_file.exists():
+        return (
+            chat_history,
+            usage_data,
+            model_spec,
+            f"Session file not found: {root_file}",
+        )
+
+    try:
+        with open(root_file, "r") as f:
+            session_data = json.load(f)
+
+        # Verify session has valid metadata (from HDEV-58 onwards)
+        if "metadata" not in session_data:
+            return (
+                chat_history,
+                usage_data,
+                model_spec,
+                "Session lacks metadata (pre-HDEV-58)",
+            )
+
+        # Extract data
+        chat_history = session_data.get("messages", [])
+        usage_data = session_data.get("usage", [])
+        model_spec = session_data.get("model_spec", None)
+
+        return chat_history, usage_data, model_spec, None
+
+    except json.JSONDecodeError as e:
+        error_message = f"Invalid session file format: {e}"
+    except FileNotFoundError:
+        error_message = f"Session file not found: {root_file}"
+    except Exception as e:
+        error_message = f"Error loading session: {str(e)}"
+
+    return chat_history, usage_data, model_spec, error_message
+

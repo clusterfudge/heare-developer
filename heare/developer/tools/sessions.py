@@ -2,12 +2,13 @@
 """
 CLI tools for managing developer sessions.
 Provides functionality to list and resume previous developer sessions.
+These functions can be used both as CLI tools and as agent tools.
 """
 
 import json
 import os
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from datetime import datetime
 from rich.console import Console
 from rich.table import Table
@@ -178,6 +179,64 @@ def parse_iso_date(date_string: str) -> str:
         return date_string
 
 
+# Tool function schemas for integration with agent tools
+def list_sessions_tool(context: Any, **kwargs) -> str:
+    """
+    List available developer sessions.
+    
+    This tool lists all sessions with metadata, showing their ID, 
+    creation date, update date, message count, and working directory.
+    """
+    workdir = kwargs.get("workdir", None)
+    sessions = list_sessions(workdir)
+    
+    if not sessions:
+        return "No sessions found with metadata."
+    
+    result = "## Available Sessions\n\n"
+    result += "| ID | Created | Last Updated | Messages | Working Directory |\n"
+    result += "|---|---|---|---|---|\n"
+    
+    for session in sessions:
+        # Parse and format dates
+        created = parse_iso_date(session.get("created_at", ""))
+        updated = parse_iso_date(session.get("last_updated", ""))
+        
+        # Format session ID (use first 8 chars)
+        short_id = session.get("session_id", "")[:8]
+        
+        # Add row to table
+        result += f"| {short_id} | {created} | {updated} | {session.get('message_count', 0)} | {session.get('root_dir', 'Unknown')} |\n"
+    
+    return result
+
+
+def get_session_tool(context: Any, **kwargs) -> str:
+    """
+    Get details about a specific session.
+    
+    This tool retrieves detailed information about a session by its ID.
+    """
+    session_id = kwargs.get("session_id", "")
+    if not session_id:
+        return "Error: No session ID provided."
+    
+    session_data = get_session_data(session_id)
+    if not session_data:
+        return f"Session with ID '{session_id}' not found."
+    
+    metadata = session_data.get("metadata", {})
+    
+    result = f"## Session Details: {session_id}\n\n"
+    result += f"- **Created**: {parse_iso_date(metadata.get('created_at', ''))}\n"
+    result += f"- **Last Updated**: {parse_iso_date(metadata.get('last_updated', ''))}\n"
+    result += f"- **Working Directory**: {metadata.get('root_dir', 'Unknown')}\n"
+    result += f"- **Message Count**: {len(session_data.get('messages', []))}\n"
+    result += f"- **Model**: {session_data.get('model_spec', {}).get('title', 'Unknown')}\n"
+    
+    return result
+
+
 def resume_session(session_id: str) -> bool:
     """
     Resume a previous developer session.
@@ -246,3 +305,45 @@ def resume_session(session_id: str) -> bool:
         console = Console()
         console.print(f"Error resuming session: {e}", style="red")
         return False
+
+
+# Tool schemas for integration with toolbox
+def schema_list_sessions():
+    """Schema for list_sessions_tool function."""
+    return {
+        "name": "list_sessions",
+        "description": "List available developer sessions with metadata.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "workdir": {
+                    "type": "string",
+                    "description": "Optional working directory to filter sessions by. If provided, only sessions from this directory will be listed."
+                }
+            },
+            "required": []
+        }
+    }
+
+
+def schema_get_session():
+    """Schema for get_session_tool function."""
+    return {
+        "name": "get_session",
+        "description": "Get details about a specific developer session.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "session_id": {
+                    "type": "string",
+                    "description": "ID or prefix of the session to retrieve details for."
+                }
+            },
+            "required": ["session_id"]
+        }
+    }
+
+
+# Set schema methods on tool functions
+list_sessions_tool.schema = schema_list_sessions
+get_session_tool.schema = schema_get_session

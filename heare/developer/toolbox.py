@@ -11,6 +11,7 @@ from .commit import run_commit
 from .tools import ALL_TOOLS
 from .utils import render_tree
 from .web.app import run_memory_webapp
+from .tools.sessions import list_sessions, print_session_list, resume_session
 
 try:
     from heare.developer.issues_cli import ISSUE_CLI_TOOLS
@@ -66,6 +67,14 @@ class Toolbox:
 
         self.register_cli_tool(
             "view-memory", self._launch_memory_webapp, "Launch memory webapp"
+        )
+        
+        # Register session management CLI tools
+        self.register_cli_tool(
+            "sessions", self._list_sessions, "List available developer sessions", aliases=["ls-sessions"]
+        )
+        self.register_cli_tool(
+            "resume", self._resume_session, "Resume a previous developer session"
         )
 
         # Register issue tracking CLI tools
@@ -317,6 +326,37 @@ class Toolbox:
         self, user_interface, sandbox, user_input, *args, **kwargs
     ):
         run_memory_webapp()
+        
+    def _list_sessions(self, user_interface, sandbox, user_input, *args, **kwargs):
+        """List available developer sessions."""
+        # Extract optional workdir filter
+        workdir = user_input.strip() if user_input.strip() else None
+        
+        # Get the list of sessions
+        sessions = list_sessions(workdir)
+        
+        # Print the formatted list
+        print_session_list(sessions)
+        
+        return f"Listed {len(sessions)} developer sessions" + (f" for {workdir}" if workdir else "")
+    
+    def _resume_session(self, user_interface, sandbox, user_input, *args, **kwargs):
+        """Resume a previous developer session."""
+        session_id = user_input.strip()
+        
+        if not session_id:
+            user_interface.handle_system_message(
+                "Please provide a session ID to resume", markdown=False
+            )
+            return "Error: No session ID provided"
+            
+        # Attempt to resume the session
+        success = resume_session(session_id)
+        
+        if not success:
+            return f"Failed to resume session {session_id}"
+            
+        return f"Resumed session {session_id}"
 
     def schemas(self, enable_caching: bool = True) -> List[dict]:
         """Generate schemas for all tools in the toolbox.
