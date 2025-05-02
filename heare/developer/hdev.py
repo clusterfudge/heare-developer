@@ -511,7 +511,15 @@ def main(args: List[str]):
         action="store_true",
         help="Disable automatic conversation compaction",
     )
+    arg_parser.add_argument(
+        "--session-id",
+        help="Session ID to resume. This will load the session's conversation history.",
+    )
     args = arg_parser.parse_args(args[1:])  # Skip the program name in args[0]
+
+    # Check for session ID in environment variable if not specified in args
+    if not args.session_id and "HEARE_DEVELOPER_SESSION_ID" in os.environ:
+        args.session_id = os.environ.get("HEARE_DEVELOPER_SESSION_ID")
 
     console = Console()
     user_interface = CLIUserInterface(console, args.sandbox_mode)
@@ -551,7 +559,7 @@ def main(args: List[str]):
         else:
             initial_prompt = args.prompt
 
-    if not initial_prompt:
+    if not initial_prompt and not args.session_id:
         user_interface.display_welcome_message()
 
     context = AgentContext.create(
@@ -559,6 +567,7 @@ def main(args: List[str]):
         sandbox_mode=args.sandbox_mode,
         sandbox_contents=args.sandbox,
         user_interface=user_interface,
+        session_id=args.session_id,
     )
 
     run(

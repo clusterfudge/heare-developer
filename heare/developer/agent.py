@@ -230,15 +230,15 @@ def run(
 
         user_interface.handle_system_message(command_message)
 
-    chat_history: list[MessageParam] = []
-    tool_result_buffer = []
+    # We'll use agent_context.chat_history and agent_context.tool_result_buffer directly
+    # to ensure we're always working with the most current state
 
     interrupt_count = 0
     last_interrupt_time = 0
 
     # Handle initial prompt if provided
     if initial_prompt:
-        chat_history.append(
+        agent_context.chat_history.append(
             {"role": "user", "content": [{"type": "text", "text": initial_prompt}]}
         )
         user_interface.handle_user_input(
@@ -247,9 +247,16 @@ def run(
 
     while True:
         try:
-            if chat_history and chat_history[-1]["role"] == "user":
+            if (
+                agent_context.chat_history
+                and agent_context.chat_history[-1]["role"] == "user"
+            ):
                 pass
-            elif not tool_result_buffer and not single_response and not initial_prompt:
+            elif (
+                not agent_context.tool_result_buffer
+                and not single_response
+                and not initial_prompt
+            ):
                 cost = f"${agent_context.usage_summary()['total_cost']:.2f}"
                 user_input = ""
                 while not user_input.strip():
@@ -263,10 +270,14 @@ def run(
                     if user_input in ["/quit", "/exit"]:
                         break
                     elif user_input == "/restart":
-                        chat_history = []
-                        tool_result_buffer = []
+                        # Clear the chat history and tool result buffer in the context
+                        # Clear the context state and generate a new session ID
+                        agent_context.chat_history.clear()
+                        agent_context.tool_result_buffer.clear()
                         # Generate a new session ID for the agent context
                         agent_context.session_id = str(uuid4())
+                        # Ensure we flush the cleared context to disk before continuing
+                        agent_context.flush(agent_context.chat_history)
                         user_interface.handle_assistant_message(
                             "[bold green]Chat history cleared and new session started.[/bold green]"
                         )
@@ -276,10 +287,10 @@ def run(
                             result, append = toolbox.invoke_cli_tool(
                                 name=command_name,
                                 arg_str=user_input[len(command_name) + 1 :].strip(),
-                                chat_history=chat_history,
+                                chat_history=agent_context.chat_history,
                             )
                             if append:
-                                tool_result_buffer.append(
+                                agent_context.tool_result_buffer.append(
                                     {"type": "text", "text": result}
                                 )
                     else:
@@ -288,7 +299,7 @@ def run(
                         )
                     continue
 
-                chat_history.append(
+                agent_context.chat_history.append(
                     {"role": "user", "content": [{"type": "text", "text": user_input}]}
                 )
                 user_interface.handle_user_input(
@@ -296,11 +307,14 @@ def run(
                 )
 
             else:
-                if tool_result_buffer:
-                    chat_history.append(
-                        {"role": "user", "content": tool_result_buffer.copy()}
+                if agent_context.tool_result_buffer:
+                    agent_context.chat_history.append(
+                        {
+                            "role": "user",
+                            "content": agent_context.tool_result_buffer.copy(),
+                        }
                     )
-                    tool_result_buffer.clear()
+                    agent_context.tool_result_buffer.clear()
                 initial_prompt = None
 
             system_message = create_system_message(
@@ -317,7 +331,9 @@ def run(
                 for attempt in range(max_retries):
                     try:
                         rate_limiter.check_and_wait(user_interface)
-                        messages = _inline_latest_file_mentions(chat_history)
+                        messages = _inline_latest_file_mentions(
+                            agent_context.chat_history
+                        )
                         with client.messages.stream(
                             system=system_message,
                             max_tokens=model["max_tokens"],
@@ -376,7 +392,9 @@ def run(
             else:
                 filtered = final_content
 
-            chat_history.append({"role": "assistant", "content": filtered})
+            agent_context.chat_history.append(
+                {"role": "assistant", "content": filtered}
+            )
 
             agent_context.report_usage(final_message.usage)
             usage_summary = agent_context.usage_summary()
@@ -398,7 +416,9 @@ def run(
                     )
 
                     # Count tokens in the current conversation
-                    conversation_size = compacter.count_tokens(chat_history, model_name)
+                    conversation_size = compacter.count_tokens(
+                        agent_context.chat_history, model_name
+                    )
                 except Exception as e:
                     print(f"Error calculating conversation size: {e}")
 
@@ -419,13 +439,17 @@ def run(
                         user_interface.handle_tool_use(part.name, part.input)
                         try:
                             result = toolbox.invoke_agent_tool(part)
-                            tool_result_buffer.append(result)
+                            agent_context.tool_result_buffer.append(result)
                             user_interface.handle_tool_result(part.name, result)
                         except DoSomethingElseError:
                             # Handle "do something else" workflow:
                             # 1. Remove the last assistant message
-                            if chat_history and chat_history[-1]["role"] == "assistant":
-                                chat_history.pop()
+                            if (
+                                agent_context.chat_history
+                                and agent_context.chat_history[-1]["role"]
+                                == "assistant"
+                            ):
+                                agent_context.chat_history.pop()
 
                             # 2. Get user's alternate prompt
                             user_interface.handle_system_message(
@@ -434,16 +458,20 @@ def run(
                             alternate_prompt = user_interface.get_user_input()
 
                             # 3. Append alternate prompt to the last user message
-                            for i in reversed(range(len(chat_history))):
-                                if chat_history[i]["role"] == "user":
+                            for i in reversed(range(len(agent_context.chat_history))):
+                                if agent_context.chat_history[i]["role"] == "user":
                                     # Add the alternate prompt to the previous user message
-                                    if isinstance(chat_history[i]["content"], str):
-                                        chat_history[i]["content"] += (
+                                    if isinstance(
+                                        agent_context.chat_history[i]["content"], str
+                                    ):
+                                        agent_context.chat_history[i]["content"] += (
                                             f"\n\nI viewed your response, and have updated my instructions: {alternate_prompt}"
                                         )
-                                    elif isinstance(chat_history[i]["content"], list):
+                                    elif isinstance(
+                                        agent_context.chat_history[i]["content"], list
+                                    ):
                                         # Handle content as list of blocks
-                                        chat_history[i]["content"].append(
+                                        agent_context.chat_history[i]["content"].append(
                                             {
                                                 "type": "text",
                                                 "text": f"I viewed your response, and have updated my instructions: {alternate_prompt}",
@@ -452,7 +480,7 @@ def run(
                                     break
 
                             # Clear the tool result buffer to avoid processing the current tool request
-                            tool_result_buffer.clear()
+                            agent_context.tool_result_buffer.clear()
 
                             # Skip to the next iteration to immediately process the updated chat history
                             # instead of breaking out of the loop which would wait for next user input
@@ -466,8 +494,10 @@ def run(
             last_interrupt_time = 0
 
             # Exit after one response if in single-response mode
-            if single_response and not tool_result_buffer:
-                agent_context.flush(_inline_latest_file_mentions(chat_history))
+            if single_response and not agent_context.tool_result_buffer:
+                agent_context.flush(
+                    _inline_latest_file_mentions(agent_context.chat_history)
+                )
                 break
 
         except KeyboardInterrupt:
@@ -491,5 +521,5 @@ def run(
                 )
         finally:
             # Flush with compaction based on setting
-            agent_context.flush(chat_history, compact=enable_compaction)
-    return chat_history
+            agent_context.flush(agent_context.chat_history, compact=enable_compaction)
+    return agent_context.chat_history

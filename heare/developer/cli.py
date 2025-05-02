@@ -1,3 +1,4 @@
+import os
 import sys
 from typing import List
 
@@ -8,6 +9,11 @@ from heare.developer.context import AgentContext
 from heare.developer.hdev import main as dev_main, CLIUserInterface
 from heare.developer.sandbox import Sandbox, SandboxMode
 from heare.developer.toolbox import Toolbox
+from heare.developer.tools.sessions import (
+    list_sessions,
+    print_session_list,
+    resume_session,
+)
 
 
 def main(args: List[str] = None):
@@ -15,6 +21,22 @@ def main(args: List[str] = None):
         args = sys.argv
     load_dotenv()
     console = Console()
+
+    # Handle session management commands
+    if len(args) > 1:
+        if args[1] == "sessions":
+            # List available sessions
+            workdir = os.getcwd() if len(args) <= 2 else args[2]
+            sessions = list_sessions(workdir=workdir)
+            print_session_list(sessions)
+            return
+        elif args[1] == "resume" and len(args) > 2:
+            # Resume a specific session
+            session_id = args[2]
+            resume_session(session_id)
+            return
+
+    # Continue with regular CLI processing
     sandbox = Sandbox(".", SandboxMode.ALLOW_ALL)
     context = AgentContext.create(
         model_spec={},

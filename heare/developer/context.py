@@ -3,10 +3,10 @@ import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import Any, TypedDict, Optional
 from uuid import uuid4
 
-from anthropic.types import Usage
+from anthropic.types import Usage, MessageParam
 
 from heare.developer.sandbox import Sandbox, SandboxMode
 from heare.developer.user_interface import UserInterface
@@ -42,6 +42,25 @@ class AgentContext:
     user_interface: UserInterface
     usage: list[tuple[Any, Any]]
     memory_manager: "MemoryManager"
+    _chat_history: list[MessageParam] = None
+    _tool_result_buffer: list[dict] = None
+
+    def __post_init__(self):
+        """Initialize the chat history and tool result buffer if they are None."""
+        if self._chat_history is None:
+            self._chat_history = []
+        if self._tool_result_buffer is None:
+            self._tool_result_buffer = []
+
+    @property
+    def chat_history(self) -> list[MessageParam]:
+        """Get the chat history."""
+        return self._chat_history
+
+    @property
+    def tool_result_buffer(self) -> list[dict]:
+        """Get the tool result buffer."""
+        return self._tool_result_buffer
 
     @staticmethod
     def create(
@@ -49,6 +68,7 @@ class AgentContext:
         sandbox_mode: SandboxMode,
         sandbox_contents: list[str],
         user_interface: UserInterface,
+        session_id: str = None,
     ) -> "AgentContext":
         sandbox = Sandbox(
             sandbox_contents[0] if sandbox_contents else os.getcwd(),
@@ -59,8 +79,11 @@ class AgentContext:
 
         memory_manager = MemoryManager()
 
-        return AgentContext(
-            session_id=str(uuid4()),
+        # Use provided session_id or generate a new one
+        context_session_id = session_id if session_id else str(uuid4())
+
+        context = AgentContext(
+            session_id=context_session_id,
             parent_session_id=None,
             model_spec=model_spec,
             sandbox=sandbox,
@@ -69,7 +92,27 @@ class AgentContext:
             memory_manager=memory_manager,
         )
 
-    def with_user_interface(self, user_interface: UserInterface) -> "AgentContext":
+        # If a session_id was provided, attempt to load that session
+        if session_id:
+            # Load the session data
+            loaded_context = load_session_data(session_id, context)
+
+            # If loading was successful, update message count for UI feedback
+            if loaded_context and loaded_context.chat_history:
+                user_interface.handle_system_message(
+                    f"Resumed session {session_id} with {len(loaded_context.chat_history)} messages"
+                )
+                return loaded_context
+            else:
+                user_interface.handle_system_message(
+                    "Starting new session.", markdown=False
+                )
+
+        return context
+
+    def with_user_interface(
+        self, user_interface: UserInterface, keep_history=False
+    ) -> "AgentContext":
         return AgentContext(
             session_id=str(uuid4()),
             parent_session_id=self.session_id,
@@ -78,6 +121,8 @@ class AgentContext:
             user_interface=user_interface,
             usage=self.usage,
             memory_manager=self.memory_manager,
+            _chat_history=self.chat_history.copy() if keep_history else [],
+            _tool_result_buffer=self.tool_result_buffer.copy() if keep_history else [],
         )
 
     def _report_usage(self, usage: Usage, model_spec: ModelSpec):
@@ -289,3 +334,78 @@ class AgentContext:
         # Write the data to the file
         with open(history_file, "w") as f:
             json.dump(context_data, f, indent=2, cls=PydanticJSONEncoder)
+
+
+def load_session_data(
+    session_id: str, base_context: Optional[AgentContext] = None
+) -> Optional[AgentContext]:
+    """
+    Load session data from a file and return an updated AgentContext.
+
+    This function loads a previous session's data and returns a new or updated
+    AgentContext instance with the loaded state.
+
+    Args:
+        session_id: The ID of the session to load
+        base_context: Optional existing AgentContext to update with session data.
+                      If not provided, a new context will be created.
+
+    Returns:
+        Updated AgentContext if successful, None if loading failed
+    """
+    history_dir = Path.home() / ".hdev" / "history" / session_id
+    root_file = history_dir / "root.json"
+
+    if not root_file.exists():
+        print(f"Session file not found: {root_file}")
+        return None
+
+    try:
+        with open(root_file, "r") as f:
+            session_data = json.load(f)
+
+        # Verify session has valid metadata (from HDEV-58 onwards)
+        if "metadata" not in session_data:
+            print("Session lacks metadata (pre-HDEV-58)")
+            return None
+
+        # If no base context is provided, we can't create a new one
+        # as we need sandbox mode, UI, etc.
+        if not base_context:
+            return None
+
+        # Extract data from the session file
+        chat_history = session_data.get("messages", [])
+        usage_data = session_data.get("usage", [])
+        model_spec = session_data.get("model_spec", base_context.model_spec)
+        parent_id = session_data.get("parent_session_id")
+
+        # Create a new context with the loaded data
+        updated_context = AgentContext(
+            session_id=session_id,
+            parent_session_id=parent_id,
+            model_spec=model_spec,
+            sandbox=base_context.sandbox,
+            user_interface=base_context.user_interface,
+            usage=usage_data if usage_data else base_context.usage,
+            memory_manager=base_context.memory_manager,
+            _chat_history=chat_history,
+            _tool_result_buffer=[],  # Always start with empty tool buffer
+        )
+
+        # If base_context has user_interface.handle_system_message, report success
+        if hasattr(base_context.user_interface, "handle_system_message"):
+            base_context.user_interface.handle_system_message(
+                f"Successfully loaded session {session_id} with {len(chat_history)} messages"
+            )
+
+        return updated_context
+
+    except json.JSONDecodeError as e:
+        print(f"Invalid session file format: {e}")
+    except FileNotFoundError:
+        print(f"Session file not found: {root_file}")
+    except Exception as e:
+        print(f"Error loading session: {str(e)}")
+
+    return None

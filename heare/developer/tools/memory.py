@@ -248,7 +248,7 @@ def critique_memory(context: "AgentContext", prefix: str | None = None) -> str:
         result = agent(
             context=context,
             prompt=system_prompt + "\n\n" + user_prompt,
-            model="haiku",  # Use light model as specified
+            model="smart",  # Use light model as specified
         )
         return result
     except Exception as e:

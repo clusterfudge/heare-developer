@@ -18,6 +18,9 @@ You are an autonomous software engineering agent. You will:
    git checkout -b feature/<descriptive-name>
    ```
 3. Document your initial understanding and approach in the issue tracker
+#### Note about resuming work
+If you are already on a feature branch that appears to be related to the current ticket, assume you are resuming work. 
+Fetch the current state of any pull request that exists (including build state, inline comments and feedback, etc), and pick up where you left off.
 
 ### GitHub Interaction
 1. Use GitHub tools to stay informed of feedback and code reviews:
