@@ -1,6 +1,7 @@
 import json
 import os
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, TypedDict
 from uuid import uuid4
@@ -209,6 +210,32 @@ class AgentContext:
         )
         history_file = history_dir / filename
 
+        # Get the current time for metadata
+        current_time = datetime.now(timezone.utc).isoformat()
+
+        # Try to determine the root directory
+        root_dir = None
+        try:
+            # Try to find git repository root
+            current_dir = os.path.abspath(os.getcwd())
+            potential_git_dir = current_dir
+
+            # Walk up directories looking for .git folder
+            while potential_git_dir != os.path.dirname(
+                potential_git_dir
+            ):  # Stop at filesystem root
+                if os.path.isdir(os.path.join(potential_git_dir, ".git")):
+                    root_dir = potential_git_dir
+                    break
+                potential_git_dir = os.path.dirname(potential_git_dir)
+
+            # If no git root found, use current working directory
+            if root_dir is None:
+                root_dir = current_dir
+        except Exception:
+            # Fallback to current working directory if any error occurs
+            root_dir = os.path.abspath(os.getcwd())
+
         # Prepare the data to save
         context_data = {
             "session_id": self.session_id,
@@ -216,6 +243,11 @@ class AgentContext:
             "model_spec": self.model_spec,
             "usage": self.usage,
             "messages": chat_history,
+            "metadata": {
+                "created_at": current_time,
+                "last_updated": current_time,
+                "root_dir": root_dir,
+            },
         }
 
         # Add compaction metadata if available
@@ -232,6 +264,27 @@ class AgentContext:
                     else None
                 ),
             }
+
+        # If the file already exists, read it to preserve the original created_at time
+        if os.path.exists(history_file):
+            try:
+                with open(history_file, "r") as f:
+                    existing_data = json.load(f)
+                    if (
+                        "metadata" in existing_data
+                        and "created_at" in existing_data["metadata"]
+                    ):
+                        context_data["metadata"]["created_at"] = existing_data[
+                            "metadata"
+                        ]["created_at"]
+            except (json.JSONDecodeError, FileNotFoundError, KeyError):
+                # If there's any error reading the existing file, continue with the new metadata
+                pass
+
+        # Update the last_updated timestamp
+        context_data["metadata"]["last_updated"] = datetime.now(
+            timezone.utc
+        ).isoformat()
 
         # Write the data to the file
         with open(history_file, "w") as f:

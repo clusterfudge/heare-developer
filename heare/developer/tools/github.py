@@ -1,6 +1,6 @@
 import json
 import subprocess
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Union
 
 from heare.developer.context import AgentContext
 from .framework import tool
@@ -374,7 +374,7 @@ def github_api(
     context: "AgentContext",
     endpoint: str,
     method: Optional[str] = None,
-    fields: Optional[Dict[str, Any]] = None,
+    fields: Optional[Union[Dict[str, Any], str]] = None,
     jq_filter: Optional[str] = None,
     repo: Optional[str] = None,
 ) -> str:
@@ -383,7 +383,7 @@ def github_api(
     Args:
         endpoint: GitHub API endpoint (e.g., 'repos/{owner}/{repo}/issues')
         method: HTTP method (GET, POST, PATCH, DELETE, etc.)
-        fields: Dictionary of field values to include in the request
+        fields: Dictionary of field values to include in the request (can be a JSON string or dict)
         jq_filter: JQ expression to filter the response
         repo: Repository in format [HOST/]OWNER/REPO to replace {owner}/{repo} in endpoint
     """
@@ -406,9 +406,24 @@ def github_api(
     if jq_filter:
         cmd.extend(["--jq", jq_filter])
 
-    # Add fields if specified
+    # Process fields parameter - handle both dict and string inputs
     if fields:
-        for key, value in fields.items():
+        # Convert fields to dictionary if it's a string (attempt JSON parsing)
+        fields_dict = None
+        if isinstance(fields, dict):
+            fields_dict = fields
+        elif isinstance(fields, str):
+            try:
+                fields_dict = json.loads(fields)
+                if not isinstance(fields_dict, dict):
+                    return "Error: 'fields' must be a dictionary or a JSON string representing a dictionary"
+            except json.JSONDecodeError:
+                return "Error: Unable to parse 'fields' as JSON. Please provide a valid JSON string or dictionary."
+        else:
+            return f"Error: 'fields' must be a dictionary or JSON string, not {type(fields).__name__}"
+
+        # Add each field to the command
+        for key, value in fields_dict.items():
             if isinstance(value, (dict, list)):
                 val_str = json.dumps(value)
             else:
