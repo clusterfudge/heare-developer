@@ -251,6 +251,7 @@ def resume_session(session_id: str) -> bool:
     Returns:
         True if successful, False otherwise.
     """
+    # Get basic session data to check metadata and root directory
     session_data = get_session_data(session_id)
 
     if not session_data or "metadata" not in session_data:

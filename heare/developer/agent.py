@@ -230,30 +230,10 @@ def run(
 
         user_interface.handle_system_message(command_message)
 
-    # Initialize chat history, check if we're resuming a session
-    chat_history: list[MessageParam] = []
-    tool_result_buffer = []
-
-    # If session ID is set, try to load the conversation history
-    if agent_context.session_id:
-        from heare.developer.context import load_session_data
-
-        loaded_chat_history, loaded_usage, loaded_model_spec, error_message = (
-            load_session_data(agent_context.session_id)
-        )
-
-        if not error_message:
-            chat_history = loaded_chat_history
-
-            # Update usage if available
-            if loaded_usage:
-                agent_context.usage = loaded_usage
-
-            user_interface.handle_system_message(
-                f"Loaded {len(chat_history)} messages from previous session"
-            )
-        else:
-            user_interface.handle_system_message("Starting new session.")
+    # Initialize a reference to the chat history and tool result buffer from the context
+    # This ensures we're always working with the context's state
+    chat_history = agent_context.chat_history
+    tool_result_buffer = agent_context.tool_result_buffer
 
     interrupt_count = 0
     last_interrupt_time = 0
@@ -285,8 +265,9 @@ def run(
                     if user_input in ["/quit", "/exit"]:
                         break
                     elif user_input == "/restart":
-                        chat_history = []
-                        tool_result_buffer = []
+                        # Clear the chat history and tool result buffer in the context
+                        agent_context.chat_history.clear()
+                        agent_context.tool_result_buffer.clear()
                         # Generate a new session ID for the agent context
                         agent_context.session_id = str(uuid4())
                         user_interface.handle_assistant_message(
@@ -488,8 +469,8 @@ def run(
             last_interrupt_time = 0
 
             # Exit after one response if in single-response mode
-            if single_response and not tool_result_buffer:
-                agent_context.flush(_inline_latest_file_mentions(chat_history))
+            if single_response and not agent_context.tool_result_buffer:
+                agent_context.flush(_inline_latest_file_mentions(agent_context.chat_history))
                 break
 
         except KeyboardInterrupt:
@@ -513,5 +494,5 @@ def run(
                 )
         finally:
             # Flush with compaction based on setting
-            agent_context.flush(chat_history, compact=enable_compaction)
+            agent_context.flush(agent_context.chat_history, compact=enable_compaction)
     return chat_history

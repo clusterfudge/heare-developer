@@ -127,6 +127,31 @@ class TestSessionManagement(unittest.TestCase):
         # Test getting data for a non-existent session
         session_data = get_session_data("nonexistent")
         self.assertIsNone(session_data)
+        
+    @patch("heare.developer.context.load_session_data")
+    def test_load_session_data(self, mock_load_session_data):
+        # Test load_session_data function with a successful load
+        from heare.developer.context import AgentContext
+        from unittest.mock import MagicMock
+        
+        # Create a mock context
+        mock_context = MagicMock(spec=AgentContext)
+        mock_context.chat_history = [{"role": "user", "content": "Hello"}]
+        mock_context.session_id = "test-session"
+        
+        # Set up the mock to return our mock context
+        mock_load_session_data.return_value = mock_context
+        
+        # Create a base context
+        base_context = MagicMock(spec=AgentContext)
+        
+        # Call the function
+        result = mock_load_session_data("test-session", base_context)
+        
+        # Verify results
+        self.assertEqual(result, mock_context)
+        self.assertEqual(result.chat_history, mock_context.chat_history)
+        self.assertEqual(result.session_id, "test-session")
 
 
 if __name__ == "__main__":
