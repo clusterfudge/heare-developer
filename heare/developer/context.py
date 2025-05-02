@@ -110,7 +110,9 @@ class AgentContext:
 
         return context
 
-    def with_user_interface(self, user_interface: UserInterface) -> "AgentContext":
+    def with_user_interface(
+        self, user_interface: UserInterface, keep_history=False
+    ) -> "AgentContext":
         return AgentContext(
             session_id=str(uuid4()),
             parent_session_id=self.session_id,
@@ -119,8 +121,8 @@ class AgentContext:
             user_interface=user_interface,
             usage=self.usage,
             memory_manager=self.memory_manager,
-            _chat_history=self.chat_history.copy(),
-            _tool_result_buffer=self.tool_result_buffer.copy(),
+            _chat_history=self.chat_history.copy() if keep_history else [],
+            _tool_result_buffer=self.tool_result_buffer.copy() if keep_history else [],
         )
 
     def _report_usage(self, usage: Usage, model_spec: ModelSpec):

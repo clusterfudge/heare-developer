@@ -5,9 +5,9 @@ import pytest
 
 from heare.developer.context import AgentContext
 from heare.developer.tools.memory import (
-    search_memory,
     read_memory_entry,
     write_memory_entry,
+    search_memory,
 )
 from heare.developer.memory import MemoryManager
 
@@ -175,7 +175,7 @@ def test_critique_memory(mock_agent, mock_context):
     mock_agent.assert_called_once()
 
     # Verify that the model argument was passed correctly
-    assert mock_agent.call_args[1]["model"] == "haiku"
+    assert mock_agent.call_args[1]["model"] == "smart"
 
     # Check that the prompt contains the expected structural information
     prompt = mock_agent.call_args[1]["prompt"]
