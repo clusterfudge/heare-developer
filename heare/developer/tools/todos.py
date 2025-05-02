@@ -445,6 +445,13 @@ def todo_write(context: AgentContext, todos: List[Dict[str, Any]]) -> str:
 
     Returns a summary of changes made to the todo list.
     """
+    # assume that we're potentially getting garbage data from the model (json as a string)
+    if isinstance(todos, str):
+        try:
+            todos = json.loads(todos)
+        except json.JSONDecodeError:
+            return "Tool invocation not well formed. 😩"
+
     # Load existing todos
     old_todos = load_todos(context.session_id)
 
