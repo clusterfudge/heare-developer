@@ -9,7 +9,7 @@ with each session having its own todo file named by session ID.
 import json
 from enum import Enum
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Tuple, Union
+from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 from uuid import uuid4
 
@@ -130,7 +130,7 @@ def sort_todos(todos: List[TodoItem]) -> List[TodoItem]:
 def format_todo_list(todos: List[TodoItem], include_metadata: bool = True) -> str:
     """
     Format a list of todos for display.
-    
+
     Args:
         todos: List of todo items to format
         include_metadata: Whether to include machine-readable metadata
@@ -138,7 +138,7 @@ def format_todo_list(todos: List[TodoItem], include_metadata: bool = True) -> st
     if not todos:
         result = "No todos in the current session."
         if include_metadata:
-            result += "\n\n## METADATA\n```json\n{\"todos\": []}\n```"
+            result += '\n\n## METADATA\n```json\n{"todos": []}\n```'
         return result
 
     sorted_todos = sort_todos(todos)
@@ -160,9 +160,9 @@ def format_todo_list(todos: List[TodoItem], include_metadata: bool = True) -> st
         }[todo.priority]
 
         lines.append(f"{status_indicator} {todo.content} {priority_indicator}")
-    
+
     result = "\n".join(lines)
-    
+
     # Add machine-readable metadata if requested
     if include_metadata:
         metadata = {
@@ -177,7 +177,7 @@ def format_todo_list(todos: List[TodoItem], include_metadata: bool = True) -> st
             ]
         }
         result += f"\n\n## METADATA\n```json\n{json.dumps(metadata, cls=CustomJSONEncoder, indent=2)}\n```"
-    
+
     return result
 
 
@@ -244,7 +244,9 @@ def validate_priority(priority_str: str) -> TodoPriority:
     """Validate and convert priority string to TodoPriority."""
     priority_str = priority_str.lower()
     if priority_str not in [p.value for p in TodoPriority]:
-        raise ValueError(f"Invalid priority: {priority_str}. Valid values are: high, medium, low")
+        raise ValueError(
+            f"Invalid priority: {priority_str}. Valid values are: high, medium, low"
+        )
     return TodoPriority(priority_str)
 
 
@@ -275,25 +277,30 @@ def todo_add(context: AgentContext, content: str, priority: str = "medium") -> s
     try:
         # Validate priority
         todo_priority = validate_priority(priority)
-        
+
         # Load existing todos
         todos = load_todos(context.session_id)
-        
+
         # Create new todo
         new_todo = TodoItem.create(content=content, priority=todo_priority)
-        
+
         # Add to list and save
         todos.append(new_todo)
         save_todos(context.session_id, todos)
-        
+
         return f"✅ Added todo: '{content}' with {priority} priority\n\n{format_todo_list(todos)}"
     except ValueError as e:
         return f"❌ Error adding todo: {str(e)}"
 
 
 @tool
-def todo_update(context: AgentContext, todo_id: str, content: Optional[str] = None, 
-               priority: Optional[str] = None, status: Optional[str] = None) -> str:
+def todo_update(
+    context: AgentContext,
+    todo_id: str,
+    content: Optional[str] = None,
+    priority: Optional[str] = None,
+    status: Optional[str] = None,
+) -> str:
     """
     Update an existing todo item by ID.
 
@@ -308,44 +315,46 @@ def todo_update(context: AgentContext, todo_id: str, content: Optional[str] = No
     try:
         # Load existing todos
         todos = load_todos(context.session_id)
-        
+
         # Find the todo by ID
         todo = get_todo_by_id(todos, todo_id)
         if not todo:
             return f"❌ Error: Todo with ID '{todo_id}' not found"
-        
+
         # Track what changed
         changes = []
-        
+
         # Update content if provided
         if content is not None and content != todo.content:
             old_content = todo.content
             todo.content = content
             changes.append(f"content: '{old_content}' → '{content}'")
-        
+
         # Update priority if provided
         if priority is not None:
             try:
                 new_priority = validate_priority(priority)
                 if new_priority != todo.priority:
-                    old_priority = todo.priority
+                    old_priority = todo.priority.value
                     todo.priority = new_priority
-                    changes.append(f"priority: '{old_priority}' → '{new_priority}'")
+                    changes.append(
+                        f"priority: '{old_priority}' → '{new_priority.value}'"
+                    )
             except ValueError as e:
                 return f"❌ Error updating todo: {str(e)}"
-        
+
         # Update status if provided
         if status is not None:
             status = status.lower()
             if status not in [s.value for s in TodoStatus]:
                 return f"❌ Error: Invalid status '{status}'. Valid values are: pending, in_progress, completed"
-            
+
             new_status = TodoStatus(status)
             if new_status != todo.status:
-                old_status = todo.status
+                old_status = todo.status.value
                 todo.status = new_status
-                changes.append(f"status: '{old_status}' → '{new_status}'")
-        
+                changes.append(f"status: '{old_status}' → '{new_status.value}'")
+
         # Save changes
         if changes:
             save_todos(context.session_id, todos)
@@ -370,23 +379,23 @@ def todo_complete(context: AgentContext, todo_id: str) -> str:
     try:
         # Load existing todos
         todos = load_todos(context.session_id)
-        
+
         # Find the todo by ID
         todo = get_todo_by_id(todos, todo_id)
         if not todo:
             return f"❌ Error: Todo with ID '{todo_id}' not found"
-        
+
         # Mark as completed if not already
         if todo.status == TodoStatus.COMPLETED:
             return f"ℹ️ Todo '{todo.content}' is already marked as completed"
-        
+
         # Update status
-        old_status = todo.status
+        old_status = todo.status.value
         todo.status = TodoStatus.COMPLETED
-        
+
         # Save changes
         save_todos(context.session_id, todos)
-        
+
         return f"✅ Marked todo as completed: '{todo.content}' (status: '{old_status}' → 'completed')\n\n{format_todo_list(todos)}"
     except Exception as e:
         return f"❌ Error completing todo: {str(e)}"
@@ -405,19 +414,19 @@ def todo_delete(context: AgentContext, todo_id: str) -> str:
     try:
         # Load existing todos
         todos = load_todos(context.session_id)
-        
+
         # Find the todo by ID
         todo = get_todo_by_id(todos, todo_id)
         if not todo:
             return f"❌ Error: Todo with ID '{todo_id}' not found"
-        
+
         # Remove the todo
         content = todo.content
         todos = [t for t in todos if t.id != todo_id]
-        
+
         # Save changes
         save_todos(context.session_id, todos)
-        
+
         return f"✅ Deleted todo: '{content}'\n\n{format_todo_list(todos)}"
     except Exception as e:
         return f"❌ Error deleting todo: {str(e)}"
@@ -476,7 +485,7 @@ def todo_write(context: AgentContext, todos: List[Dict[str, Any]]) -> str:
             print(f"Error validating todo item: {e}")
 
     # Get existing todo IDs
-    existing_ids = {todo.id for todo in old_todos}
+    {todo.id for todo in old_todos}
     update_ids = {todo.id for todo in new_todos}
 
     # Add preserved todos (those not in the update but have IDs that exist)
