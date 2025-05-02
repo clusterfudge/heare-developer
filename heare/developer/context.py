@@ -49,6 +49,7 @@ class AgentContext:
         sandbox_mode: SandboxMode,
         sandbox_contents: list[str],
         user_interface: UserInterface,
+        session_id: str = None,
     ) -> "AgentContext":
         sandbox = Sandbox(
             sandbox_contents[0] if sandbox_contents else os.getcwd(),
@@ -59,8 +60,11 @@ class AgentContext:
 
         memory_manager = MemoryManager()
 
-        return AgentContext(
-            session_id=str(uuid4()),
+        # Use provided session_id or generate a new one
+        context_session_id = session_id if session_id else str(uuid4())
+
+        context = AgentContext(
+            session_id=context_session_id,
             parent_session_id=None,
             model_spec=model_spec,
             sandbox=sandbox,
@@ -68,6 +72,33 @@ class AgentContext:
             usage=[],
             memory_manager=memory_manager,
         )
+
+        # If a session_id was provided, attempt to load that session
+        if session_id:
+            # Load existing messages if available
+            history_dir = Path.home() / ".hdev" / "history" / session_id
+            root_file = history_dir / "root.json"
+
+            if root_file.exists():
+                try:
+                    with open(root_file, "r") as f:
+                        session_data = json.load(f)
+
+                    # Only load if valid metadata exists
+                    if "metadata" in session_data:
+                        # Load usage data if available
+                        if "usage" in session_data:
+                            context.usage = session_data["usage"]
+
+                        user_interface.handle_system_message(
+                            f"Resumed session {session_id} with {len(session_data.get('messages', []))} messages"
+                        )
+                except (json.JSONDecodeError, FileNotFoundError) as e:
+                    user_interface.handle_system_message(
+                        f"Error loading session {session_id}: {str(e)}", markdown=False
+                    )
+
+        return context
 
     def with_user_interface(self, user_interface: UserInterface) -> "AgentContext":
         return AgentContext(

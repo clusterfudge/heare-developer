@@ -1,4 +1,5 @@
 import copy
+import json
 import os
 import time
 import random
@@ -230,8 +231,31 @@ def run(
 
         user_interface.handle_system_message(command_message)
 
+    # Initialize chat history, check if we're resuming a session
     chat_history: list[MessageParam] = []
     tool_result_buffer = []
+
+    # If session ID is set and is not a newly generated UUID,
+    # try to load the conversation history
+    if agent_context.session_id:
+        history_dir = Path.home() / ".hdev" / "history" / agent_context.session_id
+        root_file = history_dir / "root.json"
+
+        if root_file.exists():
+            try:
+                with open(root_file, "r") as f:
+                    session_data = json.load(f)
+
+                # Only load if valid metadata exists
+                if "metadata" in session_data and "messages" in session_data:
+                    chat_history = session_data["messages"]
+                    user_interface.handle_system_message(
+                        f"Loaded {len(chat_history)} messages from previous session"
+                    )
+            except (json.JSONDecodeError, FileNotFoundError) as e:
+                user_interface.handle_system_message(
+                    f"Error loading conversation history: {str(e)}", markdown=False
+                )
 
     interrupt_count = 0
     last_interrupt_time = 0
