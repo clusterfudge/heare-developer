@@ -3,7 +3,7 @@ import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, TypedDict, Tuple, Optional, List
+from typing import Any, TypedDict, Tuple, Optional
 from uuid import uuid4
 
 from anthropic.types import Usage
@@ -383,4 +383,3 @@ def load_session_data(session_id: str) -> Tuple[list, list, Any, Optional[str]]:
         error_message = f"Error loading session: {str(e)}"
 
     return chat_history, usage_data, model_spec, error_message
-

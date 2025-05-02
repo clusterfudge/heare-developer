@@ -1,5 +1,4 @@
 import copy
-import json
 import os
 import time
 import random
@@ -238,23 +237,23 @@ def run(
     # If session ID is set, try to load the conversation history
     if agent_context.session_id:
         from heare.developer.context import load_session_data
-        
-        loaded_chat_history, loaded_usage, loaded_model_spec, error_message = load_session_data(agent_context.session_id)
-        
-        if error_message:
-            user_interface.handle_system_message(
-                f"Error loading session: {error_message}", markdown=False
-            )
-        else:
+
+        loaded_chat_history, loaded_usage, loaded_model_spec, error_message = (
+            load_session_data(agent_context.session_id)
+        )
+
+        if not error_message:
             chat_history = loaded_chat_history
-            
+
             # Update usage if available
             if loaded_usage:
                 agent_context.usage = loaded_usage
-                
+
             user_interface.handle_system_message(
                 f"Loaded {len(chat_history)} messages from previous session"
             )
+        else:
+            user_interface.handle_system_message("Starting new session.")
 
     interrupt_count = 0
     last_interrupt_time = 0

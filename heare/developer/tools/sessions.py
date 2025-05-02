@@ -351,4 +351,3 @@ def schema_get_session():
 # Set schema methods on tool functions
 list_sessions_tool.schema = schema_list_sessions
 get_session_tool.schema = schema_get_session
-
