@@ -454,6 +454,7 @@ def todo_write(context: AgentContext, todos: List[Dict[str, Any]]) -> str:
         try:
             # Ensure required fields exist
             if "content" not in item:
+                print("Error validating todo item: Missing required field 'content'")
                 continue
 
             # Use existing ID or create new one
@@ -462,12 +463,14 @@ def todo_write(context: AgentContext, todos: List[Dict[str, Any]]) -> str:
             # Parse status
             status_str = item.get("status", "pending").lower()
             if status_str not in [s.value for s in TodoStatus]:
+                print(f"Error validating todo item: Invalid status '{status_str}'")
                 continue
             status = TodoStatus(status_str)
 
             # Parse priority
             priority_str = item.get("priority", "medium").lower()
             if priority_str not in [p.value for p in TodoPriority]:
+                print(f"Error validating todo item: Invalid priority '{priority_str}'")
                 continue
             priority = TodoPriority(priority_str)
 
