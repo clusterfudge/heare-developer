@@ -123,8 +123,35 @@ def invoke_tool(context: "AgentContext", tool_use, tools: List[Callable] = None)
 
         tools = ALL_TOOLS
 
-    function_name = tool_use.name
-    arguments = tool_use.input
+    # Verify the tool_use object exists and has the required shape
+    if tool_use is None:
+        return {
+            "type": "tool_result",
+            "tool_use_id": "unknown_id",
+            "content": "Invalid tool specification: tool_use is None",
+        }
+    
+    # Check if tool_use has the necessary attributes
+    if not hasattr(tool_use, 'name') or not hasattr(tool_use, 'input'):
+        tool_use_id = getattr(tool_use, 'id', 'unknown_id')
+        return {
+            "type": "tool_result",
+            "tool_use_id": tool_use_id,
+            "content": "Invalid tool specification: missing required attributes 'name' or 'input'",
+        }
+    
+    # Extract tool information, now that we know the attributes exist
+    try:
+        function_name = tool_use.name
+        arguments = tool_use.input
+        tool_use_id = getattr(tool_use, 'id', 'unknown_id')
+    except (AttributeError, TypeError) as e:
+        # This should never happen due to the checks above, but just in case
+        return {
+            "type": "tool_result",
+            "tool_use_id": "unknown_id",
+            "content": f"Invalid tool specification: {str(e)}",
+        }
 
     # Create a mapping of tool names to functions
     tool_map = {func.__name__: func for func in tools}
@@ -134,7 +161,7 @@ def invoke_tool(context: "AgentContext", tool_use, tools: List[Callable] = None)
     if tool_func is None:
         return {
             "type": "tool_result",
-            "tool_use_id": tool_use.id,
+            "tool_use_id": tool_use_id,
             "content": f"Unknown function: {function_name}",
         }
 
