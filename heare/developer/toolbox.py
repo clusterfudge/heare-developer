@@ -159,17 +159,15 @@ class Toolbox:
 
         try:
             # Ensure tool_use has the expected attributes before proceeding
-            if not hasattr(tool_use, 'name') or not hasattr(tool_use, 'input'):
-                tool_use_id = getattr(tool_use, 'id', 'unknown_id')
+            if not hasattr(tool_use, "name") or not hasattr(tool_use, "input"):
+                tool_use_id = getattr(tool_use, "id", "unknown_id")
                 return {
                     "type": "tool_result",
                     "tool_use_id": tool_use_id,
-                    "content": f"Invalid tool specification: missing required attributes",
-                    "params": {
-                        "error": "invalid_tool_spec"
-                    }
+                    "content": "Invalid tool specification: missing required attributes",
+                    "params": {"error": "invalid_tool_spec"},
                 }
-                
+
             # Convert agent tools to a list matching tools format
             return invoke_tool(self.context, tool_use, tools=self.agent_tools)
         except DoSomethingElseError:
@@ -177,16 +175,13 @@ class Toolbox:
             raise
         except Exception as e:
             # Handle any other exceptions that might occur
-            tool_use_id = getattr(tool_use, 'id', 'unknown_id')
-            tool_name = getattr(tool_use, 'name', 'unknown_tool')
+            tool_use_id = getattr(tool_use, "id", "unknown_id")
+            tool_name = getattr(tool_use, "name", "unknown_tool")
             return {
                 "type": "tool_result",
                 "tool_use_id": tool_use_id,
                 "content": f"Error invoking tool '{tool_name}': {str(e)}",
-                "params": {
-                    "error": "tool_invocation_error",
-                    "details": str(e)
-                }
+                "params": {"error": "tool_invocation_error", "details": str(e)},
             }
 
     # CLI Tools

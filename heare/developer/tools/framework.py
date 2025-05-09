@@ -130,21 +130,21 @@ def invoke_tool(context: "AgentContext", tool_use, tools: List[Callable] = None)
             "tool_use_id": "unknown_id",
             "content": "Invalid tool specification: tool_use is None",
         }
-    
+
     # Check if tool_use has the necessary attributes
-    if not hasattr(tool_use, 'name') or not hasattr(tool_use, 'input'):
-        tool_use_id = getattr(tool_use, 'id', 'unknown_id')
+    if not hasattr(tool_use, "name") or not hasattr(tool_use, "input"):
+        tool_use_id = getattr(tool_use, "id", "unknown_id")
         return {
             "type": "tool_result",
             "tool_use_id": tool_use_id,
             "content": "Invalid tool specification: missing required attributes 'name' or 'input'",
         }
-    
+
     # Extract tool information, now that we know the attributes exist
     try:
         function_name = tool_use.name
         arguments = tool_use.input
-        tool_use_id = getattr(tool_use, 'id', 'unknown_id')
+        tool_use_id = getattr(tool_use, "id", "unknown_id")
     except (AttributeError, TypeError) as e:
         # This should never happen due to the checks above, but just in case
         return {

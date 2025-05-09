@@ -438,12 +438,12 @@ def run(
                     if part.type == "tool_use":
                         try:
                             # Safely extract tool information, handling potential missing attributes
-                            tool_name = getattr(part, 'name', 'unknown_tool')
-                            tool_input = getattr(part, 'input', {})
-                            
+                            tool_name = getattr(part, "name", "unknown_tool")
+                            tool_input = getattr(part, "input", {})
+
                             # Log the tool use
                             user_interface.handle_tool_use(tool_name, tool_input)
-                            
+
                             # Invoke the tool
                             result = toolbox.invoke_agent_tool(part)
                             agent_context.tool_result_buffer.append(result)
@@ -500,13 +500,12 @@ def run(
                             )
                             result = {
                                 "type": "tool_result",
-                                "tool_use_id": getattr(part, 'id', 'unknown_id'),
+                                "tool_use_id": getattr(part, "id", "unknown_id"),
                                 "content": error_message,
                             }
                             agent_context.tool_result_buffer.append(result)
                             user_interface.handle_tool_result(
-                                getattr(part, 'name', 'unknown_tool'), 
-                                result
+                                getattr(part, "name", "unknown_tool"), result
                             )
             elif final_message.stop_reason == "max_tokens":
                 user_interface.handle_assistant_message(
