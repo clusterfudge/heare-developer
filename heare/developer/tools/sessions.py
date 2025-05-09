@@ -164,6 +164,7 @@ def print_session_list(sessions: List[Dict]) -> None:
             session.get("root_dir", "Unknown"),
         )
 
+    # Print table without any explicit syntax highlighting (will rely on markdown)
     console.print(table)
 
 
