@@ -517,7 +517,8 @@ def run(
                 user_interface.handle_system_message(
                     "[bold yellow]"
                     "KeyboardInterrupt detected. Press Ctrl+C again to exit, or continue typing to resume."
-                    "[/bold yellow]"
+                    "[/bold yellow]",
+                    markdown=False,
                 )
         finally:
             # Flush with compaction based on setting

@@ -13,7 +13,6 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 from rich.table import Table
-from rich.syntax import Syntax
 from rich import box
 from rich.prompt import Prompt
 
@@ -240,13 +239,14 @@ class ConversationViewer:
                 # If content is simple, show it with word wrap
                 # Use rich markdown renderer instead of syntax highlighter
                 from rich.markdown import Markdown
+
                 if role == "assistant":
                     # Use markdown for assistant content
                     content_display = Markdown(content, word_wrap=True)
                 else:
                     # Use plain text for user content
                     content_display = Text(content, style="default")
-                    
+
                 message_table.add_row("Content", content_display)
 
             return Panel(

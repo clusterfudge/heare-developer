@@ -209,7 +209,7 @@ class Toolbox:
         content = "[bold cyan]Sandbox contents:[/bold cyan]\n" + "\n".join(
             f"[cyan]{item}[/cyan]" for item in sandbox_contents
         )
-        user_interface.handle_system_message(content)
+        user_interface.handle_system_message(content, markdown=False)
 
     def _dump(self, user_interface, sandbox, user_input, *args, **kwargs):
         """Render the system message, tool specs, and chat history"""
@@ -233,16 +233,14 @@ class Toolbox:
                     if isinstance(block, dict) and "text" in block:
                         content += f"\n{block['text']}"
 
-        user_interface.handle_system_message(content)
+        user_interface.handle_system_message(content, markdown=False)
 
     def _exec(self, user_interface, sandbox, user_input, *args, **kwargs):
         """Execute a bash command and optionally add it to tool result buffer"""
         command = user_input[5:].strip()  # Remove '/exec' from the beginning
         result = self._run_bash_command(command)
 
-        user_interface.handle_system_message(
-            f"[bold cyan]Command Output:[/bold cyan]\n{result}"
-        )
+        user_interface.handle_system_message(f"Command Output:\n{result}")
 
         add_to_buffer = (
             user_interface.get_user_input(
@@ -261,9 +259,7 @@ class Toolbox:
         """Generate and execute a commit message"""
         # Stage all unstaged changes
         stage_result = self._run_bash_command("git add -A")
-        user_interface.handle_system_message(
-            "[bold green]Staged all changes:[/bold green]\n" + stage_result
-        )
+        user_interface.handle_system_message("Staged all changes:\n" + stage_result)
 
         # Commit the changes
         result = run_commit()
