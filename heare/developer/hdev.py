@@ -15,6 +15,7 @@ from prompt_toolkit.history import FileHistory
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.document import Document
 
+from heare.developer import personas
 from heare.developer.agent import run
 from heare.developer.context import AgentContext
 from heare.developer.models import MODEL_MAP
@@ -22,6 +23,8 @@ from heare.developer.sandbox import SandboxMode
 from heare.developer.user_interface import UserInterface
 from heare.developer.toolbox import Toolbox
 from prompt_toolkit.completion import Completer, WordCompleter, Completion
+
+from heare.developer.utils import wrap_text_as_content_block
 
 SANDBOX_MODE_MAP = {mode.name.lower(): mode for mode in SandboxMode}
 SANDBOX_MODE_MAP["dwr"] = SandboxMode.ALLOW_ALL
@@ -515,6 +518,10 @@ def main(args: List[str]):
         "--session-id",
         help="Session ID to resume. This will load the session's conversation history.",
     )
+    arg_parser.add_argument(
+        "--persona",
+        choices=personas.names(),
+    )
     args = arg_parser.parse_args(args[1:])  # Skip the program name in args[0]
 
     # Check for session ID in environment variable if not specified in args
@@ -570,9 +577,16 @@ def main(args: List[str]):
         session_id=args.session_id,
     )
 
+    system_block: dict[str, Any] | None = (
+        wrap_text_as_content_block(personas.for_name(args.persona))
+        if args.persona
+        else None
+    )
+
     run(
         agent_context=context,
         initial_prompt=initial_prompt,
+        system_prompt=system_block,
         single_response=bool(initial_prompt),
         enable_compaction=not args.disable_compaction,
     )
