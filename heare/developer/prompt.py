@@ -77,7 +77,7 @@ def create_system_message(
     if include_memory and agent_context.memory_manager.get_tree(depth=1):
         system_message = "\n\nYou have a memory system with which you can interact. Here are the current top-level topics\n\n"
         system_message += "<memory_topics>\n"
-        for topic in agent_context.memory_manager.get_tree(depth=1).keys():
+        for topic in agent_context.memory_manager.get_tree(depth=1)["items"]:
             system_message += topic + "\n"
         system_message += "</memory_topics>\n"
         sections.append({"type": "text", "text": system_message})

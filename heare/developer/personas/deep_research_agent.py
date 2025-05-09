@@ -5,25 +5,7 @@ Using local information (from the file system), connected datasources (like mail
 and external data sources (web search), construct a detailed research artifact.
 """
 
-from heare.developer.context import AgentContext
-from heare.developer.tools.framework import tool
-from heare.developer.tools.subagent import run_agent
-
-# Tools available to the deep research agent
-DEEP_RESEARCH_TOOLS = [
-    "read_file",
-    "write_file",
-    "list_directory",
-    "run_bash_command",
-    "edit_file",
-    "web_search",
-    "safe_curl",
-    "python_repl",
-    "agent",
-]
-
-# System prompt for the deep research agent
-DEEP_RESEARCH_SYSTEM_PROMPT = """
+PERSONA = """
 You are a Deep Research Agent specializing in comprehensive research and document creation.
 Your task is to construct detailed research artifacts by collecting, analyzing, and synthesizing
 information from various sources.
@@ -65,29 +47,3 @@ creation, information gathering for individual sections, and editorial review.
 Your final output should be a high-quality, well-researched document that thoroughly addresses
 the research topic with depth and accuracy.
 """
-
-
-@tool
-def deep_research_agent(context: AgentContext, prompt: str):
-    """
-    Deep Research Agent: Create comprehensive research documents by gathering information
-    from multiple sources and synthesizing it into a structured, thorough analysis.
-
-    This agent will:
-    - Clarify research requirements as needed
-    - Create an outline for the research
-    - Gather information from local files, web searches, and other sources
-    - Write comprehensive sections following the outline
-    - Review and edit the document for quality
-    - Save the completed research as a markdown file
-
-    Args:
-        prompt: The research topic or question to investigate
-    """
-    return run_agent(
-        context=context,
-        prompt=prompt,
-        tool_names=DEEP_RESEARCH_TOOLS,
-        system=DEEP_RESEARCH_SYSTEM_PROMPT,
-        model="smart",  # Use a more powerful model for complex research tasks
-    )
