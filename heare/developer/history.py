@@ -238,13 +238,16 @@ class ConversationViewer:
                 message_table.add_row("Content", text)
             else:
                 # If content is simple, show it with word wrap
-                syntax = Syntax(
-                    content,
-                    "markdown" if role == "assistant" else "text",
-                    theme="monokai",
-                    word_wrap=True,
-                )
-                message_table.add_row("Content", syntax)
+                # Use rich markdown renderer instead of syntax highlighter
+                from rich.markdown import Markdown
+                if role == "assistant":
+                    # Use markdown for assistant content
+                    content_display = Markdown(content, word_wrap=True)
+                else:
+                    # Use plain text for user content
+                    content_display = Text(content, style="default")
+                    
+                message_table.add_row("Content", content_display)
 
             return Panel(
                 message_table,

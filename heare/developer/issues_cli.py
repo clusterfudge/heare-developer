@@ -534,14 +534,43 @@ def list_issues(user_input: str = "", **kwargs) -> str:
         )
 
         # Display issue details in a panel
-        console.print(
-            Panel(
-                issue_formatted,
-                title=f"Issue #{issue_details.get('sequence_id')}: {issue_details.get('name')}",
-                border_style="green",
-                expand=True,
+        # Convert rich formatting to markdown for display
+        from rich.markdown import Markdown
+        
+        # Check if the issue_formatted contains rich styling tags
+        if "[" in issue_formatted and "]" in issue_formatted:
+            # Replace common rich text styles with markdown equivalents
+            # This is a simple conversion and might need refinement
+            markdown_formatted = issue_formatted.replace("[bold]", "**").replace("[/bold]", "**")
+            markdown_formatted = markdown_formatted.replace("[italic]", "_").replace("[/italic]", "_")
+            markdown_formatted = markdown_formatted.replace("[underline]", "__").replace("[/underline]", "__")
+            
+            # Handle colors by removing them (since markdown doesn't have colors)
+            import re
+            markdown_formatted = re.sub(r"\[bold \w+\]", "**", markdown_formatted)
+            markdown_formatted = re.sub(r"\[/bold \w+\]", "**", markdown_formatted)
+            markdown_formatted = re.sub(r"\[\w+\]", "", markdown_formatted)
+            markdown_formatted = re.sub(r"\[/\w+\]", "", markdown_formatted)
+            
+            console.print(
+                Panel(
+                    Markdown(markdown_formatted),
+                    title=f"Issue #{issue_details.get('sequence_id')}: {issue_details.get('name')}",
+                    border_style="green",
+                    expand=True,
+                )
             )
-        )
+        else:
+            # If no rich formatting, use as is
+            console.print(
+                Panel(
+                    Markdown(issue_formatted),
+                    title=f"Issue #{issue_details.get('sequence_id')}: {issue_details.get('name')}",
+                    border_style="green",
+                    expand=True,
+                )
+            )
+        
 
     except Exception as e:
         print_message(f"Error browsing issues: {str(e)}")

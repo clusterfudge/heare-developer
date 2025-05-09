@@ -105,7 +105,8 @@ def run_agent(
                     if isinstance(message["content"], str):
                         return message["content"]
                     elif isinstance(message["content"], list):
-                        # Concatenate all text blocks
+                        # Concatenate all text blocks and ensure proper markdown formatting
+                        # This ensures that code blocks and other formatting is preserved
                         return "".join(
                             block.text
                             for block in message["content"]

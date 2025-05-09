@@ -155,7 +155,7 @@ class CLIUserInterface(UserInterface):
 
         if markdown:
             # For system messages, use yellow styling but still treat as markdown
-            content = Markdown(message, code_theme="monokai")
+            content = Markdown(message)
         else:
             content = message
 
@@ -171,7 +171,7 @@ class CLIUserInterface(UserInterface):
         from rich.markdown import Markdown
 
         if markdown:
-            content = Markdown(message, code_theme="monokai")
+            content = Markdown(message)
         else:
             content = message
 
@@ -279,7 +279,7 @@ class CLIUserInterface(UserInterface):
         # Create the result section - treat content as markdown for code blocks, etc.
         result_header = Text("Result:", style="bold green")
         result_content = (
-            Markdown(content, code_theme="monokai")
+            Markdown(content)
             if isinstance(content, str) and markdown
             else Text(str(content))
         )
