@@ -165,7 +165,6 @@ class Toolbox:
                     "type": "tool_result",
                     "tool_use_id": tool_use_id,
                     "content": "Invalid tool specification: missing required attributes",
-                    "params": {"error": "invalid_tool_spec"},
                 }
 
             # Convert agent tools to a list matching tools format
@@ -181,7 +180,6 @@ class Toolbox:
                 "type": "tool_result",
                 "tool_use_id": tool_use_id,
                 "content": f"Error invoking tool '{tool_name}': {str(e)}",
-                "params": {"error": "tool_invocation_error", "details": str(e)},
             }
 
     # CLI Tools

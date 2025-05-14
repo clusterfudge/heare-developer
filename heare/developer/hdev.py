@@ -264,20 +264,10 @@ class CLIUserInterface(UserInterface):
             else "File operation completed"
         )
 
-        # Format parameters if they exist
-        params_str = ""
-        if "params" in result:
-            params_str = "\n".join(
-                f"  {key}: {value}" for key, value in result["params"].items()
-            )
+        # Format parameters if they exist (removing this could cause compatibility issues)
 
-        # Create the header section with command and parameters
-        header = Group(
-            Text("Command:", style="bold blue"),
-            Text(f"  {name}"),
-            Text("Parameters:", style="bold cyan"),
-            Text(f"{params_str}"),
-        )
+        # Create the header section with command name only (parameters section removed)
+        header = Group(Text("Command:", style="bold blue"), Text(f"  {name}"))
 
         # Create the result section - treat content as markdown for code blocks, etc.
         result_header = Text("Result:", style="bold green")
