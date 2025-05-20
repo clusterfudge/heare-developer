@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import patch, MagicMock
 
+from anthropic.types import TextBlock
 from heare.developer.agent import run
 
 
@@ -12,6 +13,16 @@ class TestMaxTokensContinuation(unittest.TestCase):
         # Create a mock final_message with stop_reason="max_tokens"
         mock_final_message = MagicMock()
         mock_final_message.stop_reason = "max_tokens"
+
+        # Mock the content of the final message
+        mock_final_message.content = [
+            MagicMock(spec=TextBlock, text="This is an incomplete response")
+        ]
+        # Ensure text attribute is properly accessible
+        mock_final_message.content[0].text = "This is an incomplete response"
+        mock_final_message.content[0].__class__.__name__ = "TextBlock"
+        # Initialize other essential attributes that might be accessed
+        mock_final_message.usage = MagicMock()
 
         # Create a mock agent_context
         mock_agent_context = MagicMock()
@@ -64,9 +75,22 @@ class TestMaxTokensContinuation(unittest.TestCase):
 
             self.assertTrue(found_max_tokens_message, "Max tokens message not found")
 
-            # Check if a continuation prompt was added to the tool_result_buffer
-            self.assertEqual(len(mock_agent_context.tool_result_buffer), 1)
+            # Check if the last message was removed from chat history if it was added
+            mock_agent_context.chat_history.pop.assert_called_once()
+
+            # Check if content from the final message plus continuation prompt was added to the tool_result_buffer
+            # We expect 2 items: the original text and the continuation prompt
+            self.assertEqual(len(mock_agent_context.tool_result_buffer), 2)
+
+            # First item should be the content from the final message
             self.assertEqual(mock_agent_context.tool_result_buffer[0]["type"], "text")
+            self.assertEqual(
+                mock_agent_context.tool_result_buffer[0]["text"],
+                "This is an incomplete response",
+            )
+
+            # Second item should be the continuation prompt
+            self.assertEqual(mock_agent_context.tool_result_buffer[1]["type"], "text")
             self.assertIn(
-                "continue", mock_agent_context.tool_result_buffer[0]["text"].lower()
+                "continue", mock_agent_context.tool_result_buffer[1]["text"].lower()
             )

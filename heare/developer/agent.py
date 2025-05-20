@@ -512,10 +512,41 @@ def run(
                     "[bold yellow]Hit max tokens. I'll continue from where I left off...[/bold yellow]"
                 )
 
+                # Don't add the partial message to chat history (remove it if necessary)
+                if (
+                    agent_context.chat_history
+                    and agent_context.chat_history[-1]["role"] == "assistant"
+                ):
+                    agent_context.chat_history.pop()
+
+                # Add the partial message content to the tool result buffer
+                final_content = final_message.content
+                if isinstance(final_content, list):
+                    for message in final_content:
+                        if isinstance(message, TextBlock):
+                            # Add text blocks to the tool result buffer
+                            if message.text.strip():
+                                agent_context.tool_result_buffer.append(
+                                    {"type": "text", "text": message.text.strip()}
+                                )
+                        elif getattr(message, "type", None) == "tool_use":
+                            # Add partial tool_use blocks as text to avoid API errors
+                            tool_name = getattr(message, "name", "unknown_tool")
+                            tool_input = getattr(message, "input", {})
+                            tool_text = f"Partial tool use detected: {tool_name} with input: {tool_input}"
+                            agent_context.tool_result_buffer.append(
+                                {"type": "text", "text": tool_text}
+                            )
+                else:
+                    # If it's a string, add it directly
+                    agent_context.tool_result_buffer.append(
+                        {"type": "text", "text": final_content}
+                    )
+
                 # Add a continuation prompt to the tool result buffer
                 continuation_prompt = {
                     "type": "text",
-                    "text": "Please continue from where you left off.",
+                    "text": "Please continue from where you left off. If you were in the middle of a tool use, please complete it.",
                 }
                 agent_context.tool_result_buffer.append(continuation_prompt)
 
