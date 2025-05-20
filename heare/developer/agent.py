@@ -509,8 +509,15 @@ def run(
                             )
             elif final_message.stop_reason == "max_tokens":
                 user_interface.handle_assistant_message(
-                    "[bold red]Hit max tokens.[/bold red]"
+                    "[bold yellow]Hit max tokens. I'll continue from where I left off...[/bold yellow]"
                 )
+
+                # Add a continuation prompt to the tool result buffer
+                continuation_prompt = {
+                    "type": "text",
+                    "text": "Please continue from where you left off.",
+                }
+                agent_context.tool_result_buffer.append(continuation_prompt)
 
             interrupt_count = 0
             last_interrupt_time = 0
