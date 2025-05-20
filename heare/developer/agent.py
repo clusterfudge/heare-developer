@@ -183,6 +183,26 @@ def _inline_latest_file_mentions(
     return results
 
 
+def _continuation_message(final_message: MessageParam) -> MessageParam | None:
+    continue_message = {
+        "type": "text",
+        "text": "In a previous attempt, you hit max tokens. Please try to be more concise. Attempts of 3: ",
+    }
+    last_content_block = final_message["content"][-1]
+    if last_content_block["type"] != "text" or not last_content_block[
+        "text"
+    ].startswith(continue_message["text"]):
+        final_message["content"].append(continue_message)
+    else:
+        continue_message = final_message["content"][-1]
+
+    continue_message["text"] += "[X]"
+    if "[X][X][X]" in continue_message["text"]:
+        return None  # we've already had 3 attempts, stop trying. :(
+
+    return final_message
+
+
 def run(
     agent_context: AgentContext,
     initial_prompt: str = None,
@@ -250,6 +270,7 @@ def run(
             if (
                 agent_context.chat_history
                 and agent_context.chat_history[-1]["role"] == "user"
+                and not agent_context.tool_result_buffer
             ):
                 pass
             elif (
@@ -508,9 +529,28 @@ def run(
                                 getattr(part, "name", "unknown_tool"), result
                             )
             elif final_message.stop_reason == "max_tokens":
-                user_interface.handle_assistant_message(
-                    "[bold red]Hit max tokens.[/bold red]"
-                )
+                # Don't add the partial message to chat history (remove it if necessary)
+                if (
+                    agent_context.chat_history
+                    and agent_context.chat_history[-1]["role"] == "assistant"
+                ):
+                    agent_context.chat_history.pop()
+
+                retry_message = _continuation_message(agent_context.chat_history[-1])
+
+                if retry_message:
+                    user_interface.handle_assistant_message(
+                        "[bold yellow]Hit max tokens. I'll continue from where I left off...[/bold yellow]"
+                    )
+
+                    agent_context.chat_history[len(agent_context.chat_history) - 2] = (
+                        retry_message
+                    )
+                else:
+                    user_interface.handle_assistant_message(
+                        "[bold yellow]Hit max tokens. Was unable to continue after multiple attempts.[/bold yellow]"
+                    )
+                    agent_context.chat_history.pop()
 
             interrupt_count = 0
             last_interrupt_time = 0
