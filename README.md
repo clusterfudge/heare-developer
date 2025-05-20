@@ -101,18 +101,69 @@ python -m heare.developer.cli [sandbox_path]
 
 ## Development
 
+### Environment Setup
+
+1. The project uses Python 3.11+. Make sure you have the appropriate Python version installed.
+
+2. Clone the repository:
+   ```
+   git clone https://github.com/clusterfudge/heare-developer.git
+   cd heare-developer
+   ```
+
+3. Set up a development environment using `uv` (recommended):
+   ```bash
+   # Install uv if you don't have it
+   pip install uv
+
+   # Create and activate a virtual environment
+   uv venv
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+   
+   # Install dependencies including development tools
+   uv pip install -e ".[dev]"
+   ```
+
+   Alternatively, you can use pip:
+   ```bash
+   # Create and activate a virtual environment
+   python -m venv .venv
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+   
+   # Install dependencies including development tools
+   pip install -e ".[dev]"
+   ```
+
+4. Install pre-commit hooks:
+   ```bash
+   pre-commit install
+   ```
+   
+   This sets up automatic code quality checks that run before each commit, including:
+   - autoflake: Removes unused imports and variables
+   - ruff: Lints and fixes code issues
+   - ruff-format: Formats code consistently
+
+5. Run tests to verify your setup:
+   ```bash
+   pytest
+   ```
+
 The project follows a modular architecture:
 
 - `heare/developer/`: Core CLI and developer tools
 - `heare/pm/`: Project management functionality (WIP)
 - `tests/`: Test suite
 
+### Contributing
+
 To contribute:
 
 1. Fork the repository
 2. Create a feature branch
-3. Add tests for new functionality
-4. Submit a pull request
+3. Make your changes, adding tests for new functionality
+4. Ensure all tests pass and pre-commit checks succeed
+5. Submit a pull request
 
 ## License
 
