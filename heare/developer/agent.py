@@ -183,6 +183,26 @@ def _inline_latest_file_mentions(
     return results
 
 
+def _continuation_message(final_message: MessageParam) -> MessageParam | None:
+    continue_message = {
+        "type": "text",
+        "text": "In a previous attempt, you hit max tokens. Please try to be more concise. Attempts of 3: ",
+    }
+    last_content_block = final_message["content"][-1]
+    if last_content_block["type"] != "text" or not last_content_block[
+        "text"
+    ].startswith(continue_message["text"]):
+        final_message["content"].append(continue_message)
+    else:
+        continue_message = final_message["content"][-1]
+
+    continue_message["text"] += "[X]"
+    if "[X][X][X]" in continue_message["text"]:
+        return None  # we've already had 3 attempts, stop trying. :(
+
+    return final_message
+
+
 def run(
     agent_context: AgentContext,
     initial_prompt: str = None,
@@ -250,6 +270,7 @@ def run(
             if (
                 agent_context.chat_history
                 and agent_context.chat_history[-1]["role"] == "user"
+                and not agent_context.tool_result_buffer
             ):
                 pass
             elif (
@@ -508,10 +529,6 @@ def run(
                                 getattr(part, "name", "unknown_tool"), result
                             )
             elif final_message.stop_reason == "max_tokens":
-                user_interface.handle_assistant_message(
-                    "[bold yellow]Hit max tokens. I'll continue from where I left off...[/bold yellow]"
-                )
-
                 # Don't add the partial message to chat history (remove it if necessary)
                 if (
                     agent_context.chat_history
@@ -519,36 +536,21 @@ def run(
                 ):
                     agent_context.chat_history.pop()
 
-                # Add the partial message content to the tool result buffer
-                final_content = final_message.content
-                if isinstance(final_content, list):
-                    for message in final_content:
-                        if isinstance(message, TextBlock):
-                            # Add text blocks to the tool result buffer
-                            if message.text.strip():
-                                agent_context.tool_result_buffer.append(
-                                    {"type": "text", "text": message.text.strip()}
-                                )
-                        elif getattr(message, "type", None) == "tool_use":
-                            # Add partial tool_use blocks as text to avoid API errors
-                            tool_name = getattr(message, "name", "unknown_tool")
-                            tool_input = getattr(message, "input", {})
-                            tool_text = f"Partial tool use detected: {tool_name} with input: {tool_input}"
-                            agent_context.tool_result_buffer.append(
-                                {"type": "text", "text": tool_text}
-                            )
-                else:
-                    # If it's a string, add it directly
-                    agent_context.tool_result_buffer.append(
-                        {"type": "text", "text": final_content}
+                retry_message = _continuation_message(agent_context.chat_history[-1])
+
+                if retry_message:
+                    user_interface.handle_assistant_message(
+                        "[bold yellow]Hit max tokens. I'll continue from where I left off...[/bold yellow]"
                     )
 
-                # Add a continuation prompt to the tool result buffer
-                continuation_prompt = {
-                    "type": "text",
-                    "text": "Please continue from where you left off. If you were in the middle of a tool use, please complete it.",
-                }
-                agent_context.tool_result_buffer.append(continuation_prompt)
+                    agent_context.chat_history[len(agent_context.chat_history) - 2] = (
+                        retry_message
+                    )
+                else:
+                    user_interface.handle_assistant_message(
+                        "[bold yellow]Hit max tokens. Was unable to continue after multiple attempts.[/bold yellow]"
+                    )
+                    agent_context.chat_history.pop()
 
             interrupt_count = 0
             last_interrupt_time = 0
