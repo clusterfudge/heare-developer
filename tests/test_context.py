@@ -3,7 +3,8 @@ from unittest.mock import Mock
 from uuid import uuid4
 from anthropic.types import Usage
 
-from heare.developer.context import AgentContext, ModelSpec
+from heare.developer.context import AgentContext
+from heare.developer.models import ModelSpec
 
 
 class TestAgentContext(unittest.TestCase):

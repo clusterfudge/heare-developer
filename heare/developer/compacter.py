@@ -14,6 +14,8 @@ import anthropic
 from anthropic.types import MessageParam
 from dotenv import load_dotenv
 
+from heare.developer.models import model_names, get_model
+
 # Default threshold ratio of model's context window to trigger compaction
 DEFAULT_COMPACTION_THRESHOLD_RATIO = 0.85  # Trigger compaction at 85% of context window
 
@@ -44,11 +46,10 @@ class ConversationCompacter:
         self.threshold_ratio = threshold_ratio
 
         # Get model context window information
-        from heare.developer.models import MODEL_MAP
 
         self.model_context_windows = {
             model_data["title"]: model_data.get("context_window", 100000)
-            for model, model_data in MODEL_MAP.items()
+            for model_data in [get_model(ms) for ms in model_names()]
         }
 
         if client:

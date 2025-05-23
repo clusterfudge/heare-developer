@@ -3,11 +3,12 @@ import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, TypedDict, Optional
+from typing import Any, Optional
 from uuid import uuid4
 
 from anthropic.types import Usage, MessageParam
 
+from heare.developer.models import ModelSpec
 from heare.developer.sandbox import Sandbox, SandboxMode
 from heare.developer.user_interface import UserInterface
 from pydantic import BaseModel
@@ -23,14 +24,6 @@ class PydanticJSONEncoder(json.JSONEncoder):
             # For Pydantic v1
             return obj.dict()
         return super().default(obj)
-
-
-class ModelSpec(TypedDict):
-    title: str
-    pricing: dict[str, float]
-    cache_pricing: dict[str, float]
-    max_tokens: int
-    context_window: int
 
 
 @dataclass
@@ -64,7 +57,7 @@ class AgentContext:
 
     @staticmethod
     def create(
-        model_spec: dict[str, Any],
+        model_spec: ModelSpec,
         sandbox_mode: SandboxMode,
         sandbox_contents: list[str],
         user_interface: UserInterface,

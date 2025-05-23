@@ -167,7 +167,7 @@ class TestConversationCompaction(unittest.TestCase):
 
         # Create a model spec
         self.model_spec = {
-            "title": "claude-3-5-sonnet-latest",
+            "title": "claude-opus-4-20250514",
             "pricing": {"input": 3.00, "output": 15.00},
             "cache_pricing": {"write": 3.75, "read": 0.30},
             "max_tokens": 8192,
@@ -191,9 +191,7 @@ class TestConversationCompaction(unittest.TestCase):
         # The client object should already have the messages.count_tokens method properly set up
 
         # Count tokens
-        tokens = compacter.count_tokens(
-            self.sample_messages, "claude-3-5-sonnet-latest"
-        )
+        tokens = compacter.count_tokens(self.sample_messages, "sonnet")
 
         # Assert token count was called
         self.assertTrue(mock_client.count_tokens_called)

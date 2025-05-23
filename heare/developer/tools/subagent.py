@@ -29,8 +29,9 @@ def agent(
         model: optional model alias to use for the sub-agent. Supported aliases:
             - "light": Use Claude 3.5 Haiku - faster and more cost-effective for simple tasks like
                        information retrieval, basic formatting, or straightforward reasoning
-            - "smart": Use Claude 3.7 Sonnet - better for complex tasks requiring deeper reasoning,
+            - "smart": Use Claude 4 Sonnet - better for complex tasks requiring deeper reasoning,
                        detailed analysis, and more sophisticated responses
+            - "advances": Use Claude 4 Opus - most advanced tasks requiring deeper reasoning, use sparingly.
 
               If not provided or invalid, uses the parent context's model.
     """
@@ -70,7 +71,8 @@ def run_agent(
             # Define model aliases to model keys in MODEL_MAP
             model_aliases = {
                 "light": "haiku",  # Faster, more cost-effective model
-                "smart": "sonnet-3.7",  # More capable for complex reasoning
+                "smart": "sonnet",  # More capable for complex reasoning
+                "advanced": "opus",  # most advanced, most expensive
             }
 
             # Check if the provided model alias is valid
