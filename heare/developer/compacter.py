@@ -65,7 +65,7 @@ class ConversationCompacter:
 
     def count_tokens(self, messages: List[MessageParam], model: str) -> int:
         """Count tokens in a conversation using Anthropic's token counting API.
-        
+
         NOTE: This method only counts tokens for messages and is deprecated.
         Use count_tokens_full_context() for accurate token counting that includes
         system prompt and tools.
@@ -113,7 +113,7 @@ class ConversationCompacter:
 
     def count_tokens_full_context(self, context_dict: dict, model: str) -> int:
         """Count tokens for the full context sent to the API.
-        
+
         This method accurately counts tokens for the complete API call including
         system prompt, tools, and messages - fixing HDEV-61.
 
@@ -132,9 +132,9 @@ class ConversationCompacter:
                 model=model,
                 system=context_dict["system"],
                 messages=context_dict["messages"],
-                tools=context_dict["tools"] if context_dict["tools"] else None
+                tools=context_dict["tools"] if context_dict["tools"] else None,
             )
-            
+
             # Extract token count from response
             if hasattr(response, "token_count"):
                 return response.token_count
@@ -154,7 +154,7 @@ class ConversationCompacter:
                 else:
                     print(f"Token count not found in response: {response}")
                     return self._estimate_full_context_tokens(context_dict)
-                    
+
         except Exception as e:
             print(f"Error counting tokens for full context: {e}")
             # Fallback to estimation
@@ -162,31 +162,34 @@ class ConversationCompacter:
 
     def _estimate_full_context_tokens(self, context_dict: dict) -> int:
         """Estimate token count for full context as a fallback.
-        
+
         Args:
             context_dict: Dict with 'system', 'tools', and 'messages' keys
-            
+
         Returns:
             int: Estimated token count
         """
         total_chars = 0
-        
+
         # Count system message characters
         if context_dict.get("system"):
             for block in context_dict["system"]:
                 if isinstance(block, dict) and block.get("type") == "text":
                     total_chars += len(block.get("text", ""))
-        
+
         # Count tools characters
         if context_dict.get("tools"):
             import json
+
             total_chars += len(json.dumps(context_dict["tools"]))
-        
+
         # Count messages characters
         if context_dict.get("messages"):
-            messages_str = self._messages_to_string(context_dict["messages"], for_summary=False)
+            messages_str = self._messages_to_string(
+                context_dict["messages"], for_summary=False
+            )
             total_chars += len(messages_str)
-        
+
         # Rough estimate: 1 token per 3-4 characters for English text
         return int(total_chars / 3.5)
 
@@ -271,7 +274,9 @@ class ConversationCompacter:
         words = len(text.split())
         return int(words / 0.75)
 
-    def should_compact(self, messages: List[MessageParam], model: str, context_dict: dict = None) -> bool:
+    def should_compact(
+        self, messages: List[MessageParam], model: str, context_dict: dict = None
+    ) -> bool:
         """Check if a conversation should be compacted.
 
         Args:
@@ -322,12 +327,14 @@ class ConversationCompacter:
             # Fallback to old method for backward compatibility
             original_token_count = self.count_tokens(messages, model)
             messages_for_summary = messages
-            
+
         original_message_count = len(messages_for_summary)
 
         # Convert messages to a string for the summarization prompt
         # This will exclude file content blocks from the summary
-        conversation_str = self._messages_to_string(messages_for_summary, for_summary=True)
+        conversation_str = self._messages_to_string(
+            messages_for_summary, for_summary=True
+        )
 
         # Create summarization prompt
         system_prompt = """
@@ -403,7 +410,9 @@ class ConversationCompacter:
 
         # Optionally, retain the most recent few messages for immediate context
         # This is configurable - here we're adding the last user/assistant exchange
-        messages_to_use = context_dict.get("messages", messages) if context_dict else messages
+        messages_to_use = (
+            context_dict.get("messages", messages) if context_dict else messages
+        )
         if len(messages_to_use) >= 2:
             new_messages.extend(messages_to_use[-2:])
 

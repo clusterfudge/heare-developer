@@ -438,12 +438,16 @@ def run(
 
                     # Count tokens using full context for accuracy (HDEV-61 fix)
                     try:
-                        full_context = agent_context.get_full_context_for_api(tool_names)
+                        full_context = agent_context.get_full_context_for_api(
+                            tool_names
+                        )
                         conversation_size = compacter.count_tokens_full_context(
                             full_context, model_name
                         )
                     except Exception as e:
-                        print(f"Error with full context token counting, falling back: {e}")
+                        print(
+                            f"Error with full context token counting, falling back: {e}"
+                        )
                         # Fallback to old method
                         conversation_size = compacter.count_tokens(
                             agent_context.chat_history, model_name
