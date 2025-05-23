@@ -366,17 +366,23 @@ def run(
                                 compacter = ConversationCompacter()
                                 model_name = model["title"]
 
-                                # Get context window size for this model
-                                context_window_for_display = (
-                                    compacter.model_context_windows.get(
-                                        model_name, 100000
+                                # Check if conversation has incomplete tool_use before counting tokens
+                                # This prevents the "tool_use ids found without tool_result blocks" error
+                                if compacter._has_incomplete_tool_use(agent_context.chat_history):
+                                    # Skip token counting for incomplete states
+                                    pass
+                                else:
+                                    # Get context window size for this model
+                                    context_window_for_display = (
+                                        compacter.model_context_windows.get(
+                                            model_name, 100000
+                                        )
                                     )
-                                )
 
-                                # Count tokens for complete conversation
-                                conversation_size_for_display = compacter.count_tokens(
-                                    agent_context, model_name
-                                )
+                                    # Count tokens for complete conversation
+                                    conversation_size_for_display = compacter.count_tokens(
+                                        agent_context, model_name
+                                    )
 
                                 # Store for later display
                                 agent_context._last_conversation_size = (
