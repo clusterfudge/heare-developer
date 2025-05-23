@@ -18,7 +18,7 @@ from prompt_toolkit.document import Document
 from heare.developer import personas
 from heare.developer.agent import run
 from heare.developer.context import AgentContext
-from heare.developer.models import MODEL_MAP
+from heare.developer.models import model_names, get_model
 from heare.developer.sandbox import SandboxMode
 from heare.developer.user_interface import UserInterface
 from heare.developer.toolbox import Toolbox
@@ -474,9 +474,7 @@ class CustomCompleter(Completer):
 def main(args: List[str]):
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument("sandbox", nargs="*")
-    arg_parser.add_argument(
-        "--model", default="sonnet-3.7", choices=list(MODEL_MAP.keys())
-    )
+    arg_parser.add_argument("--model", default="sonnet", choices=model_names())
     arg_parser.add_argument(
         "--summary-cache",
         default=os.path.join(os.path.expanduser("~"), ".cache/heare.summary_cache"),
@@ -560,7 +558,7 @@ def main(args: List[str]):
         user_interface.display_welcome_message()
 
     context = AgentContext.create(
-        model_spec=MODEL_MAP.get(args.model),
+        model_spec=get_model(args.model),
         sandbox_mode=args.sandbox_mode,
         sandbox_contents=args.sandbox,
         user_interface=user_interface,

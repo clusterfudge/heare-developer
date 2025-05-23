@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import patch, MagicMock
 
 from heare.developer.context import AgentContext
-from heare.developer.models import MODEL_MAP
+from heare.developer.models import get_model
 from heare.developer.tools.subagent import agent
 from heare.developer.user_interface import UserInterface
 from heare.developer.sandbox import Sandbox
@@ -80,7 +80,7 @@ def test_agent_tool_with_custom_model(agent_context, mock_agent_run):
     context_arg = mock_agent_run.call_args.kwargs["agent_context"]
 
     # Verify the model was changed in the sub-agent context to the haiku model
-    assert context_arg.model_spec["title"] == MODEL_MAP["haiku"]["title"]
+    assert context_arg.model_spec["title"] == get_model("haiku")["title"]
 
     # The original context should remain unchanged
     assert agent_context.model_spec["title"] == "claude-3-sonnet-20240229"
@@ -106,7 +106,7 @@ def test_agent_tool_with_smart_model(agent_context, mock_agent_run):
     context_arg = mock_agent_run.call_args.kwargs["agent_context"]
 
     # Verify the model was set to the 'smart' alias's corresponding model
-    assert context_arg.model_spec["title"] == MODEL_MAP["sonnet-3.7"]["title"]
+    assert context_arg.model_spec["title"] == get_model("sonnet")["title"]
 
     # The result should be the assistant's response
     assert result == "test response with smart model"
