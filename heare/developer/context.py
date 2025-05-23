@@ -220,48 +220,16 @@ class AgentContext:
         Args:
             chat_history: The chat history to save
             compact: Whether to check and perform compaction on long conversations
+                    Note: As of the compaction transition update, compaction is now
+                    handled explicitly in the agent loop, so this parameter is
+                    maintained for backward compatibility but typically not used.
         """
         if not chat_history:
             return
 
-        # Perform compaction if needed
+        # Note: Compaction is now handled explicitly in the agent loop rather than
+        # as a side effect of flush. This allows for proper session transitions.
         compaction_summary = None
-        if compact and self.parent_session_id is None:  # Only compact root contexts
-            try:
-                from heare.developer.compacter import ConversationCompacter
-
-                compacter = ConversationCompacter()
-
-                # Check if conversation needs compaction using full context
-                model_name = self.model_spec.get("title", "claude-3-5-sonnet-latest")
-
-                # Check if conversation needs compaction using full context
-                if compacter.should_compact(self, model_name):
-                    # Create a compact version
-                    original_session_id = self.session_id
-                    chat_history, compaction_summary = compacter.compact_conversation(
-                        self, model_name
-                    )
-
-                    # If we compacted, we need to update the session_id
-                    # Preserve the relationship by adding metadata
-                    self.parent_session_id = original_session_id
-
-                    # Add a system log about compaction to the user interface if available
-                    if hasattr(self.user_interface, "handle_system_message"):
-                        self.user_interface.handle_system_message(
-                            f"[bold green]Conversation compacted: "
-                            f"{compaction_summary.original_message_count} messages, "
-                            f"{compaction_summary.original_token_count} tokens → "
-                            f"{compaction_summary.summary_token_count} tokens "
-                            f"(ratio: {compaction_summary.compaction_ratio:.2f})[/bold green]"
-                        )
-            except Exception as e:
-                # Log the error but continue with normal flushing
-                import traceback
-
-                print(f"Error during conversation compaction: {e}")
-                print(traceback.format_exc())
 
         # Base history directory
         history_dir = Path.home() / ".hdev" / "history"

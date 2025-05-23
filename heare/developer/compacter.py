@@ -31,6 +31,16 @@ class CompactionSummary:
     summary: str
 
 
+@dataclass
+class CompactionTransition:
+    """Information about transitioning to a new session after compaction."""
+    
+    original_session_id: str
+    new_session_id: str
+    compacted_messages: List[MessageParam]
+    summary: CompactionSummary
+
+
 class ConversationCompacter:
     """Handles the compaction of long conversations into summaries."""
 
@@ -387,3 +397,37 @@ class ConversationCompacter:
             new_messages.extend(messages_to_use[-2:])
 
         return new_messages, summary
+
+    def compact_and_transition(
+        self, agent_context, model: str
+    ) -> CompactionTransition | None:
+        """Check if compaction is needed and prepare transition info.
+
+        Args:
+            agent_context: AgentContext instance to check and potentially compact
+            model: Model name to use for token counting
+
+        Returns:
+            CompactionTransition if compaction occurred, None otherwise
+        """
+        if not self.should_compact(agent_context, model):
+            return None
+
+        # Generate compacted conversation
+        compacted_messages, summary = self.compact_conversation(agent_context, model)
+
+        if summary is None:
+            return None
+
+        # Create transition info
+        from uuid import uuid4
+        
+        original_session_id = agent_context.session_id
+        new_session_id = str(uuid4())
+
+        return CompactionTransition(
+            original_session_id=original_session_id,
+            new_session_id=new_session_id,
+            compacted_messages=compacted_messages,
+            summary=summary
+        )

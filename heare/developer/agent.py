@@ -183,6 +183,31 @@ def _inline_latest_file_mentions(
     return results
 
 
+def _apply_compaction_transition(
+    agent_context: AgentContext, transition
+) -> AgentContext:
+    """Apply a compaction transition to the agent context.
+    
+    Args:
+        agent_context: The current agent context
+        transition: CompactionTransition object with new session info
+        
+    Returns:
+        Updated agent context with compacted conversation
+    """
+    # Update session IDs to reflect the transition
+    agent_context.parent_session_id = transition.original_session_id
+    agent_context.session_id = transition.new_session_id
+    
+    # Replace chat history with compacted version
+    agent_context._chat_history = transition.compacted_messages.copy()
+    
+    # Clear tool result buffer for clean state
+    agent_context.tool_result_buffer.clear()
+    
+    return agent_context
+
+
 def _continuation_message(final_message: MessageParam) -> MessageParam | None:
     continue_message = {
         "type": "text",
@@ -267,6 +292,42 @@ def run(
 
     while True:
         try:
+            # Check for compaction when conversation state is complete
+            # (no pending tool results and conversation has actual content)
+            if (
+                enable_compaction 
+                and not agent_context.tool_result_buffer
+                and agent_context.chat_history
+                and len(agent_context.chat_history) > 2  # Ensure we have actual conversation
+            ):
+                try:
+                    from heare.developer.compacter import ConversationCompacter
+                    
+                    compacter = ConversationCompacter()
+                    model_name = model["title"]
+                    
+                    transition = compacter.compact_and_transition(agent_context, model_name)
+                    
+                    if transition:
+                        # Apply the transition to start using the compacted conversation
+                        agent_context = _apply_compaction_transition(agent_context, transition)
+                        
+                        # Notify user about the compaction and transition
+                        user_interface.handle_system_message(
+                            f"[bold green]Conversation compacted: "
+                            f"{transition.summary.original_message_count} messages → "
+                            f"new session {transition.new_session_id[:8]}[/bold green]"
+                        )
+                        
+                        # Save both sessions: original (already saved) and new compacted one
+                        agent_context.flush(agent_context.chat_history, compact=False)
+                        
+                except Exception as e:
+                    # Log compaction errors but continue normally
+                    user_interface.handle_system_message(
+                        f"[yellow]Compaction check failed: {e}[/yellow]"
+                    )
+
             if (
                 agent_context.chat_history
                 and agent_context.chat_history[-1]["role"] == "user"
@@ -337,7 +398,7 @@ def run(
                     )
                     agent_context.tool_result_buffer.clear()
                     agent_context.flush(
-                        agent_context.chat_history, compact=enable_compaction
+                        agent_context.chat_history, compact=False  # Compaction handled explicitly above
                     )
                 initial_prompt = None
 
@@ -592,7 +653,7 @@ def run(
             if single_response and not agent_context.tool_result_buffer:
                 agent_context.flush(
                     _inline_latest_file_mentions(agent_context.chat_history),
-                    compact=enable_compaction,
+                    compact=False,  # Compaction handled explicitly above
                 )
                 break
 
@@ -617,6 +678,6 @@ def run(
                     markdown=False,
                 )
         finally:
-            # Flush with compaction based on setting
+            # Flush without compaction - compaction is handled explicitly in the main loop
             agent_context.flush(agent_context.chat_history, compact=False)
     return agent_context.chat_history
