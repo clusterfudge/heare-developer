@@ -3,6 +3,17 @@ import tempfile
 from pathlib import Path
 from heare.developer.compacter import ConversationCompacter
 from heare.developer.agent import _inline_latest_file_mentions
+from heare.developer.context import AgentContext
+from heare.developer.sandbox import Sandbox, SandboxMode
+from heare.developer.memory import MemoryManager
+
+
+class MockUserInterface:
+    def permission_callback(self, action, resource, sandbox_mode, action_arguments):
+        return True
+
+    def permission_rendering_callback(self, action, resource, action_arguments):
+        pass
 
 
 class MockAnthropicClient:
@@ -15,14 +26,16 @@ class MockAnthropicClient:
 class MockMessagesAPI:
     """Mock Messages API for the Anthropic client."""
 
-    def count_tokens(self, model, messages):
+    def count_tokens(self, model, system=None, messages=None, tools=None):
         """Mock token counting that returns a fixed value."""
         # Return different token counts for with/without file mentions to verify behavior
-        message_content = messages[0]["content"]
-        if "<mentioned_file" in message_content:
-            return MockTokenCountResponse(100)  # With file content
-        else:
-            return MockTokenCountResponse(50)  # Without file content
+        if messages and len(messages) > 0:
+            message_content = str(messages[0].get("content", ""))
+            if "<mentioned_file" in message_content:
+                return MockTokenCountResponse(100)  # With file content
+            else:
+                return MockTokenCountResponse(50)  # Without file content
+        return MockTokenCountResponse(50)
 
     def create(self, model, system, messages, max_tokens):
         """Mock message creation that returns a fixed summary."""
@@ -67,6 +80,19 @@ class TestFileMentionSummary(unittest.TestCase):
         # Create a mock compacter with a mock client
         self.compacter = ConversationCompacter(client=MockAnthropicClient())
 
+        # Create a test agent context
+        self.ui = MockUserInterface()
+        self.sandbox = Sandbox(self.temp_dir.name, mode=SandboxMode.ALLOW_ALL)
+        self.memory_manager = MemoryManager()
+
+        self.model_spec = {
+            "title": "claude-3-opus-20240229",
+            "pricing": {"input": 3.00, "output": 15.00},
+            "cache_pricing": {"write": 3.75, "read": 0.30},
+            "max_tokens": 8192,
+            "context_window": 200000,
+        }
+
     def tearDown(self):
         """Clean up test environment."""
         self.temp_dir.cleanup()
@@ -78,16 +104,20 @@ class TestFileMentionSummary(unittest.TestCase):
             {"role": "user", "content": f"Check this file @{self.test_file_path}"}
         ]
 
-        # Process the messages to inline file mentions
-        processed_messages = _inline_latest_file_mentions(messages)
-
-        # Verify the processed message has the file content
-        self.assertIn("<mentioned_file", str(processed_messages[0]["content"]))
-
-        # Count tokens with file content included
-        token_count = self.compacter.count_tokens(
-            processed_messages, "claude-3-opus-20240229"
+        # Create agent context with the messages
+        context = AgentContext(
+            parent_session_id=None,
+            session_id="test-session",
+            model_spec=self.model_spec,
+            sandbox=self.sandbox,
+            user_interface=self.ui,
+            usage=[],
+            memory_manager=self.memory_manager,
         )
+        context._chat_history = messages
+
+        # Count tokens - this will process file mentions internally
+        token_count = self.compacter.count_tokens(context, "claude-3-opus-20240229")
 
         # Our mock returns 100 when file content is present
         self.assertEqual(token_count, 100)
@@ -128,23 +158,33 @@ class TestFileMentionSummary(unittest.TestCase):
             {"role": "user", "content": f"Check this file @{self.test_file_path}"}
         ]
 
-        # Process the messages to inline file mentions
-        processed_messages = _inline_latest_file_mentions(messages)
+        # Create agent context with the messages
+        context = AgentContext(
+            parent_session_id=None,
+            session_id="test-session",
+            model_spec=self.model_spec,
+            sandbox=self.sandbox,
+            user_interface=self.ui,
+            usage=[],
+            memory_manager=self.memory_manager,
+        )
+        context._chat_history = messages
 
         # Generate a summary
-        summary = self.compacter.generate_summary(
-            processed_messages, "claude-3-opus-20240229"
-        )
+        summary = self.compacter.generate_summary(context, "claude-3-opus-20240229")
 
         # Verify the summary has the expected token counts
         # Original should be 100 (mock value with file content)
         self.assertEqual(summary.original_token_count, 100)
 
-        # Summary should be 50 (mock value without file content)
-        self.assertEqual(summary.summary_token_count, 50)
+        # Summary should be a reasonable estimate for the test summary text
+        self.assertGreater(summary.summary_token_count, 0)
+        self.assertLess(
+            summary.summary_token_count, 50
+        )  # Should be smaller than original
 
-        # Verify the compaction ratio
-        self.assertEqual(summary.compaction_ratio, 0.5)  # 50/100
+        # Verify the compaction ratio is reasonable
+        self.assertLess(summary.compaction_ratio, 1.0)  # Should be compressed
 
 
 if __name__ == "__main__":

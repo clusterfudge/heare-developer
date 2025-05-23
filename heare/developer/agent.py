@@ -298,7 +298,7 @@ def run(
                         # Generate a new session ID for the agent context
                         agent_context.session_id = str(uuid4())
                         # Ensure we flush the cleared context to disk before continuing
-                        agent_context.flush(agent_context.chat_history)
+                        agent_context.flush(agent_context.chat_history, compact=False)
                         user_interface.handle_assistant_message(
                             "[bold green]Chat history cleared and new session started.[/bold green]"
                         )
@@ -336,6 +336,9 @@ def run(
                         }
                     )
                     agent_context.tool_result_buffer.clear()
+                    agent_context.flush(
+                        agent_context.chat_history, compact=enable_compaction
+                    )
                 initial_prompt = None
 
             system_message = create_system_message(
@@ -352,6 +355,53 @@ def run(
                 for attempt in range(max_retries):
                     try:
                         rate_limiter.check_and_wait(user_interface)
+
+                        # Calculate conversation size before sending the next request
+                        # This ensures we have a complete conversation state for accurate counting
+                        conversation_size_for_display = None
+                        context_window_for_display = None
+                        if enable_compaction and not agent_context.tool_result_buffer:
+                            try:
+                                from heare.developer.compacter import (
+                                    ConversationCompacter,
+                                )
+
+                                compacter = ConversationCompacter()
+                                model_name = model["title"]
+
+                                # Check if conversation has incomplete tool_use before counting tokens
+                                # This prevents the "tool_use ids found without tool_result blocks" error
+                                if compacter._has_incomplete_tool_use(
+                                    agent_context.chat_history
+                                ):
+                                    # Skip token counting for incomplete states
+                                    pass
+                                else:
+                                    # Get context window size for this model
+                                    context_window_for_display = (
+                                        compacter.model_context_windows.get(
+                                            model_name, 100000
+                                        )
+                                    )
+
+                                    # Count tokens for complete conversation
+                                    conversation_size_for_display = (
+                                        compacter.count_tokens(
+                                            agent_context, model_name
+                                        )
+                                    )
+
+                                # Store for later display
+                                agent_context._last_conversation_size = (
+                                    conversation_size_for_display
+                                )
+                                agent_context._last_context_window = (
+                                    context_window_for_display
+                                )
+
+                            except Exception as e:
+                                print(f"Error calculating conversation size: {e}")
+
                         messages = _inline_latest_file_mentions(
                             agent_context.chat_history
                         )
@@ -421,27 +471,10 @@ def run(
             usage_summary = agent_context.usage_summary()
             user_interface.handle_assistant_message(ai_response)
 
-            # Calculate conversation size in tokens if compaction is enabled
-            conversation_size = None
-            context_window = None
-            if enable_compaction:
-                try:
-                    from heare.developer.compacter import ConversationCompacter
-
-                    compacter = ConversationCompacter()
-                    model_name = model["title"]
-
-                    # Get context window size for this model
-                    context_window = compacter.model_context_windows.get(
-                        model_name, 100000
-                    )
-
-                    # Count tokens in the current conversation
-                    conversation_size = compacter.count_tokens(
-                        agent_context.chat_history, model_name
-                    )
-                except Exception as e:
-                    print(f"Error calculating conversation size: {e}")
+            # Use conversation size calculated before the API call (when state was complete)
+            # This avoids counting incomplete states with tool_use but no tool_result
+            conversation_size = getattr(agent_context, "_last_conversation_size", None)
+            context_window = getattr(agent_context, "_last_context_window", None)
 
             user_interface.display_token_count(
                 usage_summary["total_input_tokens"],
@@ -558,7 +591,8 @@ def run(
             # Exit after one response if in single-response mode
             if single_response and not agent_context.tool_result_buffer:
                 agent_context.flush(
-                    _inline_latest_file_mentions(agent_context.chat_history)
+                    _inline_latest_file_mentions(agent_context.chat_history),
+                    compact=enable_compaction,
                 )
                 break
 
@@ -584,5 +618,5 @@ def run(
                 )
         finally:
             # Flush with compaction based on setting
-            agent_context.flush(agent_context.chat_history, compact=enable_compaction)
+            agent_context.flush(agent_context.chat_history, compact=False)
     return agent_context.chat_history

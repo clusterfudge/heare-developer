@@ -124,6 +124,38 @@ class AgentContext:
     def report_usage(self, usage: Usage, model_spec: ModelSpec | None = None):
         self._report_usage(usage, model_spec or self.model_spec)
 
+    def get_api_context(self, tool_names: list[str] | None = None) -> dict[str, Any]:
+        """Get the complete context that would be sent to the Anthropic API.
+
+        This includes system message, tools, and processed messages,
+        matching exactly what the agent sends in API calls.
+
+        Args:
+            tool_names: Optional list of tool names to limit tools (for sub-agents)
+
+        Returns:
+            Dict with 'system', 'tools', and 'messages' keys
+        """
+        from heare.developer.prompt import create_system_message
+        from heare.developer.toolbox import Toolbox
+        from heare.developer.agent import _inline_latest_file_mentions
+
+        # Create system message
+        system_message = create_system_message(self)
+
+        # Create toolbox and get tool schemas
+        toolbox = Toolbox(self, tool_names=tool_names)
+        tools = toolbox.agent_schema
+
+        # Process messages with inlined file mentions
+        processed_messages = _inline_latest_file_mentions(self.chat_history)
+
+        return {
+            "system": system_message,
+            "tools": tools,
+            "messages": processed_messages,
+        }
+
     def usage_summary(self) -> dict[str, Any]:
         usage_summary = {
             "total_input_tokens": 0,
@@ -200,13 +232,15 @@ class AgentContext:
 
                 compacter = ConversationCompacter()
 
-                # Check if conversation needs compaction
+                # Check if conversation needs compaction using full context
                 model_name = self.model_spec.get("title", "claude-3-5-sonnet-latest")
-                if compacter.should_compact(chat_history, model_name):
+
+                # Check if conversation needs compaction using full context
+                if compacter.should_compact(self, model_name):
                     # Create a compact version
                     original_session_id = self.session_id
                     chat_history, compaction_summary = compacter.compact_conversation(
-                        chat_history, model_name
+                        self, model_name
                     )
 
                     # If we compacted, we need to update the session_id
