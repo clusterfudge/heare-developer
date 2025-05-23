@@ -14,6 +14,7 @@ from heare.developer.compacter import ConversationCompacter, CompactionSummary
 from heare.developer.context import AgentContext
 from heare.developer.sandbox import Sandbox, SandboxMode
 from heare.developer.user_interface import UserInterface
+from heare.developer.memory import MemoryManager
 
 
 class MockAnthropicClient:
@@ -40,21 +41,39 @@ class MockAnthropicClient:
         def __init__(self, parent):
             self.parent = parent
 
-        def count_tokens(self, model, messages):
+        def count_tokens(self, model, system=None, messages=None, tools=None):
             """Mock for the messages.count_tokens method."""
             self.parent.count_tokens_called = True
 
-            # Extract content from messages
-            prompt = ""
-            if isinstance(messages, list) and len(messages) > 0:
-                message = messages[0]
-                if isinstance(message, dict) and "content" in message:
-                    prompt = message["content"]
+            # Calculate token count based on all components
+            total_chars = 0
 
-            # Return a token count based on text length if not in token_counts
-            token_count = self.parent.token_counts.get(
-                prompt, len(prompt.split()) // 3 + 1
-            )
+            # Count system characters
+            if system:
+                for block in system:
+                    if isinstance(block, dict) and block.get("type") == "text":
+                        total_chars += len(block.get("text", ""))
+
+            # Count messages characters
+            if messages:
+                for message in messages:
+                    if isinstance(message, dict) and "content" in message:
+                        content = message["content"]
+                        if isinstance(content, str):
+                            total_chars += len(content)
+                        elif isinstance(content, list):
+                            for block in content:
+                                if isinstance(block, dict) and "text" in block:
+                                    total_chars += len(block["text"])
+
+            # Count tools characters (rough estimate)
+            if tools:
+                import json
+
+                total_chars += len(json.dumps(tools))
+
+            # Estimate tokens from characters
+            token_count = max(1, total_chars // 4)
 
             # Create a response object with a token_count attribute
             class TokenResponse:
@@ -190,8 +209,23 @@ class TestConversationCompaction(unittest.TestCase):
 
         # The client object should already have the messages.count_tokens method properly set up
 
-        # Count tokens
-        tokens = compacter.count_tokens(self.sample_messages, "sonnet")
+        # Create agent context for the new API
+        ui = MockUserInterface()
+        sandbox = Sandbox(self.test_dir, mode=SandboxMode.ALLOW_ALL)
+        memory_manager = MemoryManager()
+        context = AgentContext(
+            parent_session_id=None,
+            session_id="test-session",
+            model_spec=self.model_spec,
+            sandbox=sandbox,
+            user_interface=ui,
+            usage=[],
+            memory_manager=memory_manager,
+        )
+        context._chat_history = self.sample_messages
+
+        # Count tokens using new API
+        tokens = compacter.count_tokens(context, "sonnet")
 
         # Assert token count was called
         self.assertTrue(mock_client.count_tokens_called)
@@ -212,13 +246,26 @@ class TestConversationCompaction(unittest.TestCase):
         # Override the model_context_windows dictionary to have a known test value
         compacter.model_context_windows = {"claude-3-5-sonnet-latest": 100000}
 
+        # Create agent context for the new API
+        ui = MockUserInterface()
+        sandbox = Sandbox(self.test_dir, mode=SandboxMode.ALLOW_ALL)
+        memory_manager = MemoryManager()
+        context = AgentContext(
+            parent_session_id=None,
+            session_id="test-session",
+            model_spec=self.model_spec,
+            sandbox=sandbox,
+            user_interface=ui,
+            usage=[],
+            memory_manager=memory_manager,
+        )
+        context._chat_history = self.sample_messages
+
         # Mock the count_tokens method to always return a high number (60% of context window)
         compacter.count_tokens = mock.MagicMock(return_value=60000)
 
         # Should compact should return True because 60000 > 50000 (50% of 100000)
-        self.assertTrue(
-            compacter.should_compact(self.sample_messages, "claude-3-5-sonnet-latest")
-        )
+        self.assertTrue(compacter.should_compact(context, "claude-3-5-sonnet-latest"))
 
     @mock.patch("anthropic.Client")
     def test_context_flush_with_compaction(self, mock_client_class):
@@ -260,6 +307,7 @@ class TestConversationCompaction(unittest.TestCase):
         sandbox = Sandbox(self.test_dir, mode=SandboxMode.ALLOW_ALL)
 
         # Create agent context
+        memory_manager = MemoryManager()
         context = AgentContext(
             parent_session_id=None,
             session_id="test-session",
@@ -267,7 +315,7 @@ class TestConversationCompaction(unittest.TestCase):
             sandbox=sandbox,
             user_interface=ui,
             usage=[],
-            memory_manager=None,
+            memory_manager=memory_manager,
         )
 
         # Setup temporary history directory
