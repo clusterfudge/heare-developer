@@ -65,6 +65,10 @@ class ConversationCompacter:
 
     def count_tokens(self, messages: List[MessageParam], model: str) -> int:
         """Count tokens in a conversation using Anthropic's token counting API.
+        
+        NOTE: This method only counts tokens for messages and is deprecated.
+        Use count_tokens_full_context() for accurate token counting that includes
+        system prompt and tools.
 
         Args:
             messages: List of messages in the conversation
@@ -106,6 +110,85 @@ class ConversationCompacter:
             print(f"Error counting tokens: {e}")
             # Fallback to an estimate if API call fails
             return self._estimate_token_count(messages_str)
+
+    def count_tokens_full_context(self, context_dict: dict, model: str) -> int:
+        """Count tokens for the full context sent to the API.
+        
+        This method accurately counts tokens for the complete API call including
+        system prompt, tools, and messages - fixing HDEV-61.
+
+        Args:
+            context_dict: Dict with 'system', 'tools', and 'messages' keys
+                         from AgentContext.get_full_context_for_api()
+            model: Model name to use for token counting
+
+        Returns:
+            int: Number of tokens for the complete context
+        """
+        try:
+            # Use the Anthropic API's count_tokens method with the actual parameters
+            # that would be sent to the messages API
+            response = self.client.messages.count_tokens(
+                model=model,
+                system=context_dict["system"],
+                messages=context_dict["messages"],
+                tools=context_dict["tools"] if context_dict["tools"] else None
+            )
+            
+            # Extract token count from response
+            if hasattr(response, "token_count"):
+                return response.token_count
+            elif hasattr(response, "tokens"):
+                return response.tokens
+            else:
+                # Handle dictionary response
+                response_dict = (
+                    response if isinstance(response, dict) else response.__dict__
+                )
+                if "token_count" in response_dict:
+                    return response_dict["token_count"]
+                elif "tokens" in response_dict:
+                    return response_dict["tokens"]
+                elif "input_tokens" in response_dict:
+                    return response_dict["input_tokens"]
+                else:
+                    print(f"Token count not found in response: {response}")
+                    return self._estimate_full_context_tokens(context_dict)
+                    
+        except Exception as e:
+            print(f"Error counting tokens for full context: {e}")
+            # Fallback to estimation
+            return self._estimate_full_context_tokens(context_dict)
+
+    def _estimate_full_context_tokens(self, context_dict: dict) -> int:
+        """Estimate token count for full context as a fallback.
+        
+        Args:
+            context_dict: Dict with 'system', 'tools', and 'messages' keys
+            
+        Returns:
+            int: Estimated token count
+        """
+        total_chars = 0
+        
+        # Count system message characters
+        if context_dict.get("system"):
+            for block in context_dict["system"]:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    total_chars += len(block.get("text", ""))
+        
+        # Count tools characters
+        if context_dict.get("tools"):
+            import json
+            total_chars += len(json.dumps(context_dict["tools"]))
+        
+        # Count messages characters
+        if context_dict.get("messages"):
+            messages_str = self._messages_to_string(context_dict["messages"], for_summary=False)
+            total_chars += len(messages_str)
+        
+        # Rough estimate: 1 token per 3-4 characters for English text
+        return int(total_chars / 3.5)
 
     def _messages_to_string(
         self, messages: List[MessageParam], for_summary: bool = False
@@ -188,17 +271,24 @@ class ConversationCompacter:
         words = len(text.split())
         return int(words / 0.75)
 
-    def should_compact(self, messages: List[MessageParam], model: str) -> bool:
+    def should_compact(self, messages: List[MessageParam], model: str, context_dict: dict = None) -> bool:
         """Check if a conversation should be compacted.
 
         Args:
-            messages: List of messages in the conversation
+            messages: List of messages in the conversation (deprecated, use context_dict)
             model: Model name to use for token counting
+            context_dict: Optional full context dict from AgentContext.get_full_context_for_api()
+                         If provided, uses accurate full context token counting
 
         Returns:
             bool: True if the conversation should be compacted
         """
-        token_count = self.count_tokens(messages, model)
+        if context_dict:
+            # Use new accurate token counting method
+            token_count = self.count_tokens_full_context(context_dict, model)
+        else:
+            # Fallback to old method for backward compatibility
+            token_count = self.count_tokens(messages, model)
 
         # Get context window size for this model, default to 100k if not found
         context_window = self.model_context_windows.get(model, 100000)
@@ -209,24 +299,35 @@ class ConversationCompacter:
         return token_count > token_threshold
 
     def generate_summary(
-        self, messages: List[MessageParam], model: str
+        self, messages: List[MessageParam], model: str, context_dict: dict = None
     ) -> CompactionSummary:
         """Generate a summary of the conversation.
 
         Args:
-            messages: List of messages in the conversation
+            messages: List of messages in the conversation (deprecated, use context_dict)
             model: Model name to use for token counting
+            context_dict: Optional full context dict from AgentContext.get_full_context_for_api()
+                         If provided, uses accurate full context token counting
 
         Returns:
             CompactionSummary: Summary of the compacted conversation
         """
-        # Get original token count (including file mentions)
-        original_token_count = self.count_tokens(messages, model)
-        original_message_count = len(messages)
+        # Get original token count
+        if context_dict:
+            # Use new accurate token counting method
+            original_token_count = self.count_tokens_full_context(context_dict, model)
+            # Use messages from context_dict if available
+            messages_for_summary = context_dict.get("messages", messages)
+        else:
+            # Fallback to old method for backward compatibility
+            original_token_count = self.count_tokens(messages, model)
+            messages_for_summary = messages
+            
+        original_message_count = len(messages_for_summary)
 
         # Convert messages to a string for the summarization prompt
         # This will exclude file content blocks from the summary
-        conversation_str = self._messages_to_string(messages, for_summary=True)
+        conversation_str = self._messages_to_string(messages_for_summary, for_summary=True)
 
         # Create summarization prompt
         system_prompt = """
@@ -267,24 +368,26 @@ class ConversationCompacter:
         )
 
     def compact_conversation(
-        self, messages: List[MessageParam], model: str
+        self, messages: List[MessageParam], model: str, context_dict: dict = None
     ) -> Tuple[List[MessageParam], CompactionSummary]:
         """Compact a conversation by summarizing it and creating a new conversation.
 
         Args:
-            messages: List of messages in the conversation
+            messages: List of messages in the conversation (deprecated, use context_dict)
             model: Model name to use for token counting
+            context_dict: Optional full context dict from AgentContext.get_full_context_for_api()
+                         If provided, uses accurate full context token counting
 
         Returns:
             Tuple containing:
                 - List of MessageParam: New compacted conversation
                 - CompactionSummary: Summary information about the compaction
         """
-        if not self.should_compact(messages, model):
+        if not self.should_compact(messages, model, context_dict):
             return messages, None
 
         # Generate summary
-        summary = self.generate_summary(messages, model)
+        summary = self.generate_summary(messages, model, context_dict)
 
         # Create a new conversation with the summary as the system message
         new_messages = [
@@ -300,7 +403,8 @@ class ConversationCompacter:
 
         # Optionally, retain the most recent few messages for immediate context
         # This is configurable - here we're adding the last user/assistant exchange
-        if len(messages) >= 2:
-            new_messages.extend(messages[-2:])
+        messages_to_use = context_dict.get("messages", messages) if context_dict else messages
+        if len(messages_to_use) >= 2:
+            new_messages.extend(messages_to_use[-2:])
 
         return new_messages, summary
