@@ -5,6 +5,7 @@ Test for token counting with incomplete tool_use states.
 
 import unittest
 import tempfile
+from unittest.mock import Mock
 
 from heare.developer.compacter import ConversationCompacter
 from heare.developer.context import AgentContext
@@ -96,7 +97,9 @@ class TestTokenCountingIncompleteToolUse(unittest.TestCase):
 
     def test_has_incomplete_tool_use_detection(self):
         """Test detection of incomplete tool_use states."""
-        compacter = ConversationCompacter()
+        # Create a mock client for testing
+        mock_client = Mock()
+        compacter = ConversationCompacter(client=mock_client)
 
         # Test messages with incomplete tool_use
         incomplete_messages = [
@@ -190,7 +193,9 @@ class TestTokenCountingIncompleteToolUse(unittest.TestCase):
             },
         ]
 
-        compacter = ConversationCompacter()
+        # Create a mock client for testing
+        mock_client = Mock()
+        compacter = ConversationCompacter(client=mock_client)
 
         # This should not raise an error and should return an estimated token count
         token_count = compacter.count_tokens(context, "claude-3-5-sonnet-latest")
@@ -239,7 +244,9 @@ class TestTokenCountingIncompleteToolUse(unittest.TestCase):
         context_window_for_display = None
 
         if enable_compaction and not context.tool_result_buffer:
-            compacter = ConversationCompacter()
+            # Create a mock client for testing
+            mock_client = Mock()
+            compacter = ConversationCompacter(client=mock_client)
             model_name = self.model_spec["title"]
 
             # Check if conversation has incomplete tool_use before counting tokens
