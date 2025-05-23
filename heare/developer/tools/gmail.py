@@ -565,3 +565,202 @@ def find_emails_needing_response(
 
     except Exception as e:
         return f"Error finding emails needing response: {str(e)}"
+
+
+@tool
+def gmail_forward(
+    context: "AgentContext",
+    message_or_thread_id: str,
+    to: str,
+    cc: str = "",
+    bcc: str = "",
+    additional_message: str = "",
+) -> str:
+    """Forward a Gmail message or thread to specified recipients.
+
+    Args:
+        message_or_thread_id: The ID of the message or thread to forward
+        to: Email address(es) of the recipient(s), comma-separated for multiple
+        cc: Email address(es) to CC, comma-separated for multiple (optional)
+        bcc: Email address(es) to BCC, comma-separated for multiple (optional)
+        additional_message: Additional message to include at the top of the forwarded content (optional)
+    """
+    try:
+        # Get credentials for Gmail API
+        creds = get_credentials(GMAIL_SCOPES, token_file="gmail_token.pickle")
+        service = build("gmail", "v1", credentials=creds)
+
+        # Determine if we're forwarding a single message or a thread
+        try:
+            # Try to get it as a message first
+            message = (
+                service.users()
+                .messages()
+                .get(userId="me", id=message_or_thread_id, format="full")
+                .execute()
+            )
+            messages_to_forward = [message]
+            is_thread = False
+        except Exception:
+            # If that fails, try to get it as a thread
+            try:
+                thread = (
+                    service.users()
+                    .threads()
+                    .get(userId="me", id=message_or_thread_id, format="full")
+                    .execute()
+                )
+                messages_to_forward = thread.get("messages", [])
+                is_thread = True
+            except Exception:
+                return (
+                    f"Could not find message or thread with ID: {message_or_thread_id}"
+                )
+
+        if not messages_to_forward:
+            return "No messages found to forward."
+
+        # Get the sender's email address
+        profile = service.users().getProfile(userId="me").execute()
+        sender_email = profile["emailAddress"]
+
+        # Build the forwarded content
+        forwarded_content = ""
+
+        if additional_message:
+            forwarded_content += f"{additional_message}\n\n"
+
+        forwarded_content += "---------- Forwarded message"
+        if is_thread:
+            forwarded_content += "s"
+        forwarded_content += " ----------\n\n"
+
+        # Process each message (for threads, sort by date)
+        if is_thread and len(messages_to_forward) > 1:
+            messages_to_forward.sort(key=lambda x: int(x["internalDate"]))
+
+        for i, msg in enumerate(messages_to_forward):
+            # Extract headers
+            headers = msg["payload"]["headers"]
+            original_subject = next(
+                (h["value"] for h in headers if h["name"].lower() == "subject"),
+                "No Subject",
+            )
+            original_sender = next(
+                (h["value"] for h in headers if h["name"].lower() == "from"),
+                "Unknown Sender",
+            )
+            original_date = next(
+                (h["value"] for h in headers if h["name"].lower() == "date"),
+                "Unknown Date",
+            )
+            original_to = next(
+                (h["value"] for h in headers if h["name"].lower() == "to"),
+                "Unknown Recipient",
+            )
+
+            # Add message header info
+            if is_thread and len(messages_to_forward) > 1:
+                forwarded_content += f"Message {i + 1}:\n"
+
+            forwarded_content += f"From: {original_sender}\n"
+            forwarded_content += f"Date: {original_date}\n"
+            forwarded_content += f"Subject: {original_subject}\n"
+            forwarded_content += f"To: {original_to}\n\n"
+
+            # Extract message body
+            body = ""
+
+            def extract_body_content(message_part):
+                """Recursively extract the text content from message parts."""
+                if message_part.get(
+                    "mimeType"
+                ) == "text/plain" and "data" in message_part.get("body", {}):
+                    import base64
+
+                    text = base64.urlsafe_b64decode(
+                        message_part["body"]["data"]
+                    ).decode("utf-8")
+                    return text
+
+                if message_part.get("parts"):
+                    for part in message_part["parts"]:
+                        content = extract_body_content(part)
+                        if content:
+                            return content
+                return None
+
+            # Try to extract text content
+            if "parts" in msg["payload"]:
+                for part in msg["payload"]["parts"]:
+                    extracted = extract_body_content(part)
+                    if extracted:
+                        body = extracted
+                        break
+            elif "body" in msg["payload"] and "data" in msg["payload"]["body"]:
+                import base64
+
+                body = base64.urlsafe_b64decode(msg["payload"]["body"]["data"]).decode(
+                    "utf-8"
+                )
+
+            # Add the message body
+            forwarded_content += f"{body}\n"
+
+            # Add separator between messages in a thread
+            if is_thread and i < len(messages_to_forward) - 1:
+                forwarded_content += "\n--- Next message ---\n\n"
+
+        # Create the forward subject
+        # Use the subject from the first message
+        first_message_headers = messages_to_forward[0]["payload"]["headers"]
+        original_subject = next(
+            (
+                h["value"]
+                for h in first_message_headers
+                if h["name"].lower() == "subject"
+            ),
+            "No Subject",
+        )
+
+        # Add "Fwd: " prefix if not already present
+        if not original_subject.lower().startswith("fwd:"):
+            forward_subject = f"Fwd: {original_subject}"
+        else:
+            forward_subject = original_subject
+
+        # Construct the email
+        import base64
+        from email.mime.text import MIMEText
+
+        message = MIMEText(forwarded_content)
+        message["to"] = to
+        message["subject"] = forward_subject
+        message["from"] = sender_email
+
+        if cc:
+            message["cc"] = cc
+        if bcc:
+            message["bcc"] = bcc
+
+        # Encode the message
+        encoded_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
+
+        # Create the email message body
+        email_body = {"raw": encoded_message}
+
+        # Send the forwarded email
+        send_message = (
+            service.users().messages().send(userId="me", body=email_body).execute()
+        )
+
+        result = f"Email forwarded successfully. Message ID: {send_message['id']}"
+        if is_thread:
+            result += f"\nForwarded {len(messages_to_forward)} messages from thread"
+        else:
+            result += "\nForwarded 1 message"
+
+        return result
+
+    except Exception as e:
+        return f"Error forwarding email: {str(e)}"

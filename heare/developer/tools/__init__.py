@@ -16,6 +16,7 @@ from .gmail import (
     gmail_send,
     gmail_read_thread,
     find_emails_needing_response,
+    gmail_forward,
 )
 from .memory import (
     get_memory_tree,
@@ -54,6 +55,7 @@ ALL_TOOLS = (
         gmail_send,
         gmail_read_thread,
         find_emails_needing_response,
+        gmail_forward,
         calendar_list_events,
         calendar_create_event,
         calendar_delete_event,

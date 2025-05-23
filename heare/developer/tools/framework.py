@@ -65,11 +65,19 @@ def tool(func):
             # Check if parameter is optional
             type_hint = type_hints.get(param_name)
             is_optional = False
+
+            # Check if parameter has a default value
+            has_default = param.default != inspect.Parameter.empty
+
+            # Check if parameter is Union type (like Optional)
             if type_hint is not None:
                 origin = get_origin(type_hint)
                 if origin is Union:
                     args = get_args(type_hint)
                     is_optional = type(None) in args
+
+            # Parameter is optional if it has a default value OR is a Union type with None
+            is_optional = is_optional or has_default
 
             if not is_optional:
                 schema["input_schema"]["required"].append(param_name)
