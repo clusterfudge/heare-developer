@@ -80,6 +80,11 @@ class ConversationCompacter:
             # Get the full context that would be sent to the API
             context_dict = agent_context.get_api_context()
 
+            # Check if conversation has incomplete tool_use without tool_result
+            # This would cause an API error, so use estimation instead
+            if self._has_incomplete_tool_use(context_dict["messages"]):
+                return self._estimate_full_context_tokens(context_dict)
+
             # Use the Anthropic API's count_tokens method with the actual parameters
             # that would be sent to the messages API
             response = self.client.messages.count_tokens(
@@ -114,6 +119,37 @@ class ConversationCompacter:
             # Fallback to estimation
             context_dict = agent_context.get_api_context()
             return self._estimate_full_context_tokens(context_dict)
+
+    def _has_incomplete_tool_use(self, messages: list) -> bool:
+        """Check if messages have tool_use without corresponding tool_result.
+
+        Args:
+            messages: List of messages to check
+
+        Returns:
+            bool: True if there are incomplete tool_use blocks
+        """
+        # Check the last message for tool_use without a following tool_result
+        if not messages:
+            return False
+
+        last_message = messages[-1]
+        if last_message.get("role") != "assistant":
+            return False
+
+        content = last_message.get("content", [])
+        if not isinstance(content, list):
+            return False
+
+        # Check if last assistant message has tool_use
+        has_tool_use = any(
+            isinstance(block, dict) and block.get("type") == "tool_use"
+            for block in content
+        )
+
+        # If we have tool_use in the last message, it's incomplete
+        # (no chance for tool_result to follow)
+        return has_tool_use
 
     def _estimate_full_context_tokens(self, context_dict: dict) -> int:
         """Estimate token count for full context as a fallback.

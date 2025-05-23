@@ -352,6 +352,43 @@ def run(
                 for attempt in range(max_retries):
                     try:
                         rate_limiter.check_and_wait(user_interface)
+
+                        # Calculate conversation size before sending the next request
+                        # This ensures we have a complete conversation state for accurate counting
+                        conversation_size_for_display = None
+                        context_window_for_display = None
+                        if enable_compaction and not agent_context.tool_result_buffer:
+                            try:
+                                from heare.developer.compacter import (
+                                    ConversationCompacter,
+                                )
+
+                                compacter = ConversationCompacter()
+                                model_name = model["title"]
+
+                                # Get context window size for this model
+                                context_window_for_display = (
+                                    compacter.model_context_windows.get(
+                                        model_name, 100000
+                                    )
+                                )
+
+                                # Count tokens for complete conversation
+                                conversation_size_for_display = compacter.count_tokens(
+                                    agent_context, model_name
+                                )
+
+                                # Store for later display
+                                agent_context._last_conversation_size = (
+                                    conversation_size_for_display
+                                )
+                                agent_context._last_context_window = (
+                                    context_window_for_display
+                                )
+
+                            except Exception as e:
+                                print(f"Error calculating conversation size: {e}")
+
                         messages = _inline_latest_file_mentions(
                             agent_context.chat_history
                         )
@@ -421,27 +458,10 @@ def run(
             usage_summary = agent_context.usage_summary()
             user_interface.handle_assistant_message(ai_response)
 
-            # Calculate conversation size in tokens if compaction is enabled
-            conversation_size = None
-            context_window = None
-            if enable_compaction:
-                try:
-                    from heare.developer.compacter import ConversationCompacter
-
-                    compacter = ConversationCompacter()
-                    model_name = model["title"]
-
-                    # Get context window size for this model
-                    context_window = compacter.model_context_windows.get(
-                        model_name, 100000
-                    )
-
-                    # Count tokens using full context for accuracy (HDEV-61 fix)
-                    conversation_size = compacter.count_tokens(
-                        agent_context, model_name
-                    )
-                except Exception as e:
-                    print(f"Error calculating conversation size: {e}")
+            # Use conversation size calculated before the API call (when state was complete)
+            # This avoids counting incomplete states with tool_use but no tool_result
+            conversation_size = getattr(agent_context, "_last_conversation_size", None)
+            context_window = getattr(agent_context, "_last_context_window", None)
 
             user_interface.display_token_count(
                 usage_summary["total_input_tokens"],
