@@ -49,3 +49,8 @@ write_to = "heare/_version.py"
 
 [tool.setuptools]
 packages = ["heare"]
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.0.1",
+]

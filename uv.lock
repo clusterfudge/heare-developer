@@ -370,6 +370,11 @@ dev = [
     { name = "pytest" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "pre-commit" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "anthropic", specifier = "==0.42.0" },
@@ -391,6 +396,9 @@ requires-dist = [
     { name = "rich", specifier = "==13.7.1" },
 ]
 provides-extras = ["dev"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pre-commit", specifier = ">=4.0.1" }]
 
 [[package]]
 name = "httpcore"

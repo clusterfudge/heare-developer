@@ -34,7 +34,7 @@ class CompactionSummary:
 @dataclass
 class CompactionTransition:
     """Information about transitioning to a new session after compaction."""
-    
+
     original_session_id: str
     new_session_id: str
     compacted_messages: List[MessageParam]
@@ -421,7 +421,7 @@ class ConversationCompacter:
 
         # Create transition info
         from uuid import uuid4
-        
+
         original_session_id = agent_context.session_id
         new_session_id = str(uuid4())
 
@@ -429,5 +429,5 @@ class ConversationCompacter:
             original_session_id=original_session_id,
             new_session_id=new_session_id,
             compacted_messages=compacted_messages,
-            summary=summary
+            summary=summary,
         )
