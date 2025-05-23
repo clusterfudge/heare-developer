@@ -5,7 +5,6 @@ Test for token counting with incomplete tool_use states.
 
 import unittest
 import tempfile
-from pathlib import Path
 
 from heare.developer.compacter import ConversationCompacter
 from heare.developer.context import AgentContext

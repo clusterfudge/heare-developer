@@ -298,7 +298,7 @@ def run(
                         # Generate a new session ID for the agent context
                         agent_context.session_id = str(uuid4())
                         # Ensure we flush the cleared context to disk before continuing
-                        agent_context.flush(agent_context.chat_history)
+                        agent_context.flush(agent_context.chat_history, compact=False)
                         user_interface.handle_assistant_message(
                             "[bold green]Chat history cleared and new session started.[/bold green]"
                         )
@@ -336,6 +336,9 @@ def run(
                         }
                     )
                     agent_context.tool_result_buffer.clear()
+                    agent_context.flush(
+                        agent_context.chat_history, compact=enable_compaction
+                    )
                 initial_prompt = None
 
             system_message = create_system_message(
@@ -368,7 +371,9 @@ def run(
 
                                 # Check if conversation has incomplete tool_use before counting tokens
                                 # This prevents the "tool_use ids found without tool_result blocks" error
-                                if compacter._has_incomplete_tool_use(agent_context.chat_history):
+                                if compacter._has_incomplete_tool_use(
+                                    agent_context.chat_history
+                                ):
                                     # Skip token counting for incomplete states
                                     pass
                                 else:
@@ -380,8 +385,10 @@ def run(
                                     )
 
                                     # Count tokens for complete conversation
-                                    conversation_size_for_display = compacter.count_tokens(
-                                        agent_context, model_name
+                                    conversation_size_for_display = (
+                                        compacter.count_tokens(
+                                            agent_context, model_name
+                                        )
                                     )
 
                                 # Store for later display
@@ -584,7 +591,8 @@ def run(
             # Exit after one response if in single-response mode
             if single_response and not agent_context.tool_result_buffer:
                 agent_context.flush(
-                    _inline_latest_file_mentions(agent_context.chat_history)
+                    _inline_latest_file_mentions(agent_context.chat_history),
+                    compact=enable_compaction,
                 )
                 break
 
@@ -610,5 +618,5 @@ def run(
                 )
         finally:
             # Flush with compaction based on setting
-            agent_context.flush(agent_context.chat_history, compact=enable_compaction)
+            agent_context.flush(agent_context.chat_history, compact=False)
     return agent_context.chat_history
