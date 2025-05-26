@@ -2,6 +2,7 @@ from .subagent import agent
 from .files import read_file, write_file, list_directory, edit_file
 from .repl import run_bash_command, python_repl
 from .web import web_search, safe_curl
+from .improved_web import safe_fetch_headless
 from .gcal import (
     calendar_setup,
     calendar_list_events,
@@ -48,6 +49,7 @@ ALL_TOOLS = (
         web_search,
         agent,
         safe_curl,
+        safe_fetch_headless,
         python_repl,
         gmail_search,
         gmail_read,
