@@ -124,6 +124,12 @@ class AgentContext:
     def report_usage(self, usage: Usage, model_spec: ModelSpec | None = None):
         self._report_usage(usage, model_spec or self.model_spec)
 
+    def _prop_or_dict_entry(self, obj, name):
+        if hasattr(obj, name):
+            return getattr(obj, name)
+        else:
+            return obj[name]
+
     def get_api_context(self, tool_names: list[str] | None = None) -> dict[str, Any]:
         """Get the complete context that would be sent to the Anthropic API.
 
@@ -170,10 +176,14 @@ class AgentContext:
             pricing = model_spec["pricing"]
             cache_pricing = model_spec["cache_pricing"]
 
-            input_tokens = usage_entry.input_tokens
-            output_tokens = usage_entry.output_tokens
-            cache_creation_input_tokens = usage_entry.cache_creation_input_tokens
-            cache_read_input_tokens = usage_entry.cache_read_input_tokens
+            input_tokens = self._prop_or_dict_entry(usage_entry, "input_tokens")
+            output_tokens = self._prop_or_dict_entry(usage_entry, "output_tokens")
+            cache_creation_input_tokens = self._prop_or_dict_entry(
+                usage_entry, "cache_creation_input_tokens"
+            )
+            cache_read_input_tokens = self._prop_or_dict_entry(
+                usage_entry, "cache_read_input_tokens"
+            )
 
             usage_summary["total_input_tokens"] += input_tokens
             usage_summary["total_output_tokens"] += output_tokens
