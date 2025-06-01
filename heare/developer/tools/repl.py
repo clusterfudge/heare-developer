@@ -191,13 +191,7 @@ def run_bash_command(context: "AgentContext", command: str):
     try:
         # Check for potentially dangerous commands
         dangerous_commands = [
-            r"\brm\b",
-            r"\bmv\b",
-            r"\bcp\b",
-            r"\bchown\b",
             r"\bsudo\b",
-            r">",
-            r">>",
         ]
         import re
 

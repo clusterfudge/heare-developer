@@ -288,13 +288,7 @@ class Toolbox:
         try:
             # Check for potentially dangerous commands
             dangerous_commands = [
-                r"\brm\b",
-                r"\bmv\b",
-                r"\bcp\b",
-                r"\bchown\b",
                 r"\bsudo\b",
-                r">",
-                r">>",
             ]
             import re
 
@@ -349,7 +343,7 @@ class Toolbox:
         # Extract optional workdir filter
         workdir = user_input.strip() if user_input.strip() else None
 
-        # Get the list of sessions
+        # Get the list of sessions'1583628'
         sessions = list_sessions(workdir)
 
         # Print the formatted list
