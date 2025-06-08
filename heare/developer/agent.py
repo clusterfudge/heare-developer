@@ -255,29 +255,6 @@ def run(
     client = anthropic.Client(api_key=api_key)
     rate_limiter = RateLimiter()
 
-    if not single_response:
-        commands = {
-            "/quit": "Quit the chat",
-            "/exit": "Quit the chat",
-            "/restart": "Clear chat history and start over",
-        }
-        for tool_name, spec in toolbox.local.items():
-            commands[f"/{tool_name}"] = spec["docstring"]
-
-        command_message = "## Available commands:\n"
-
-        for tool_name, spec in toolbox.local.items():
-            command_message += f"- **/{tool_name}**: {spec['docstring']}\n"
-
-        command_message += "- **/quit, /exit** - Quit the chat\n"
-
-        command_message += "- **/restart** - Clear chat history and start over\n"
-
-        user_interface.handle_system_message(command_message)
-
-    # We'll use agent_context.chat_history and agent_context.tool_result_buffer directly
-    # to ensure we're always working with the most current state
-
     interrupt_count = 0
     last_interrupt_time = 0
 
