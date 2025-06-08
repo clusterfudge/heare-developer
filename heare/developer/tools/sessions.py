@@ -270,7 +270,11 @@ def resume_session(session_id: str) -> bool:
         )
         return False
 
-    # Get the model name
+    # Get the stored CLI arguments
+    metadata = session_data.get("metadata", {})
+    stored_cli_args = metadata.get("cli_args")
+
+    # Get the model name (fallback for compatibility)
     model = session_data.get("model_spec", {}).get("title", "sonnet-3.7")
 
     try:
@@ -297,11 +301,31 @@ def resume_session(session_id: str) -> bool:
         console.print(
             f"Resuming session {full_session_id} in {root_dir}", style="green"
         )
-        console.print(f"Using model: {model}", style="blue")
+
+        # Reconstruct the hdev command from stored CLI arguments
+        if stored_cli_args:
+            # CLI args should be stored as a list
+            if isinstance(stored_cli_args, list):
+                hdev_command = _reconstruct_command_from_list(stored_cli_args)
+            else:
+                # Fallback to basic command for unexpected format
+                console.print(
+                    f"Unexpected CLI args format, using basic command with model: {model}",
+                    style="yellow",
+                )
+                hdev_command = ["hdev", "--model", model]
+        else:
+            # Fallback for sessions without stored CLI args (backward compatibility)
+            console.print(
+                f"No stored CLI args found, using basic command with model: {model}",
+                style="yellow",
+            )
+            hdev_command = ["hdev", "--model", model]
 
         # Launch hdev with environment variable to resume the session
         os.environ["HEARE_DEVELOPER_SESSION_ID"] = full_session_id
-        hdev_command = ["hdev", "--model", model]
+
+        console.print(f"Executing: {' '.join(hdev_command)}", style="blue")
 
         # Execute command (replace current process)
         os.execvp("hdev", hdev_command)
@@ -311,6 +335,42 @@ def resume_session(session_id: str) -> bool:
         console = Console()
         console.print(f"Error resuming session: {e}", style="red")
         return False
+
+
+def _reconstruct_command_from_list(original_args: list[str]) -> list[str]:
+    """
+    Reconstruct hdev command from original argument list, filtering out inappropriate args.
+
+    Args:
+        original_args: Original command line arguments
+
+    Returns:
+        List of command line arguments
+    """
+    command = ["hdev"]
+
+    # Skip the first argument (program name) and filter out inappropriate arguments
+    i = 1
+    while i < len(original_args):
+        arg = original_args[i]
+
+        # Skip session-specific arguments that shouldn't be preserved
+        if arg in ["--session-id", "--prompt"]:
+            i += 2  # Skip both the flag and its value
+            continue
+
+        # Add the argument
+        command.append(arg)
+
+        # Check if this argument expects a value and add it too
+        if arg in ["--model", "--summary-cache", "--sandbox-mode", "--persona"]:
+            i += 1  # Move to the value
+            if i < len(original_args):
+                command.append(original_args[i])  # Add the value
+
+        i += 1
+
+    return command
 
 
 # Tool schemas for integration with toolbox

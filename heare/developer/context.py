@@ -35,6 +35,7 @@ class AgentContext:
     user_interface: UserInterface
     usage: list[tuple[Any, Any]]
     memory_manager: "MemoryManager"
+    cli_args: list[str] = None
     _chat_history: list[MessageParam] = None
     _tool_result_buffer: list[dict] = None
 
@@ -62,6 +63,7 @@ class AgentContext:
         sandbox_contents: list[str],
         user_interface: UserInterface,
         session_id: str = None,
+        cli_args: list[str] = None,
     ) -> "AgentContext":
         sandbox = Sandbox(
             sandbox_contents[0] if sandbox_contents else os.getcwd(),
@@ -83,6 +85,7 @@ class AgentContext:
             user_interface=user_interface,
             usage=[],
             memory_manager=memory_manager,
+            cli_args=cli_args.copy() if cli_args else None,
         )
 
         # If a session_id was provided, attempt to load that session
@@ -114,6 +117,7 @@ class AgentContext:
             user_interface=user_interface,
             usage=self.usage,
             memory_manager=self.memory_manager,
+            cli_args=self.cli_args.copy() if self.cli_args else None,
             _chat_history=self.chat_history.copy() if keep_history else [],
             _tool_result_buffer=self.tool_result_buffer.copy() if keep_history else [],
         )
@@ -297,6 +301,7 @@ class AgentContext:
                 "created_at": current_time,
                 "last_updated": current_time,
                 "root_dir": root_dir,
+                "cli_args": self.cli_args.copy() if self.cli_args else None,
             },
         }
 
@@ -384,6 +389,7 @@ def load_session_data(
         usage_data = session_data.get("usage", [])
         model_spec = session_data.get("model_spec", base_context.model_spec)
         parent_id = session_data.get("parent_session_id")
+        cli_args = session_data.get("metadata", {}).get("cli_args")
 
         # Create a new context with the loaded data
         updated_context = AgentContext(
@@ -394,6 +400,7 @@ def load_session_data(
             user_interface=base_context.user_interface,
             usage=usage_data if usage_data else base_context.usage,
             memory_manager=base_context.memory_manager,
+            cli_args=cli_args.copy() if cli_args else None,
             _chat_history=chat_history,
             _tool_result_buffer=[],  # Always start with empty tool buffer
         )

@@ -472,6 +472,9 @@ class CustomCompleter(Completer):
 
 
 def main(args: List[str]):
+    # Store original args for session metadata
+    original_args = args.copy()
+
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument("sandbox", nargs="*")
     arg_parser.add_argument("--model", default="sonnet", choices=model_names())
@@ -563,6 +566,7 @@ def main(args: List[str]):
         sandbox_contents=args.sandbox,
         user_interface=user_interface,
         session_id=args.session_id,
+        cli_args=original_args,
     )
 
     system_block: dict[str, Any] | None = (
