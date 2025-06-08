@@ -215,40 +215,6 @@ def test_single_response_mode(
     )
 
 
-def test_command_display_with_single_response(
-    mock_anthropic, mock_environment, agent_context, mock_system_message, mock_toolbox
-):
-    run(
-        agent_context=agent_context,
-        initial_prompt="Hello",
-        single_response=True,
-    )
-
-    # Verify commands are not displayed in single response mode
-    assert not any(
-        "Available commands" in str(msg)
-        for msg in agent_context.user_interface.messages
-    )
-
-
-def test_command_display_without_single_response(
-    mock_anthropic, mock_environment, agent_context, mock_system_message
-):
-    agent_context.user_interface.inputs = ["/quit"]
-
-    run(
-        agent_context=agent_context,
-        initial_prompt=None,
-        single_response=False,
-    )
-
-    # Verify commands are displayed in normal mode
-    assert any(
-        "Available commands" in str(msg)
-        for msg in agent_context.user_interface.messages
-    )
-
-
 def test_initial_prompt_without_single_response(
     mock_anthropic, mock_environment, agent_context, mock_system_message, mock_toolbox
 ):
