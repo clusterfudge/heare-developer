@@ -22,7 +22,7 @@ async def read_file(context: "AgentContext", path: str):
         return f"Error reading file: {str(e)}"
 
 
-@tool
+@tool(max_concurrency=1)
 def write_file(context: "AgentContext", path: str, content: str):
     """Write content to a file in the sandbox.
 
@@ -64,7 +64,7 @@ def list_directory(
         return f"Error listing directory: {str(e)}"
 
 
-@tool
+@tool(max_concurrency=1)
 async def edit_file(
     context: "AgentContext", path: str, match_text: str, replace_text: str
 ):

@@ -188,46 +188,16 @@ class Toolbox:
         from .tools.framework import invoke_tool
         from .sandbox import DoSomethingElseError
 
-        # Tools that should not be parallelized (must run sequentially)
-        SEQUENTIAL_TOOLS = {
-            "edit_file",
-            "write_file",  # Could conflict with other file operations
-            "run_bash_command",  # Could have side effects that affect other tools
-            "agent",  # Subagent calls might interfere with each other
-            "python_repl",  # State could be shared/conflicting
-        }
-
-        # Categorize tools into parallelizable and sequential
-        parallel_tools = []
-        sequential_tools = []
-
         # Log tool usage for user feedback
         for tool_use in tool_uses:
             tool_name = getattr(tool_use, "name", "unknown_tool")
             tool_input = getattr(tool_use, "input", {})
             self.context.user_interface.handle_tool_use(tool_name, tool_input)
 
-        for tool_use in tool_uses:
-            tool_name = getattr(tool_use, "name", "unknown_tool")
-
-            # Check for file conflicts in write operations
-            if tool_name == "write_file":
-                # Check if multiple write_file operations target the same file
-                current_path = getattr(tool_use, "input", {}).get("path", "")
-                has_conflict = any(
-                    other_tool.name == "write_file"
-                    and other_tool.input.get("path", "") == current_path
-                    for other_tool in tool_uses
-                    if other_tool != tool_use
-                )
-                if has_conflict:
-                    sequential_tools.append(tool_use)
-                else:
-                    parallel_tools.append(tool_use)
-            elif tool_name in SEQUENTIAL_TOOLS:
-                sequential_tools.append(tool_use)
-            else:
-                parallel_tools.append(tool_use)
+        # All tools can now be executed in parallel since each tool
+        # manages its own concurrency limits via the @tool decorator
+        parallel_tools = list(tool_uses)
+        sequential_tools = []
 
         results = []
 
