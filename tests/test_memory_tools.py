@@ -137,7 +137,6 @@ def test_write_and_read_memory_entry(mock_context):
 
 
 @patch("heare.developer.tools.subagent.agent")
-@pytest.mark.asyncio
 async def test_search_memory(mock_agent, mock_context):
     """Test searching memory."""
     # Configure the mock to return a mocked response
@@ -160,7 +159,6 @@ async def test_search_memory(mock_agent, mock_context):
 
 
 @patch("heare.developer.tools.memory.agent")
-@pytest.mark.asyncio
 async def test_critique_memory(mock_agent, mock_context):
     """Test critiquing memory organization."""
     # Configure the mock to return a mocked response

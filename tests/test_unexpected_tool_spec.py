@@ -1,10 +1,8 @@
-import pytest
 from unittest.mock import MagicMock
 from heare.developer.tools.framework import invoke_tool
 from heare.developer.toolbox import Toolbox
 
 
-@pytest.mark.asyncio
 async def test_unknown_tool_handled_gracefully():
     """Test that the toolbox handles unknown tools gracefully"""
     # Create a context mock
@@ -30,7 +28,6 @@ async def test_unknown_tool_handled_gracefully():
     assert "unknown_tool" in result["content"]
 
 
-@pytest.mark.asyncio
 async def test_malformed_tool_spec_handled_gracefully():
     """Test that the toolbox handles malformed tool specifications gracefully"""
     # Create a context mock
@@ -64,7 +61,6 @@ async def test_malformed_tool_spec_handled_gracefully():
     )
 
 
-@pytest.mark.asyncio
 async def test_invoke_tool_with_empty_toolspec():
     """Test invoking a tool with an empty or invalid tool specification"""
     context = MagicMock()

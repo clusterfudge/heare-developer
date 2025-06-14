@@ -1,6 +1,5 @@
 import json
 import unittest
-import pytest
 from unittest.mock import patch, MagicMock
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -88,7 +87,6 @@ class TestAgentToolSubagent(unittest.TestCase):
             memory_manager=self.mock_memory_manager,
         )
 
-    @pytest.mark.asyncio
     async def test_agent_tool_nested_context_save(self):
         """Test that the agent tool properly saves nested context"""
         # Create a simple chat history

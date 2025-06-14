@@ -44,7 +44,6 @@ def agent_context():
     return context
 
 
-@pytest.mark.asyncio
 async def test_agent_tool_with_default_model(agent_context, mock_agent_run):
     # Setup
     mock_agent_run.return_value = [
@@ -64,7 +63,6 @@ async def test_agent_tool_with_default_model(agent_context, mock_agent_run):
     assert result == "test response"
 
 
-@pytest.mark.asyncio
 async def test_agent_tool_with_custom_model(agent_context, mock_agent_run):
     # Setup
     mock_agent_run.return_value = [
@@ -91,7 +89,6 @@ async def test_agent_tool_with_custom_model(agent_context, mock_agent_run):
     assert result == "test response with custom model"
 
 
-@pytest.mark.asyncio
 async def test_agent_tool_with_smart_model(agent_context, mock_agent_run):
     # Setup
     mock_agent_run.return_value = [
@@ -115,7 +112,6 @@ async def test_agent_tool_with_smart_model(agent_context, mock_agent_run):
     assert result == "test response with smart model"
 
 
-@pytest.mark.asyncio
 async def test_agent_tool_with_invalid_model(agent_context, mock_agent_run):
     # Setup
     mock_agent_run.return_value = [

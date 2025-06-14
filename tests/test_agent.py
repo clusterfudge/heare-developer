@@ -197,7 +197,6 @@ def agent_context(model_config):
     return ctx
 
 
-@pytest.mark.asyncio
 async def test_single_response_mode(
     mock_anthropic, mock_environment, agent_context, mock_system_message, mock_toolbox
 ):
@@ -223,7 +222,6 @@ async def test_single_response_mode(
     )
 
 
-@pytest.mark.asyncio
 async def test_initial_prompt_without_single_response(
     mock_anthropic, mock_environment, agent_context, mock_system_message, mock_toolbox
 ):

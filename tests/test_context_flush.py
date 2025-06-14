@@ -1,6 +1,5 @@
 import json
 import unittest
-import pytest
 from unittest.mock import patch, MagicMock
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -164,7 +163,6 @@ class TestAgentContextFlush(unittest.TestCase):
         self.assertEqual(saved_data["parent_session_id"], root_context.session_id)
         self.assertEqual(saved_data["messages"], chat_history)
 
-    @pytest.mark.asyncio
     async def test_agent_tool_creates_correct_context(self):
         """Test that the agent tool creates a context with the correct parent_session_id"""
         with patch("heare.developer.agent.run") as mock_run:

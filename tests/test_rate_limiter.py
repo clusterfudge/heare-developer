@@ -1,5 +1,4 @@
 import unittest
-import pytest
 from unittest.mock import MagicMock, patch
 from datetime import datetime, timezone, timedelta
 
@@ -147,7 +146,6 @@ class TestRateLimiter(unittest.TestCase):
         self.assertEqual(self.rate_limiter.backoff_time, 60)
 
     @patch("asyncio.sleep")
-    @pytest.mark.asyncio
     async def test_check_and_wait_after_error(self, mock_sleep):
         """Test check_and_wait behavior right after a rate limit error"""
         mock_sleep.return_value = None  # Make it return a value, not a coroutine
@@ -169,7 +167,6 @@ class TestRateLimiter(unittest.TestCase):
         self.mock_user_interface.handle_system_message.assert_called_once()
 
     @patch("asyncio.sleep")
-    @pytest.mark.asyncio
     async def test_check_and_wait_approaching_token_limit(self, mock_sleep):
         """Test check_and_wait only waits after a rate limit error"""
         mock_sleep.return_value = None  # Make it return a value, not a coroutine
@@ -196,7 +193,6 @@ class TestRateLimiter(unittest.TestCase):
         self.mock_user_interface.handle_system_message.assert_called_once()
 
     @patch("asyncio.sleep")
-    @pytest.mark.asyncio
     async def test_check_and_wait_only_after_rate_limit_error(self, mock_sleep):
         """Test check_and_wait only waits after a rate limit error"""
         mock_sleep.return_value = None  # Make it return a value, not a coroutine
@@ -215,7 +211,6 @@ class TestRateLimiter(unittest.TestCase):
         self.mock_user_interface.handle_system_message.assert_not_called()
 
     @patch("asyncio.sleep")
-    @pytest.mark.asyncio
     async def test_check_and_wait_with_error_but_no_reset_time(self, mock_sleep):
         """Test check_and_wait with rate limit error but no reset time"""
         mock_sleep.return_value = None  # Make it return a value, not a coroutine
@@ -233,7 +228,6 @@ class TestRateLimiter(unittest.TestCase):
         self.mock_user_interface.handle_system_message.assert_called_once()
 
     @patch("asyncio.sleep")
-    @pytest.mark.asyncio
     async def test_check_and_wait_no_rate_limit_error(self, mock_sleep):
         """Test check_and_wait when no rate limit error has occurred"""
         mock_sleep.return_value = None  # Make it return a value, not a coroutine

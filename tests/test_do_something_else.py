@@ -50,7 +50,6 @@ def test_default_permission_callback_do_something_else(monkeypatch):
 
 
 @patch("heare.developer.tools.framework.invoke_tool")
-@pytest.mark.asyncio
 async def test_toolbox_propagates_do_something_else_error(mock_invoke_tool):
     """Test that the toolbox correctly propagates the DoSomethingElseError."""
     from heare.developer.toolbox import Toolbox

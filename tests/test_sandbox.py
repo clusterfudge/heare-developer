@@ -58,7 +58,6 @@ def test_permissions(temp_dir, monkeypatch):
     assert sandbox.check_permissions("any_action", "any_resource")
 
 
-@pytest.mark.asyncio
 async def test_read_write_file(temp_dir):
     sandbox = Sandbox(temp_dir, SandboxMode.ALLOW_ALL)
 

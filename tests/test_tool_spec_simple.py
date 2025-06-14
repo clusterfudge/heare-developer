@@ -5,7 +5,6 @@ Simple test script for unexpected tool specs that doesn't rely on pytest.
 import sys
 import traceback
 import asyncio
-import pytest
 from unittest.mock import MagicMock
 
 from heare.developer.tools.framework import invoke_tool
@@ -14,7 +13,6 @@ from heare.developer.context import AgentContext
 from heare.developer.sandbox import SandboxMode
 
 
-@pytest.mark.asyncio
 async def test_invoke_tool_with_empty_toolspec():
     """Test invoking a tool with an empty or invalid tool specification"""
     print("Testing invoke_tool with empty tool spec...")
@@ -51,7 +49,6 @@ async def test_invoke_tool_with_empty_toolspec():
     print("✅ Test with MagicMock missing attributes passed")
 
 
-@pytest.mark.asyncio
 async def test_toolbox_invoke_agent_tool():
     """Test Toolbox.invoke_agent_tool with invalid tool specs"""
     print("Testing Toolbox.invoke_agent_tool with invalid tool specs...")
