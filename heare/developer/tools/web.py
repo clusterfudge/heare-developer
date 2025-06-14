@@ -1,9 +1,14 @@
+import asyncio
 import bs4
 import httpx
 import markdownify
 
 from heare.developer.context import AgentContext
 from .framework import tool, _call_anthropic_with_retry
+
+# Global semaphore to limit concurrent web searches
+# This prevents overwhelming search APIs and avoids rate limiting
+_WEB_SEARCH_SEMAPHORE = asyncio.Semaphore(2)  # Allow max 2 concurrent searches
 
 
 @tool
@@ -13,48 +18,50 @@ async def web_search(context: "AgentContext", search_query: str) -> str:
     Args:
         search_query: The search query to send to Brave Search
     """
-    import os
-    from brave_search_python_client import BraveSearch, WebSearchRequest
+    # Use semaphore to limit concurrent web searches
+    async with _WEB_SEARCH_SEMAPHORE:
+        import os
+        from brave_search_python_client import BraveSearch, WebSearchRequest
 
-    # Try to get API key from environment first
-    api_key = os.getenv("BRAVE_SEARCH_API_KEY")
+        # Try to get API key from environment first
+        api_key = os.getenv("BRAVE_SEARCH_API_KEY")
 
-    # If not in environment, try to read from ~/.brave-search-api-key
-    if not api_key:
+        # If not in environment, try to read from ~/.brave-search-api-key
+        if not api_key:
+            try:
+                key_path = os.path.expanduser("~/.brave-search-api-key")
+                if os.path.exists(key_path):
+                    with open(key_path, "r") as f:
+                        api_key = f.read().strip()
+            except Exception:
+                pass
+
+        if not api_key:
+            return "Error: BRAVE_SEARCH_API_KEY not found in environment or ~/.brave-search-api-key"
+
         try:
-            key_path = os.path.expanduser("~/.brave-search-api-key")
-            if os.path.exists(key_path):
-                with open(key_path, "r") as f:
-                    api_key = f.read().strip()
-        except Exception:
-            pass
+            # Initialize Brave Search client
+            bs = BraveSearch(api_key=api_key)
 
-    if not api_key:
-        return "Error: BRAVE_SEARCH_API_KEY not found in environment or ~/.brave-search-api-key"
+            # Use async/await directly since we're in an async context
+            response = await bs.web(WebSearchRequest(q=search_query))
 
-    try:
-        # Initialize Brave Search client
-        bs = BraveSearch(api_key=api_key)
+            # Format results
+            results = []
+            if response.web and response.web.results:
+                for result in response.web.results:
+                    results.append(f"Title: {result.title}")
+                    results.append(f"URL: {result.url}")
+                    if result.description:
+                        results.append(f"Description: {result.description}")
+                    results.append("---")
 
-        # Use async/await directly since we're in an async context
-        response = await bs.web(WebSearchRequest(q=search_query))
+                return "\n".join(results)
+            else:
+                return "No results found"
 
-        # Format results
-        results = []
-        if response.web and response.web.results:
-            for result in response.web.results:
-                results.append(f"Title: {result.title}")
-                results.append(f"URL: {result.url}")
-                if result.description:
-                    results.append(f"Description: {result.description}")
-                results.append("---")
-
-            return "\n".join(results)
-        else:
-            return "No results found"
-
-    except Exception as e:
-        return f"Error performing web search: {str(e)}"
+        except Exception as e:
+            return f"Error performing web search: {str(e)}"
 
 
 @tool
