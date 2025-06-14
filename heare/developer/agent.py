@@ -324,7 +324,7 @@ async def run(
                 cost = f"${agent_context.usage_summary()['total_cost']:.2f}"
                 user_input = ""
                 while not user_input.strip():
-                    user_input = user_interface.get_user_input(f"{cost} > ")
+                    user_input = await user_interface.get_user_input(f"{cost} > ")
 
                 command_name = (
                     user_input.split()[0][1:] if user_input.startswith("/") else ""
@@ -560,7 +560,7 @@ async def run(
                             user_interface.handle_system_message(
                                 "You selected 'do something else'. Please enter what you'd like to do instead:"
                             )
-                            alternate_prompt = user_interface.get_user_input()
+                            alternate_prompt = await user_interface.get_user_input()
 
                             # 3. Append alternate prompt to the last user message
                             for i in reversed(range(len(agent_context.chat_history))):

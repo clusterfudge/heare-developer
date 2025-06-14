@@ -289,15 +289,15 @@ class CLIUserInterface(UserInterface):
             )
         )
 
-    def get_user_input(self, prompt: str = "") -> str:
+    async def get_user_input(self, prompt: str = "") -> str:
         _console = Console(file=None)
-        user_input = self.session.prompt(rich_to_prompt_toolkit(prompt))
+        user_input = await self.session.prompt_async(rich_to_prompt_toolkit(prompt))
 
         # Handle multi-line input
         if user_input.strip() == "{":
             multi_line_input = []
             while True:
-                line = self.session.prompt("... ")
+                line = await self.session.prompt_async("... ")
                 if line.strip() == "}":
                     break
                 multi_line_input.append(line)

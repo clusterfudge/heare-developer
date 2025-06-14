@@ -128,7 +128,7 @@ def run_agent(
 
 
 class CaptureInterface(UserInterface):
-    def get_user_input(self, prompt: str = "") -> str:
+    async def get_user_input(self, prompt: str = "") -> str:
         pass
 
     def display_welcome_message(self) -> None:
