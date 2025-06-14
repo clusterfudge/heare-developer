@@ -380,7 +380,7 @@ class ConversationCompacter:
         # Create a new conversation with the summary as the system message
         new_messages = [
             {
-                "role": "human",
+                "role": "user",
                 "content": (
                     f"### Conversation Summary (Compacted from {summary.original_message_count} previous messages)\n\n"
                     f"{summary.summary}\n\n"
