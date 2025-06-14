@@ -182,6 +182,150 @@ class Toolbox:
                 "content": f"Error invoking tool '{tool_name}': {str(e)}",
             }
 
+    async def invoke_agent_tools(self, tool_uses):
+        """Invoke multiple agent tools, potentially in parallel."""
+        import asyncio
+        from .tools.framework import invoke_tool
+        from .sandbox import DoSomethingElseError
+
+        # Tools that should not be parallelized (must run sequentially)
+        SEQUENTIAL_TOOLS = {
+            "edit_file",
+            "write_file",  # Could conflict with other file operations
+            "run_bash_command",  # Could have side effects that affect other tools
+            "agent",  # Subagent calls might interfere with each other
+            "python_repl",  # State could be shared/conflicting
+        }
+
+        # Categorize tools into parallelizable and sequential
+        parallel_tools = []
+        sequential_tools = []
+
+        # Log tool usage for user feedback
+        for tool_use in tool_uses:
+            tool_name = getattr(tool_use, "name", "unknown_tool")
+            tool_input = getattr(tool_use, "input", {})
+            self.context.user_interface.handle_tool_use(tool_name, tool_input)
+
+        for tool_use in tool_uses:
+            tool_name = getattr(tool_use, "name", "unknown_tool")
+
+            # Check for file conflicts in write operations
+            if tool_name == "write_file":
+                # Check if multiple write_file operations target the same file
+                current_path = getattr(tool_use, "input", {}).get("path", "")
+                has_conflict = any(
+                    other_tool.name == "write_file"
+                    and other_tool.input.get("path", "") == current_path
+                    for other_tool in tool_uses
+                    if other_tool != tool_use
+                )
+                if has_conflict:
+                    sequential_tools.append(tool_use)
+                else:
+                    parallel_tools.append(tool_use)
+            elif tool_name in SEQUENTIAL_TOOLS:
+                sequential_tools.append(tool_use)
+            else:
+                parallel_tools.append(tool_use)
+
+        results = []
+
+        try:
+            # Execute parallel tools concurrently if any exist
+            if parallel_tools:
+                self.context.user_interface.handle_system_message(
+                    f"Executing {len(parallel_tools)} tools in parallel..."
+                )
+
+                # Create coroutines for parallel execution
+                parallel_coroutines = [
+                    invoke_tool(self.context, tool_use, tools=self.agent_tools)
+                    for tool_use in parallel_tools
+                ]
+
+                # Execute in parallel
+                parallel_results = await asyncio.gather(
+                    *parallel_coroutines, return_exceptions=True
+                )
+
+                # Handle results and exceptions
+                for tool_use, result in zip(parallel_tools, parallel_results):
+                    if isinstance(result, Exception):
+                        if isinstance(result, DoSomethingElseError):
+                            raise result  # Propagate DoSomethingElseError
+
+                        # Convert other exceptions to error results
+                        tool_use_id = getattr(tool_use, "id", "unknown_id")
+                        tool_name = getattr(tool_use, "name", "unknown_tool")
+                        result = {
+                            "type": "tool_result",
+                            "tool_use_id": tool_use_id,
+                            "content": f"Error invoking tool '{tool_name}': {str(result)}",
+                        }
+                    results.append(result)
+
+            # Execute sequential tools one by one
+            if sequential_tools:
+                self.context.user_interface.handle_system_message(
+                    f"Executing {len(sequential_tools)} tools sequentially..."
+                )
+
+                for tool_use in sequential_tools:
+                    try:
+                        result = await invoke_tool(
+                            self.context, tool_use, tools=self.agent_tools
+                        )
+                        results.append(result)
+                    except DoSomethingElseError:
+                        raise  # Propagate DoSomethingElseError
+                    except Exception as e:
+                        # Handle any other exceptions that might occur
+                        tool_use_id = getattr(tool_use, "id", "unknown_id")
+                        tool_name = getattr(tool_use, "name", "unknown_tool")
+                        result = {
+                            "type": "tool_result",
+                            "tool_use_id": tool_use_id,
+                            "content": f"Error invoking tool '{tool_name}': {str(e)}",
+                        }
+                        results.append(result)
+
+            # Reorder results to match original tool_uses order
+            tool_use_to_result = {}
+            result_index = 0
+
+            # Map parallel results
+            for tool_use in parallel_tools:
+                tool_use_to_result[id(tool_use)] = results[result_index]
+                result_index += 1
+
+            # Map sequential results
+            for tool_use in sequential_tools:
+                tool_use_to_result[id(tool_use)] = results[result_index]
+                result_index += 1
+
+            # Return results in original order
+            ordered_results = []
+            for tool_use in tool_uses:
+                ordered_results.append(tool_use_to_result[id(tool_use)])
+
+            return ordered_results
+
+        except DoSomethingElseError:
+            # Let the exception propagate up to the agent to be handled
+            raise
+        except Exception as e:
+            # Handle any other exceptions that might occur at the batch level
+            error_message = f"Error in batch tool execution: {str(e)}"
+            return [
+                {
+                    "type": "tool_result",
+                    "tool_use_id": getattr(tool_use, "id", "unknown_id"),
+                    "content": error_message,
+                }
+                for tool_use in tool_uses
+            ]
+
     # CLI Tools
     def _help(self, user_interface, sandbox, user_input, *args, **kwargs):
         """Show help"""

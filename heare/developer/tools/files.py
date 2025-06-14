@@ -65,7 +65,9 @@ def list_directory(
 
 
 @tool
-def edit_file(context: "AgentContext", path: str, match_text: str, replace_text: str):
+async def edit_file(
+    context: "AgentContext", path: str, match_text: str, replace_text: str
+):
     """Make a targeted edit to a file in the sandbox by replacing specific text.
 
     Args:
@@ -74,7 +76,7 @@ def edit_file(context: "AgentContext", path: str, match_text: str, replace_text:
         replace_text: Text to replace the matched text with
     """
     try:
-        content = context.sandbox.read_file(path)
+        content = await context.sandbox.read_file(path)
 
         # Check if the match_text is unique
         if content.count(match_text) > 1:
