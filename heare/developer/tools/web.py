@@ -7,14 +7,13 @@ from .framework import tool, _call_anthropic_with_retry
 
 
 @tool
-def web_search(context: "AgentContext", search_query: str) -> str:
+async def web_search(context: "AgentContext", search_query: str) -> str:
     """Perform a web search using Brave Search API.
 
     Args:
         search_query: The search query to send to Brave Search
     """
     import os
-    import asyncio
     from brave_search_python_client import BraveSearch, WebSearchRequest
 
     # Try to get API key from environment first
@@ -37,11 +36,8 @@ def web_search(context: "AgentContext", search_query: str) -> str:
         # Initialize Brave Search client
         bs = BraveSearch(api_key=api_key)
 
-        # Create event loop and run the async operation
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        response = loop.run_until_complete(bs.web(WebSearchRequest(q=search_query)))
-        loop.close()
+        # Use async/await directly since we're in an async context
+        response = await bs.web(WebSearchRequest(q=search_query))
 
         # Format results
         results = []
@@ -62,7 +58,7 @@ def web_search(context: "AgentContext", search_query: str) -> str:
 
 
 @tool
-def safe_curl(context: "AgentContext", url: str, content_only: bool = False):
+async def safe_curl(context: "AgentContext", url: str, content_only: bool = False):
     """Make a safe HTTP request to a URL and return the content if it doesn't contain prompt injection.
 
     Uses httpx to make the request, extracts the body content, and uses the Anthropic API to check for prompt injection.
@@ -79,8 +75,8 @@ def safe_curl(context: "AgentContext", url: str, content_only: bool = False):
         from urllib.parse import urlparse, urljoin
 
         # Make the HTTP request
-        with httpx.Client(follow_redirects=True, timeout=10.0) as client:
-            response = client.get(url)
+        async with httpx.AsyncClient(follow_redirects=True, timeout=10.0) as client:
+            response = await client.get(url)
             response.raise_for_status()
 
         # Parse HTML
