@@ -152,7 +152,7 @@ class Toolbox:
 
         return content, add_to_buffer
 
-    def invoke_agent_tool(self, tool_use):
+    async def invoke_agent_tool(self, tool_use):
         """Invoke an agent tool based on the tool use object."""
         from .tools.framework import invoke_tool
         from .sandbox import DoSomethingElseError
@@ -168,7 +168,7 @@ class Toolbox:
                 }
 
             # Convert agent tools to a list matching tools format
-            return invoke_tool(self.context, tool_use, tools=self.agent_tools)
+            return await invoke_tool(self.context, tool_use, tools=self.agent_tools)
         except DoSomethingElseError:
             # Let the exception propagate up to the agent to be handled
             raise

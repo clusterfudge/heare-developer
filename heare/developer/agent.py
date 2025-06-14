@@ -543,7 +543,7 @@ async def run(
                             user_interface.handle_tool_use(tool_name, tool_input)
 
                             # Invoke the tool
-                            result = toolbox.invoke_agent_tool(part)
+                            result = await toolbox.invoke_agent_tool(part)
                             agent_context.tool_result_buffer.append(result)
                             user_interface.handle_tool_result(tool_name, result)
                         except DoSomethingElseError:
