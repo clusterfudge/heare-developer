@@ -1,4 +1,3 @@
-import asyncio
 import contextlib
 from typing import Any, List
 
@@ -12,7 +11,7 @@ from ..utils import wrap_text_as_content_block
 
 
 @tool
-def agent(
+async def agent(
     context: "AgentContext", prompt: str, tool_names: str = None, model: str = None
 ):
     """Run a prompt through a sub-agent with a limited set of tools.
@@ -43,10 +42,10 @@ def agent(
         else []
     )
 
-    return run_agent(context, prompt, tool_names_list, system=None, model=model)
+    return await run_agent(context, prompt, tool_names_list, system=None, model=model)
 
 
-def run_agent(
+async def run_agent(
     context: "AgentContext",
     prompt: str,
     tool_names: List[str],
@@ -89,14 +88,12 @@ def run_agent(
         try:
             system_block = wrap_text_as_content_block(system) if system else None
             # Run the agent with single response mode
-            chat_history = asyncio.run(
-                run(
-                    agent_context=sub_agent_context,
-                    initial_prompt=prompt,
-                    system_prompt=system_block,
-                    single_response=True,
-                    tool_names=tool_names,
-                )
+            chat_history = await run(
+                agent_context=sub_agent_context,
+                initial_prompt=prompt,
+                system_prompt=system_block,
+                single_response=True,
+                tool_names=tool_names,
             )
 
             # Make sure the chat history is flushed in case run() didn't do it
