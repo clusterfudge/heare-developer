@@ -228,7 +228,7 @@ def _continuation_message(final_message: MessageParam) -> MessageParam | None:
     return final_message
 
 
-def run(
+async def run(
     agent_context: AgentContext,
     initial_prompt: str = None,
     single_response: bool = False,
@@ -398,7 +398,7 @@ def run(
 
                 for attempt in range(max_retries):
                     try:
-                        rate_limiter.check_and_wait(user_interface)
+                        await rate_limiter.check_and_wait(user_interface)
 
                         # Calculate conversation size before sending the next request
                         # This ensures we have a complete conversation state for accurate counting

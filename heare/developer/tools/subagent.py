@@ -1,3 +1,4 @@
+import asyncio
 import contextlib
 from typing import Any, List
 
@@ -88,12 +89,14 @@ def run_agent(
         try:
             system_block = wrap_text_as_content_block(system) if system else None
             # Run the agent with single response mode
-            chat_history = run(
-                agent_context=sub_agent_context,
-                initial_prompt=prompt,
-                system_prompt=system_block,
-                single_response=True,
-                tool_names=tool_names,
+            chat_history = asyncio.run(
+                run(
+                    agent_context=sub_agent_context,
+                    initial_prompt=prompt,
+                    system_prompt=system_block,
+                    single_response=True,
+                    tool_names=tool_names,
+                )
             )
 
             # Make sure the chat history is flushed in case run() didn't do it

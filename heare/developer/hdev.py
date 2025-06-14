@@ -1,4 +1,5 @@
 import argparse
+import asyncio
 import io
 import os
 import re
@@ -575,12 +576,14 @@ def main(args: List[str]):
         else None
     )
 
-    run(
-        agent_context=context,
-        initial_prompt=initial_prompt,
-        system_prompt=system_block,
-        single_response=bool(initial_prompt),
-        enable_compaction=not args.disable_compaction,
+    asyncio.run(
+        run(
+            agent_context=context,
+            initial_prompt=initial_prompt,
+            system_prompt=system_block,
+            single_response=bool(initial_prompt),
+            enable_compaction=not args.disable_compaction,
+        )
     )
 
 
