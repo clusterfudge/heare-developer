@@ -56,6 +56,11 @@ class Toolbox:
             "Render the system message, tool specs, and chat history",
         )
         self.register_cli_tool(
+            "prompt",
+            self._prompt,
+            "Show the current system prompt",
+        )
+        self.register_cli_tool(
             "exec",
             self._exec,
             "Execute a bash command and optionally add it to tool result buffer",
@@ -365,7 +370,17 @@ class Toolbox:
                     if isinstance(block, dict) and "text" in block:
                         content += f"\n{block['text']}"
 
-        user_interface.handle_system_message(content, markdown=False)
+        return content
+
+    def _prompt(self, user_interface, sandbox, user_input, *args, **kwargs):
+        """Show the current system prompt"""
+        from .prompt import create_system_message
+
+        content = "[bold cyan]Current System Prompt:[/bold cyan]\n\n"
+        system_message = create_system_message(self.context)
+        content += json.dumps(system_message, indent=2)
+
+        return content
 
     def _exec(self, user_interface, sandbox, user_input, *args, **kwargs):
         """Execute a bash command and optionally add it to tool result buffer"""
