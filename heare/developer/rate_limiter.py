@@ -1,4 +1,4 @@
-import time
+import asyncio
 from datetime import datetime, timezone
 
 
@@ -88,7 +88,7 @@ class RateLimiter:
 
         return self.backoff_time
 
-    def check_and_wait(self, user_interface=None):
+    async def check_and_wait(self, user_interface=None):
         # If we had a rate limit error recently, respect the backoff time
         if self.last_rate_limit_error and self.backoff_time > 0:
             message = f"Rate limit exceeded. Waiting for {self.backoff_time:.2f} seconds until reset."
@@ -96,7 +96,7 @@ class RateLimiter:
                 user_interface.handle_system_message(message)
             else:
                 print(message)
-            time.sleep(self.backoff_time)
+            await asyncio.sleep(self.backoff_time)
             self.last_rate_limit_error = None
             self.backoff_time = 0
             return

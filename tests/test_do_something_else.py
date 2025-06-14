@@ -50,12 +50,15 @@ def test_default_permission_callback_do_something_else(monkeypatch):
 
 
 @patch("heare.developer.tools.framework.invoke_tool")
-def test_toolbox_propagates_do_something_else_error(mock_invoke_tool):
+async def test_toolbox_propagates_do_something_else_error(mock_invoke_tool):
     """Test that the toolbox correctly propagates the DoSomethingElseError."""
     from heare.developer.toolbox import Toolbox
 
-    # Setup mock
-    mock_invoke_tool.side_effect = DoSomethingElseError()
+    # Setup mock - make it async
+    async def mock_async_invoke_tool(*args, **kwargs):
+        raise DoSomethingElseError()
+
+    mock_invoke_tool.side_effect = mock_async_invoke_tool
 
     # Create toolbox and context
     mock_context = MagicMock()
@@ -66,7 +69,7 @@ def test_toolbox_propagates_do_something_else_error(mock_invoke_tool):
 
     # Call invoke_agent_tool, which should propagate the exception
     with pytest.raises(DoSomethingElseError):
-        toolbox.invoke_agent_tool(mock_tool_use)
+        await toolbox.invoke_agent_tool(mock_tool_use)
 
     # Verify invoke_tool was called
     mock_invoke_tool.assert_called_once()

@@ -11,7 +11,7 @@ from ..utils import wrap_text_as_content_block
 
 
 @tool
-def agent(
+async def agent(
     context: "AgentContext", prompt: str, tool_names: str = None, model: str = None
 ):
     """Run a prompt through a sub-agent with a limited set of tools.
@@ -22,6 +22,11 @@ def agent(
     that is the likely minimal set necessary to achieve the agent's goal.
     Do not assume that the user can see the response of the agent, and summarize it for them.
     Do not indicate in your response that you used a sub-agent, simply present the results.
+
+    EFFICIENCY NOTE: Multiple sub-agents can run concurrently! When you have independent tasks
+    that can be parallelized, feel free to invoke multiple agent tools simultaneously.
+    Examples: researching different topics, analyzing separate files, or performing
+    unrelated operations. Each sub-agent operates independently and safely.
 
     Args:
         prompt: the initial prompt question to ask the
@@ -42,10 +47,10 @@ def agent(
         else []
     )
 
-    return run_agent(context, prompt, tool_names_list, system=None, model=model)
+    return await run_agent(context, prompt, tool_names_list, system=None, model=model)
 
 
-def run_agent(
+async def run_agent(
     context: "AgentContext",
     prompt: str,
     tool_names: List[str],
@@ -88,7 +93,7 @@ def run_agent(
         try:
             system_block = wrap_text_as_content_block(system) if system else None
             # Run the agent with single response mode
-            chat_history = run(
+            chat_history = await run(
                 agent_context=sub_agent_context,
                 initial_prompt=prompt,
                 system_prompt=system_block,
@@ -125,7 +130,7 @@ def run_agent(
 
 
 class CaptureInterface(UserInterface):
-    def get_user_input(self, prompt: str = "") -> str:
+    async def get_user_input(self, prompt: str = "") -> str:
         pass
 
     def display_welcome_message(self) -> None:

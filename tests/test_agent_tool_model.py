@@ -44,7 +44,7 @@ def agent_context():
     return context
 
 
-def test_agent_tool_with_default_model(agent_context, mock_agent_run):
+async def test_agent_tool_with_default_model(agent_context, mock_agent_run):
     # Setup
     mock_agent_run.return_value = [
         {"role": "user", "content": "test prompt"},
@@ -52,7 +52,7 @@ def test_agent_tool_with_default_model(agent_context, mock_agent_run):
     ]
 
     # Execute
-    result = agent(agent_context, "test prompt", "web_search")
+    result = await agent(agent_context, "test prompt", "web_search")
 
     # Verify
     assert mock_agent_run.call_count == 1
@@ -63,7 +63,7 @@ def test_agent_tool_with_default_model(agent_context, mock_agent_run):
     assert result == "test response"
 
 
-def test_agent_tool_with_custom_model(agent_context, mock_agent_run):
+async def test_agent_tool_with_custom_model(agent_context, mock_agent_run):
     # Setup
     mock_agent_run.return_value = [
         {"role": "user", "content": "test prompt"},
@@ -71,7 +71,7 @@ def test_agent_tool_with_custom_model(agent_context, mock_agent_run):
     ]
 
     # Execute with custom model parameter using the 'light' alias
-    result = agent(agent_context, "test prompt", "web_search", model="light")
+    result = await agent(agent_context, "test prompt", "web_search", model="light")
 
     # Verify that run was called with a context having the specified model
     assert mock_agent_run.call_count == 1
@@ -89,7 +89,7 @@ def test_agent_tool_with_custom_model(agent_context, mock_agent_run):
     assert result == "test response with custom model"
 
 
-def test_agent_tool_with_smart_model(agent_context, mock_agent_run):
+async def test_agent_tool_with_smart_model(agent_context, mock_agent_run):
     # Setup
     mock_agent_run.return_value = [
         {"role": "user", "content": "test prompt"},
@@ -97,7 +97,7 @@ def test_agent_tool_with_smart_model(agent_context, mock_agent_run):
     ]
 
     # Execute with the 'smart' alias
-    result = agent(agent_context, "test prompt", "web_search", model="smart")
+    result = await agent(agent_context, "test prompt", "web_search", model="smart")
 
     # Verify
     assert mock_agent_run.call_count == 1
@@ -112,7 +112,7 @@ def test_agent_tool_with_smart_model(agent_context, mock_agent_run):
     assert result == "test response with smart model"
 
 
-def test_agent_tool_with_invalid_model(agent_context, mock_agent_run):
+async def test_agent_tool_with_invalid_model(agent_context, mock_agent_run):
     # Setup
     mock_agent_run.return_value = [
         {"role": "user", "content": "test prompt"},
@@ -120,7 +120,9 @@ def test_agent_tool_with_invalid_model(agent_context, mock_agent_run):
     ]
 
     # Execute with an invalid model alias - should fall back to the default
-    result = agent(agent_context, "test prompt", "web_search", model="nonexistent")
+    result = await agent(
+        agent_context, "test prompt", "web_search", model="nonexistent"
+    )
 
     # Verify
     assert mock_agent_run.call_count == 1

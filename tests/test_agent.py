@@ -71,7 +71,7 @@ class MockUserInterface(UserInterface):
     def handle_system_message(self, message: str, markdown=True) -> None:
         self.messages.append(("system", message))
 
-    def get_user_input(self, prompt: str = "") -> str:
+    async def get_user_input(self, prompt: str = "") -> str:
         if self.current_input_index < len(self.inputs):
             result = self.inputs[self.current_input_index]
             self.current_input_index += 1
@@ -130,8 +130,15 @@ class MockToolbox:
         self.local = local_tools or {}
         self.agent_schema = []
 
-    def invoke_agent_tool(self, tool_use):
+    async def invoke_agent_tool(self, tool_use):
         return {"type": "tool_result", "tool_use_id": "test", "content": "test result"}
+
+    async def invoke_agent_tools(self, tool_uses):
+        results = []
+        for tool_use in tool_uses:
+            result = await self.invoke_agent_tool(tool_use)
+            results.append(result)
+        return results
 
 
 @pytest.fixture
@@ -190,10 +197,10 @@ def agent_context(model_config):
     return ctx
 
 
-def test_single_response_mode(
+async def test_single_response_mode(
     mock_anthropic, mock_environment, agent_context, mock_system_message, mock_toolbox
 ):
-    run(
+    await run(
         agent_context=agent_context,
         initial_prompt="Hello",
         single_response=True,
@@ -215,14 +222,14 @@ def test_single_response_mode(
     )
 
 
-def test_initial_prompt_without_single_response(
+async def test_initial_prompt_without_single_response(
     mock_anthropic, mock_environment, agent_context, mock_system_message, mock_toolbox
 ):
     agent_context.user_interface.inputs = [
         "/quit"
     ]  # Add quit command to end the session
 
-    run(
+    await run(
         agent_context=agent_context,
         initial_prompt="Hello",
         single_response=False,

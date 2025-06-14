@@ -4,6 +4,7 @@ Simple test script for unexpected tool specs that doesn't rely on pytest.
 
 import sys
 import traceback
+import asyncio
 from unittest.mock import MagicMock
 
 from heare.developer.tools.framework import invoke_tool
@@ -12,20 +13,20 @@ from heare.developer.context import AgentContext
 from heare.developer.sandbox import SandboxMode
 
 
-def test_invoke_tool_with_empty_toolspec():
+async def test_invoke_tool_with_empty_toolspec():
     """Test invoking a tool with an empty or invalid tool specification"""
     print("Testing invoke_tool with empty tool spec...")
     context = MagicMock()
 
     # Test with None
-    result = invoke_tool(context, None)
+    result = await invoke_tool(context, None)
     assert (
         "Invalid tool specification" in result["content"]
     ), "Should handle None gracefully"
     print("✅ Test with None passed")
 
     # Test with dict instead of proper tool_use object
-    result = invoke_tool(context, {"type": "tool_use"})
+    result = await invoke_tool(context, {"type": "tool_use"})
     assert (
         "Invalid tool specification" in result["content"]
     ), "Should handle dict gracefully"
@@ -40,7 +41,7 @@ def test_invoke_tool_with_empty_toolspec():
 
     print(f"Has name attribute: {hasattr(mock_tool, 'name')}")
     print(f"Has input attribute: {hasattr(mock_tool, 'input')}")
-    result = invoke_tool(context, mock_tool)
+    result = await invoke_tool(context, mock_tool)
     print(f"Result content: {result['content']}")
     assert (
         "Invalid tool specification" in result["content"]
@@ -48,7 +49,7 @@ def test_invoke_tool_with_empty_toolspec():
     print("✅ Test with MagicMock missing attributes passed")
 
 
-def test_toolbox_invoke_agent_tool():
+async def test_toolbox_invoke_agent_tool():
     """Test Toolbox.invoke_agent_tool with invalid tool specs"""
     print("Testing Toolbox.invoke_agent_tool with invalid tool specs...")
 
@@ -69,7 +70,7 @@ def test_toolbox_invoke_agent_tool():
     toolbox = Toolbox(context)
 
     # Test with None
-    result = toolbox.invoke_agent_tool(None)
+    result = await toolbox.invoke_agent_tool(None)
     assert (
         "Invalid tool specification" in result["content"]
     ), "Should handle None gracefully"
@@ -86,7 +87,7 @@ def test_toolbox_invoke_agent_tool():
     print(
         f"Malformed tool - Has name: {hasattr(malformed_tool, 'name')}, Has input: {hasattr(malformed_tool, 'input')}"
     )
-    result = toolbox.invoke_agent_tool(malformed_tool)
+    result = await toolbox.invoke_agent_tool(malformed_tool)
     print(f"Malformed tool result: {result['content']}")
     assert (
         "Invalid tool specification" in result["content"]
@@ -100,20 +101,24 @@ def test_toolbox_invoke_agent_tool():
     unknown_tool.name = "nonexistent_tool"  # This tool doesn't exist
     unknown_tool.input = {}
 
-    result = toolbox.invoke_agent_tool(unknown_tool)
+    result = await toolbox.invoke_agent_tool(unknown_tool)
     assert (
         "Unknown function" in result["content"]
     ), "Should handle unknown tool gracefully"
     print("✅ Test with unknown tool passed")
 
 
-if __name__ == "__main__":
+async def main():
     try:
-        test_invoke_tool_with_empty_toolspec()
-        test_toolbox_invoke_agent_tool()
+        await test_invoke_tool_with_empty_toolspec()
+        await test_toolbox_invoke_agent_tool()
         print("\n🎉 All tests passed!")
-        sys.exit(0)
+        return 0
     except Exception as e:
         print(f"\n❌ Test failed: {e}")
         traceback.print_exc()
-        sys.exit(1)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(asyncio.run(main()))
