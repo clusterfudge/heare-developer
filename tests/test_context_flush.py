@@ -1,5 +1,6 @@
 import json
 import unittest
+import pytest
 from unittest.mock import patch, MagicMock
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -163,7 +164,8 @@ class TestAgentContextFlush(unittest.TestCase):
         self.assertEqual(saved_data["parent_session_id"], root_context.session_id)
         self.assertEqual(saved_data["messages"], chat_history)
 
-    def test_agent_tool_creates_correct_context(self):
+    @pytest.mark.asyncio
+    async def test_agent_tool_creates_correct_context(self):
         """Test that the agent tool creates a context with the correct parent_session_id"""
         with patch("heare.developer.agent.run") as mock_run:
             from heare.developer.tools.subagent import agent
@@ -171,8 +173,11 @@ class TestAgentContextFlush(unittest.TestCase):
             # Create a parent context
             parent_context = self.create_test_context()
 
-            # Set up the mock
-            mock_run.return_value = []
+            # Set up the mock to be async
+            async def mock_run_async(*args, **kwargs):
+                return []
+
+            mock_run.side_effect = mock_run_async
 
             # We need to patch the CaptureInterface too
             with patch(
@@ -183,7 +188,7 @@ class TestAgentContextFlush(unittest.TestCase):
                 mock_capture.return_value = mock_capture_instance
 
                 # Call the agent tool
-                agent(parent_context, "Do something", "read_file")
+                await agent(parent_context, "Do something", "read_file")
 
                 # Verify that run was called with a context that has parent_session_id set
                 args, kwargs = mock_run.call_args

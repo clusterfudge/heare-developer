@@ -58,20 +58,22 @@ def test_permissions(temp_dir, monkeypatch):
     assert sandbox.check_permissions("any_action", "any_resource")
 
 
-def test_read_write_file(temp_dir):
+@pytest.mark.asyncio
+async def test_read_write_file(temp_dir):
     sandbox = Sandbox(temp_dir, SandboxMode.ALLOW_ALL)
 
     file_path = "test.txt"
     content = "test content"
 
     sandbox.write_file(file_path, content)
-    assert sandbox.read_file(file_path) == content
+    result = await sandbox.read_file(file_path)
+    assert result == content
 
     with pytest.raises(ValueError):
-        sandbox.read_file("../outside_sandbox.txt")
+        await sandbox.read_file("../outside_sandbox.txt")
 
     with pytest.raises(FileNotFoundError):
-        sandbox.read_file("nonexistent.txt")
+        await sandbox.read_file("nonexistent.txt")
 
 
 def test_create_file(temp_dir):

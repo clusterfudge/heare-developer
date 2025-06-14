@@ -1,5 +1,6 @@
 import json
 import unittest
+import pytest
 from unittest.mock import patch, MagicMock
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -87,7 +88,8 @@ class TestAgentToolSubagent(unittest.TestCase):
             memory_manager=self.mock_memory_manager,
         )
 
-    def test_agent_tool_nested_context_save(self):
+    @pytest.mark.asyncio
+    async def test_agent_tool_nested_context_save(self):
         """Test that the agent tool properly saves nested context"""
         # Create a simple chat history
         chat_history = [
@@ -110,7 +112,7 @@ class TestAgentToolSubagent(unittest.TestCase):
             # Mock agent.run to capture the agent_context and return chat history
             with patch("heare.developer.agent.run") as mock_run:
                 # Setup mock to save the passed context and return chat history
-                def capture_and_return(agent_context, **kwargs):
+                async def capture_and_return(agent_context, **kwargs):
                     # Save the agent_context for later inspection
                     self.captured_agent_context = agent_context
                     # IMPORTANT: Manually flush the chat history since our mock doesn't run the real agent.run
@@ -122,7 +124,7 @@ class TestAgentToolSubagent(unittest.TestCase):
                 mock_run.side_effect = capture_and_return
 
                 # Call the agent tool
-                agent(parent_context, "Do a sub task", "read_file")
+                await agent(parent_context, "Do a sub task", "read_file")
 
                 # Verify a sub-agent context was created with parent's session ID
                 self.assertIsNotNone(

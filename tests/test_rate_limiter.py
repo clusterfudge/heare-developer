@@ -1,4 +1,5 @@
 import unittest
+import pytest
 from unittest.mock import MagicMock, patch
 from datetime import datetime, timezone, timedelta
 
@@ -145,14 +146,17 @@ class TestRateLimiter(unittest.TestCase):
         self.assertEqual(backoff_time, 60)
         self.assertEqual(self.rate_limiter.backoff_time, 60)
 
-    @patch("time.sleep")
-    def test_check_and_wait_after_error(self, mock_sleep):
+    @patch("asyncio.sleep")
+    @pytest.mark.asyncio
+    async def test_check_and_wait_after_error(self, mock_sleep):
         """Test check_and_wait behavior right after a rate limit error"""
+        mock_sleep.return_value = None  # Make it return a value, not a coroutine
+
         # Setup rate limiter as if it had encountered an error
         self.rate_limiter.last_rate_limit_error = self.mock_error
         self.rate_limiter.backoff_time = 30
 
-        self.rate_limiter.check_and_wait(self.mock_user_interface)
+        await self.rate_limiter.check_and_wait(self.mock_user_interface)
 
         # Should have called sleep with backoff_time
         mock_sleep.assert_called_once_with(30)
@@ -164,15 +168,18 @@ class TestRateLimiter(unittest.TestCase):
         # Should have notified user
         self.mock_user_interface.handle_system_message.assert_called_once()
 
-    @patch("time.sleep")
-    def test_check_and_wait_approaching_token_limit(self, mock_sleep):
+    @patch("asyncio.sleep")
+    @pytest.mark.asyncio
+    async def test_check_and_wait_approaching_token_limit(self, mock_sleep):
         """Test check_and_wait only waits after a rate limit error"""
+        mock_sleep.return_value = None  # Make it return a value, not a coroutine
+
         # Setup rate limiter with low input tokens remaining, but no rate limit error
         self.rate_limiter.limits["input_tokens"]["remaining"] = 500
         self.rate_limiter.limits["input_tokens"]["reset_time"] = self.near_future_time
 
         # Without setting last_rate_limit_error, check_and_wait should not sleep
-        self.rate_limiter.check_and_wait(self.mock_user_interface)
+        await self.rate_limiter.check_and_wait(self.mock_user_interface)
 
         # Should not have called sleep because there's no rate limit error
         mock_sleep.assert_not_called()
@@ -182,15 +189,18 @@ class TestRateLimiter(unittest.TestCase):
         self.rate_limiter.last_rate_limit_error = self.mock_error
         self.rate_limiter.backoff_time = 10
 
-        self.rate_limiter.check_and_wait(self.mock_user_interface)
+        await self.rate_limiter.check_and_wait(self.mock_user_interface)
 
         # Now it should sleep
         mock_sleep.assert_called_once_with(10)
         self.mock_user_interface.handle_system_message.assert_called_once()
 
-    @patch("time.sleep")
-    def test_check_and_wait_only_after_rate_limit_error(self, mock_sleep):
+    @patch("asyncio.sleep")
+    @pytest.mark.asyncio
+    async def test_check_and_wait_only_after_rate_limit_error(self, mock_sleep):
         """Test check_and_wait only waits after a rate limit error"""
+        mock_sleep.return_value = None  # Make it return a value, not a coroutine
+
         # Setup rate limiter with low requests remaining but no rate limit error
         self.rate_limiter.limits["input_tokens"]["remaining"] = 5000
         self.rate_limiter.limits["output_tokens"]["remaining"] = 5000
@@ -198,20 +208,23 @@ class TestRateLimiter(unittest.TestCase):
         self.rate_limiter.limits["requests"]["reset_time"] = self.near_future_time
 
         # Without setting last_rate_limit_error, check_and_wait should not sleep
-        self.rate_limiter.check_and_wait(self.mock_user_interface)
+        await self.rate_limiter.check_and_wait(self.mock_user_interface)
 
         # Should not have called sleep because there's no rate limit error
         mock_sleep.assert_not_called()
         self.mock_user_interface.handle_system_message.assert_not_called()
 
-    @patch("time.sleep")
-    def test_check_and_wait_with_error_but_no_reset_time(self, mock_sleep):
+    @patch("asyncio.sleep")
+    @pytest.mark.asyncio
+    async def test_check_and_wait_with_error_but_no_reset_time(self, mock_sleep):
         """Test check_and_wait with rate limit error but no reset time"""
+        mock_sleep.return_value = None  # Make it return a value, not a coroutine
+
         # Setup rate limiter with a rate limit error and backoff time
         self.rate_limiter.last_rate_limit_error = self.mock_error
         self.rate_limiter.backoff_time = 60
 
-        self.rate_limiter.check_and_wait(self.mock_user_interface)
+        await self.rate_limiter.check_and_wait(self.mock_user_interface)
 
         # Should have used the backoff time
         mock_sleep.assert_called_once_with(60)
@@ -219,9 +232,12 @@ class TestRateLimiter(unittest.TestCase):
         # Should have notified user
         self.mock_user_interface.handle_system_message.assert_called_once()
 
-    @patch("time.sleep")
-    def test_check_and_wait_no_rate_limit_error(self, mock_sleep):
+    @patch("asyncio.sleep")
+    @pytest.mark.asyncio
+    async def test_check_and_wait_no_rate_limit_error(self, mock_sleep):
         """Test check_and_wait when no rate limit error has occurred"""
+        mock_sleep.return_value = None  # Make it return a value, not a coroutine
+
         # Setup rate limiter with no rate limit error
         self.rate_limiter.last_rate_limit_error = None
         self.rate_limiter.backoff_time = 0
@@ -231,7 +247,7 @@ class TestRateLimiter(unittest.TestCase):
         self.rate_limiter.limits["output_tokens"]["remaining"] = 25000
         self.rate_limiter.limits["requests"]["remaining"] = 400
 
-        self.rate_limiter.check_and_wait(self.mock_user_interface)
+        await self.rate_limiter.check_and_wait(self.mock_user_interface)
 
         # Should not have called sleep
         mock_sleep.assert_not_called()

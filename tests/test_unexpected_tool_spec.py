@@ -1,9 +1,11 @@
+import pytest
 from unittest.mock import MagicMock
 from heare.developer.tools.framework import invoke_tool
 from heare.developer.toolbox import Toolbox
 
 
-def test_unknown_tool_handled_gracefully():
+@pytest.mark.asyncio
+async def test_unknown_tool_handled_gracefully():
     """Test that the toolbox handles unknown tools gracefully"""
     # Create a context mock
     context = MagicMock()
@@ -19,7 +21,7 @@ def test_unknown_tool_handled_gracefully():
     unknown_tool.type = "tool_use"
 
     # Try to execute the unknown tool
-    result = toolbox.invoke_agent_tool(unknown_tool)
+    result = await toolbox.invoke_agent_tool(unknown_tool)
 
     # Check that the result indicates an unknown function error
     assert result["type"] == "tool_result"
@@ -28,7 +30,8 @@ def test_unknown_tool_handled_gracefully():
     assert "unknown_tool" in result["content"]
 
 
-def test_malformed_tool_spec_handled_gracefully():
+@pytest.mark.asyncio
+async def test_malformed_tool_spec_handled_gracefully():
     """Test that the toolbox handles malformed tool specifications gracefully"""
     # Create a context mock
     context = MagicMock()
@@ -51,7 +54,7 @@ def test_malformed_tool_spec_handled_gracefully():
     malformed_tool = MalformedTool()
 
     # Try to execute the malformed tool
-    result = toolbox.invoke_agent_tool(malformed_tool)
+    result = await toolbox.invoke_agent_tool(malformed_tool)
 
     # Check that the result indicates an error about missing attributes
     assert result["type"] == "tool_result"
@@ -61,16 +64,17 @@ def test_malformed_tool_spec_handled_gracefully():
     )
 
 
-def test_invoke_tool_with_empty_toolspec():
+@pytest.mark.asyncio
+async def test_invoke_tool_with_empty_toolspec():
     """Test invoking a tool with an empty or invalid tool specification"""
     context = MagicMock()
 
     # Test with None
-    result = invoke_tool(context, None)
+    result = await invoke_tool(context, None)
     assert "Invalid tool specification" in result["content"]
 
     # Test with dict instead of proper tool_use object
-    result = invoke_tool(context, {"type": "tool_use"})
+    result = await invoke_tool(context, {"type": "tool_use"})
     assert "Invalid tool specification" in result["content"]
 
     # Create a mock that will raise AttributeError when name or input is accessed
@@ -87,5 +91,5 @@ def test_invoke_tool_with_empty_toolspec():
 
     # Test with our custom mock missing required attributes
     mock_tool = RestrictedMock()
-    result = invoke_tool(context, mock_tool)
+    result = await invoke_tool(context, mock_tool)
     assert "Invalid tool specification" in result["content"]
