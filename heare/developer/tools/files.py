@@ -6,14 +6,14 @@ from .framework import tool
 
 
 @tool
-def read_file(context: "AgentContext", path: str):
+async def read_file(context: "AgentContext", path: str):
     """Read and return the contents of a file from the sandbox.
 
     Args:
         path: Path to the file to read
     """
     try:
-        return context.sandbox.read_file(path)
+        return await context.sandbox.read_file(path)
     except PermissionError:
         return f"Error: No read permission for {path}"
     except DoSomethingElseError:

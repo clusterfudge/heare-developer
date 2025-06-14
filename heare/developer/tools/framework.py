@@ -21,9 +21,20 @@ def tool(func):
             f"First parameter of {func.__name__} must be annotated with 'AgentContext' type"
         )
 
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        return func(*args, **kwargs)
+    if inspect.iscoroutinefunction(func):
+
+        @wraps(func)
+        async def async_wrapper(*args, **kwargs):
+            return await func(*args, **kwargs)
+
+        wrapper = async_wrapper
+    else:
+
+        @wraps(func)
+        def sync_wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        wrapper = sync_wrapper
 
     def schema():
         # Parse the docstring to get description and param docs
@@ -118,7 +129,7 @@ def tool(func):
     return wrapper
 
 
-def invoke_tool(context: "AgentContext", tool_use, tools: List[Callable] = None):
+async def invoke_tool(context: "AgentContext", tool_use, tools: List[Callable] = None):
     """Invoke a tool based on the tool_use specification.
 
     Args:
@@ -211,7 +222,10 @@ def invoke_tool(context: "AgentContext", tool_use, tools: List[Callable] = None)
             converted_args[arg_name] = arg_value
 
     # Call the tool function with the sandbox and converted arguments
-    result = tool_func(context, **converted_args)
+    if inspect.iscoroutinefunction(tool_func):
+        result = await tool_func(context, **converted_args)
+    else:
+        result = tool_func(context, **converted_args)
 
     return {"type": "tool_result", "tool_use_id": tool_use.id, "content": result}
 

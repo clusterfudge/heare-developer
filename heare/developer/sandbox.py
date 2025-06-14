@@ -4,6 +4,8 @@ import subprocess
 from enum import Enum, auto
 from typing import Dict, Callable
 
+import aiofiles
+
 from pathspec import PathSpec
 from pathspec.patterns import GitWildMatchPattern
 
@@ -157,7 +159,7 @@ class Sandbox:
             os.path.commonpath([abs_path, self.root_directory]) == self.root_directory
         )
 
-    def read_file(self, file_path):
+    async def read_file(self, file_path):
         """
         Read the contents of a file within the sandbox.
         """
@@ -170,8 +172,8 @@ class Sandbox:
         if not os.path.exists(full_path):
             raise FileNotFoundError(f"File {file_path} does not exist in the sandbox")
 
-        with open(full_path, "r") as file:
-            return file.read()
+        async with aiofiles.open(full_path, "r") as file:
+            return await file.read()
 
     def write_file(self, file_path, content):
         """
