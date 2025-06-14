@@ -13,3 +13,4 @@ heare/_version.py
 *.pyc
 .silica/
 .mypy_cache
+.agent-scratchpad/
