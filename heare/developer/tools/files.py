@@ -6,14 +6,14 @@ from .framework import tool
 
 
 @tool
-def read_file(context: "AgentContext", path: str):
+async def read_file(context: "AgentContext", path: str):
     """Read and return the contents of a file from the sandbox.
 
     Args:
         path: Path to the file to read
     """
     try:
-        return context.sandbox.read_file(path)
+        return await context.sandbox.read_file(path)
     except PermissionError:
         return f"Error: No read permission for {path}"
     except DoSomethingElseError:
@@ -22,7 +22,7 @@ def read_file(context: "AgentContext", path: str):
         return f"Error reading file: {str(e)}"
 
 
-@tool
+@tool(max_concurrency=1)
 def write_file(context: "AgentContext", path: str, content: str):
     """Write content to a file in the sandbox.
 
@@ -64,8 +64,10 @@ def list_directory(
         return f"Error listing directory: {str(e)}"
 
 
-@tool
-def edit_file(context: "AgentContext", path: str, match_text: str, replace_text: str):
+@tool(max_concurrency=1)
+async def edit_file(
+    context: "AgentContext", path: str, match_text: str, replace_text: str
+):
     """Make a targeted edit to a file in the sandbox by replacing specific text.
 
     Args:
@@ -74,7 +76,7 @@ def edit_file(context: "AgentContext", path: str, match_text: str, replace_text:
         replace_text: Text to replace the matched text with
     """
     try:
-        content = context.sandbox.read_file(path)
+        content = await context.sandbox.read_file(path)
 
         # Check if the match_text is unique
         if content.count(match_text) > 1:

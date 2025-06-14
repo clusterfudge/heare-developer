@@ -75,7 +75,7 @@ class UserInterface(ABC):
         """
 
     @abstractmethod
-    def get_user_input(self, prompt: str = "") -> str:
+    async def get_user_input(self, prompt: str = "") -> str:
         """
         Get input from the user.
 

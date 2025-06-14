@@ -137,13 +137,13 @@ def test_write_and_read_memory_entry(mock_context):
 
 
 @patch("heare.developer.tools.subagent.agent")
-def test_search_memory(mock_agent, mock_context):
+async def test_search_memory(mock_agent, mock_context):
     """Test searching memory."""
     # Configure the mock to return a mocked response
     mock_agent.return_value = "Mocked search response"
 
     # Test searching
-    result = search_memory(mock_context, "project")
+    result = await search_memory(mock_context, "project")
     assert result == "Mocked search response"
 
     # Verify the subagent was called
@@ -154,12 +154,12 @@ def test_search_memory(mock_agent, mock_context):
 
     # Test searching with prefix
     mock_agent.reset_mock()
-    result = search_memory(mock_context, "react", prefix="projects")
+    result = await search_memory(mock_context, "react", prefix="projects")
     assert result == "Mocked search response"
 
 
 @patch("heare.developer.tools.memory.agent")
-def test_critique_memory(mock_agent, mock_context):
+async def test_critique_memory(mock_agent, mock_context):
     """Test critiquing memory organization."""
     # Configure the mock to return a mocked response
     mock_agent.return_value = "Mocked critique response"
@@ -168,7 +168,7 @@ def test_critique_memory(mock_agent, mock_context):
     from heare.developer.tools.memory import critique_memory
 
     # Test critiquing
-    result = critique_memory(mock_context)
+    result = await critique_memory(mock_context)
     assert result == "Mocked critique response"
 
     # Verify the agent was called

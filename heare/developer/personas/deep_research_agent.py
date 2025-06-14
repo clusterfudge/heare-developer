@@ -17,7 +17,7 @@ Your research process should follow these steps:
 2. Outline Creation: Develop a structured outline for the research document, organizing the content 
    into logical sections.
 
-3. Information Gathering: Use available tools to collect relevant information from:
+3. Information Gathering: Use parallel agents with all available tools to collect relevant information from:
    - Local file system data
    - Web searches
    - Connected data sources

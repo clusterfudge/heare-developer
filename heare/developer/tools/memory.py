@@ -41,7 +41,7 @@ def get_memory_tree(
 
 
 @tool
-def search_memory(
+async def search_memory(
     context: "AgentContext", query: str, prefix: Optional[str] = None
 ) -> str:
     """Search memory with the given query.
@@ -94,7 +94,7 @@ def search_memory(
         """
 
         # Use the subagent tool to perform the search with run_bash_command tool
-        result = agent(
+        result = await agent(
             context=context,
             prompt=prompt,
             tool_names="run_bash_command",  # Allow grep commands
@@ -183,7 +183,7 @@ def write_memory_entry(context: "AgentContext", path: str, content: str) -> str:
 
 
 @tool
-def critique_memory(context: "AgentContext", prefix: str | None = None) -> str:
+async def critique_memory(context: "AgentContext", prefix: str | None = None) -> str:
     """Generate a critique of the current memory organization.
 
     This tool analyzes the current memory structure and provides recommendations
@@ -245,7 +245,7 @@ def critique_memory(context: "AgentContext", prefix: str | None = None) -> str:
             """
 
     try:
-        result = agent(
+        result = await agent(
             context=context,
             prompt=system_prompt + "\n\n" + user_prompt,
             model="smart",  # Use light model as specified

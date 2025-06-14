@@ -228,7 +228,7 @@ def _continuation_message(final_message: MessageParam) -> MessageParam | None:
     return final_message
 
 
-def run(
+async def run(
     agent_context: AgentContext,
     initial_prompt: str = None,
     single_response: bool = False,
@@ -324,7 +324,7 @@ def run(
                 cost = f"${agent_context.usage_summary()['total_cost']:.2f}"
                 user_input = ""
                 while not user_input.strip():
-                    user_input = user_interface.get_user_input(f"{cost} > ")
+                    user_input = await user_interface.get_user_input(f"{cost} > ")
 
                 command_name = (
                     user_input.split()[0][1:] if user_input.startswith("/") else ""
@@ -398,7 +398,7 @@ def run(
 
                 for attempt in range(max_retries):
                     try:
-                        rate_limiter.check_and_wait(user_interface)
+                        await rate_limiter.check_and_wait(user_interface)
 
                         # Calculate conversation size before sending the next request
                         # This ensures we have a complete conversation state for accurate counting
@@ -532,79 +532,82 @@ def run(
             )
 
             if final_message.stop_reason == "tool_use":
-                for part in final_message.content:
-                    if part.type == "tool_use":
-                        try:
-                            # Safely extract tool information, handling potential missing attributes
-                            tool_name = getattr(part, "name", "unknown_tool")
-                            tool_input = getattr(part, "input", {})
+                tool_uses = [
+                    part for part in final_message.content if part.type == "tool_use"
+                ]
+                agent_context.user_interface.handle_system_message(
+                    f"Found {len(tool_uses)} tools"
+                )
 
-                            # Log the tool use
-                            user_interface.handle_tool_use(tool_name, tool_input)
+                # Process all tool uses, potentially in parallel
+                try:
+                    results = await toolbox.invoke_agent_tools(tool_uses)
 
-                            # Invoke the tool
-                            result = toolbox.invoke_agent_tool(part)
-                            agent_context.tool_result_buffer.append(result)
-                            user_interface.handle_tool_result(tool_name, result)
-                        except DoSomethingElseError:
-                            # Handle "do something else" workflow:
-                            # 1. Remove the last assistant message
-                            if (
-                                agent_context.chat_history
-                                and agent_context.chat_history[-1]["role"]
-                                == "assistant"
+                    # Add all results to buffer and display them
+                    for tool_use, result in zip(tool_uses, results):
+                        tool_name = getattr(tool_use, "name", "unknown_tool")
+                        agent_context.tool_result_buffer.append(result)
+                        user_interface.handle_tool_result(tool_name, result)
+                except DoSomethingElseError:
+                    # Handle "do something else" workflow:
+                    # 1. Remove the last assistant message
+                    if (
+                        agent_context.chat_history
+                        and agent_context.chat_history[-1]["role"] == "assistant"
+                    ):
+                        agent_context.chat_history.pop()
+
+                    # 2. Get user's alternate prompt
+                    user_interface.handle_system_message(
+                        "You selected 'do something else'. Please enter what you'd like to do instead:"
+                    )
+                    alternate_prompt = await user_interface.get_user_input()
+
+                    # 3. Append alternate prompt to the last user message
+                    for i in reversed(range(len(agent_context.chat_history))):
+                        if agent_context.chat_history[i]["role"] == "user":
+                            # Add the alternate prompt to the previous user message
+                            if isinstance(
+                                agent_context.chat_history[i]["content"], str
                             ):
-                                agent_context.chat_history.pop()
+                                agent_context.chat_history[i]["content"] += (
+                                    f"\n\nI viewed your response, and have updated my instructions: {alternate_prompt}"
+                                )
+                            elif isinstance(
+                                agent_context.chat_history[i]["content"], list
+                            ):
+                                # Handle content as list of blocks
+                                agent_context.chat_history[i]["content"].append(
+                                    {
+                                        "type": "text",
+                                        "text": f"I viewed your response, and have updated my instructions: {alternate_prompt}",
+                                    }
+                                )
+                            break
 
-                            # 2. Get user's alternate prompt
-                            user_interface.handle_system_message(
-                                "You selected 'do something else'. Please enter what you'd like to do instead:"
-                            )
-                            alternate_prompt = user_interface.get_user_input()
+                    # Clear the tool result buffer to avoid processing the current tool request
+                    agent_context.tool_result_buffer.clear()
 
-                            # 3. Append alternate prompt to the last user message
-                            for i in reversed(range(len(agent_context.chat_history))):
-                                if agent_context.chat_history[i]["role"] == "user":
-                                    # Add the alternate prompt to the previous user message
-                                    if isinstance(
-                                        agent_context.chat_history[i]["content"], str
-                                    ):
-                                        agent_context.chat_history[i]["content"] += (
-                                            f"\n\nI viewed your response, and have updated my instructions: {alternate_prompt}"
-                                        )
-                                    elif isinstance(
-                                        agent_context.chat_history[i]["content"], list
-                                    ):
-                                        # Handle content as list of blocks
-                                        agent_context.chat_history[i]["content"].append(
-                                            {
-                                                "type": "text",
-                                                "text": f"I viewed your response, and have updated my instructions: {alternate_prompt}",
-                                            }
-                                        )
-                                    break
-
-                            # Clear the tool result buffer to avoid processing the current tool request
-                            agent_context.tool_result_buffer.clear()
-
-                            # Skip to the next iteration to immediately process the updated chat history
-                            # instead of breaking out of the loop which would wait for next user input
-                            continue
-                        except Exception as e:
-                            # Handle any other exceptions during tool invocation
-                            error_message = f"Error invoking tool: {str(e)}"
-                            user_interface.handle_system_message(
-                                f"[bold red]{error_message}[/bold red]"
-                            )
-                            result = {
-                                "type": "tool_result",
-                                "tool_use_id": getattr(part, "id", "unknown_id"),
-                                "content": error_message,
-                            }
-                            agent_context.tool_result_buffer.append(result)
-                            user_interface.handle_tool_result(
-                                getattr(part, "name", "unknown_tool"), result
-                            )
+                    # Skip to the next iteration to immediately process the updated chat history
+                    # instead of breaking out of the loop which would wait for next user input
+                    continue
+                except Exception as e:
+                    # Handle any other exceptions during tool batch invocation
+                    error_message = f"Error invoking tools: {str(e)}"
+                    user_interface.handle_system_message(
+                        f"[bold red]{error_message}[/bold red]"
+                    )
+                    # Add error results for all tools
+                    for tool_use in tool_uses:
+                        result = {
+                            "type": "tool_result",
+                            "tool_use_id": getattr(tool_use, "id", "unknown_id"),
+                            "content": error_message,
+                        }
+                        agent_context.tool_result_buffer.append(result)
+                        user_interface.handle_tool_result(
+                            getattr(tool_use, "name", "unknown_tool"), result
+                        )
             elif final_message.stop_reason == "max_tokens":
                 # Don't add the partial message to chat history (remove it if necessary)
                 if (
