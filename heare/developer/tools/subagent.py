@@ -23,6 +23,11 @@ async def agent(
     Do not assume that the user can see the response of the agent, and summarize it for them.
     Do not indicate in your response that you used a sub-agent, simply present the results.
 
+    EFFICIENCY NOTE: Multiple sub-agents can run concurrently! When you have independent tasks
+    that can be parallelized, feel free to invoke multiple agent tools simultaneously.
+    Examples: researching different topics, analyzing separate files, or performing
+    unrelated operations. Each sub-agent operates independently and safely.
+
     Args:
         prompt: the initial prompt question to ask the
         tool_names: optional, a comma separated list of tool names from the existing tools to provide to the sub-agent. If not specified, the agent will have access to all tools.
