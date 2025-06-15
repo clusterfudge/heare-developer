@@ -190,7 +190,7 @@ def list_issues(context: "AgentContext", group: str = None) -> str:
         # Sort issues by sequence_id
         issues.sort(key=lambda x: x.get("sequence_id", 0))
 
-        if group.strip():
+        if group and group.strip():
             group = group.strip().lower()
 
         # Format the issues as a table
