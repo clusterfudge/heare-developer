@@ -348,7 +348,7 @@ async def run(
                     elif command_name in toolbox.local:
                         tool = toolbox.local.get(command_name)
                         if tool:
-                            result, append = toolbox.invoke_cli_tool(
+                            result, append = await toolbox.invoke_cli_tool(
                                 name=command_name,
                                 arg_str=user_input[len(command_name) + 1 :].strip(),
                                 chat_history=agent_context.chat_history,

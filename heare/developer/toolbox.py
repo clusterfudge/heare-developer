@@ -125,7 +125,7 @@ class Toolbox:
             for alias in aliases:
                 self.local[alias] = tool_info
 
-    def invoke_cli_tool(
+    async def invoke_cli_tool(
         self,
         name: str,
         arg_str: str,
@@ -144,8 +144,10 @@ class Toolbox:
         if confirm_to_add:
             add_to_buffer = (
                 (
-                    self.context.user_interface.get_user_input(
-                        "[bold]Add command and output to conversation? (y/[red]N[/red]): [/bold]"
+                    (
+                        await self.context.user_interface.get_user_input(
+                            "[bold]Add command and output to conversation? (y/[red]N[/red]): [/bold]"
+                        )
                     )
                     .strip()
                     .lower()
