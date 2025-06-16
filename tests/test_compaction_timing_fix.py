@@ -223,36 +223,36 @@ class TestCompactionTimingFix(unittest.TestCase):
         )
         context._chat_history = self.sample_messages.copy()
 
+        # Create a mock transition
+        from heare.developer.compacter import (
+            CompactionTransition,
+            CompactionSummary,
+        )
+
+        summary = CompactionSummary(
+            original_message_count=len(self.sample_messages),
+            original_token_count=5000,
+            summary_token_count=500,
+            compaction_ratio=0.1,
+            summary="Test summary",
+        )
+
+        transition = CompactionTransition(
+            original_session_id="test-session",
+            new_session_id="new-test-session",
+            compacted_messages=[{"role": "user", "content": "Summary"}],
+            summary=summary,
+        )
+
+        # Create a mock compacter instance that returns our transition
+        mock_compacter_instance = mock.Mock()
+        mock_compacter_instance.compact_and_transition.return_value = transition
+
         # Mock the compaction logic to always trigger
         with mock.patch(
-            "heare.developer.compacter.ConversationCompacter.should_compact",
-            return_value=True,
-        ), mock.patch(
-            "heare.developer.compacter.ConversationCompacter.compact_and_transition"
-        ) as mock_compact:
-            # Create a mock transition
-            from heare.developer.compacter import (
-                CompactionTransition,
-                CompactionSummary,
-            )
-
-            summary = CompactionSummary(
-                original_message_count=len(self.sample_messages),
-                original_token_count=5000,
-                summary_token_count=500,
-                compaction_ratio=0.1,
-                summary="Test summary",
-            )
-
-            transition = CompactionTransition(
-                original_session_id="test-session",
-                new_session_id="new-test-session",
-                compacted_messages=[{"role": "user", "content": "Summary"}],
-                summary=summary,
-            )
-
-            mock_compact.return_value = transition
-
+            "heare.developer.compacter.ConversationCompacter",
+            return_value=mock_compacter_instance,
+        ):
             # Test the function
             updated_context, compaction_applied = _check_and_apply_compaction(
                 context, self.model_spec, ui, enable_compaction=True
