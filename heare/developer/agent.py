@@ -208,6 +208,67 @@ def _apply_compaction_transition(
     return agent_context
 
 
+def _check_and_apply_compaction(
+    agent_context: AgentContext,
+    model: dict,
+    user_interface,
+    enable_compaction: bool = True,
+) -> tuple[AgentContext, bool]:
+    """Check if compaction is needed and apply it if necessary.
+
+    Args:
+        agent_context: The agent context to check
+        model: Model specification dict
+        user_interface: User interface for notifications
+        enable_compaction: Whether compaction is enabled
+
+    Returns:
+        Tuple of (possibly updated agent_context, True if compaction was applied)
+    """
+    if not enable_compaction:
+        return agent_context, False
+
+    # Only check compaction when conversation state is complete
+    # (no pending tool results and conversation has actual content)
+    if (
+        agent_context.tool_result_buffer
+        or not agent_context.chat_history
+        or len(agent_context.chat_history) <= 2
+    ):
+        return agent_context, False
+
+    try:
+        from heare.developer.compacter import ConversationCompacter
+
+        compacter = ConversationCompacter()
+        model_name = model["title"]
+
+        transition = compacter.compact_and_transition(agent_context, model_name)
+
+        if transition:
+            # Apply the transition to start using the compacted conversation
+            updated_context = _apply_compaction_transition(agent_context, transition)
+
+            # Notify user about the compaction and transition
+            user_interface.handle_system_message(
+                f"[bold green]Conversation compacted: "
+                f"{transition.summary.original_message_count} messages → "
+                f"new session {transition.new_session_id[:8]}[/bold green]"
+            )
+
+            # Save both sessions: original (already saved) and new compacted one
+            updated_context.flush(updated_context.chat_history, compact=False)
+            return updated_context, True
+
+    except Exception as e:
+        # Log compaction errors but continue normally
+        user_interface.handle_system_message(
+            f"[yellow]Compaction check failed: {e}[/yellow]"
+        )
+
+    return agent_context, False
+
+
 def _continuation_message(final_message: MessageParam) -> MessageParam | None:
     continue_message = {
         "type": "text",
@@ -270,45 +331,9 @@ async def run(
     while True:
         try:
             # Check for compaction when conversation state is complete
-            # (no pending tool results and conversation has actual content)
-            if (
-                enable_compaction
-                and not agent_context.tool_result_buffer
-                and agent_context.chat_history
-                and len(agent_context.chat_history)
-                > 2  # Ensure we have actual conversation
-            ):
-                try:
-                    from heare.developer.compacter import ConversationCompacter
-
-                    compacter = ConversationCompacter()
-                    model_name = model["title"]
-
-                    transition = compacter.compact_and_transition(
-                        agent_context, model_name
-                    )
-
-                    if transition:
-                        # Apply the transition to start using the compacted conversation
-                        agent_context = _apply_compaction_transition(
-                            agent_context, transition
-                        )
-
-                        # Notify user about the compaction and transition
-                        user_interface.handle_system_message(
-                            f"[bold green]Conversation compacted: "
-                            f"{transition.summary.original_message_count} messages → "
-                            f"new session {transition.new_session_id[:8]}[/bold green]"
-                        )
-
-                        # Save both sessions: original (already saved) and new compacted one
-                        agent_context.flush(agent_context.chat_history, compact=False)
-
-                except Exception as e:
-                    # Log compaction errors but continue normally
-                    user_interface.handle_system_message(
-                        f"[yellow]Compaction check failed: {e}[/yellow]"
-                    )
+            agent_context, _ = _check_and_apply_compaction(
+                agent_context, model, user_interface, enable_compaction
+            )
 
             if (
                 agent_context.chat_history
@@ -399,6 +424,16 @@ async def run(
                 for attempt in range(max_retries):
                     try:
                         await rate_limiter.check_and_wait(user_interface)
+
+                        # Check for compaction before making API call - this is the critical timing
+                        # where we can catch conversations that have grown too large
+                        agent_context, compaction_applied = _check_and_apply_compaction(
+                            agent_context, model, user_interface, enable_compaction
+                        )
+                        if compaction_applied:
+                            # If compaction occurred, restart the API request attempt
+                            # with the newly compacted conversation
+                            continue
 
                         # Calculate conversation size before sending the next request
                         # This ensures we have a complete conversation state for accurate counting
