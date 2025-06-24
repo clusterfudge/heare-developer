@@ -391,18 +391,10 @@ class Toolbox:
 
         user_interface.handle_system_message(f"Command Output:\n{result}")
 
-        add_to_buffer = (
-            user_interface.get_user_input(
-                "[bold yellow]Add command and output to tool result buffer? (y/n): [/bold yellow]"
-            )
-            .strip()
-            .lower()
-        )
-        if add_to_buffer == "y":
-            chat_entry = (
-                f"Executed bash command: {command}\n\nCommand output:\n{result}"
-            )
-            return chat_entry
+        # Return the result for potential addition to tool buffer
+        # The calling code will handle the confirmation prompt
+        chat_entry = f"Executed bash command: {command}\n\nCommand output:\n{result}"
+        return chat_entry
 
     def _commit(self, user_interface, sandbox, user_input, *args, **kwargs):
         """Generate and execute a commit message"""
