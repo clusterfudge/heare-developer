@@ -56,6 +56,10 @@ Fetch the current state of any pull request that exists (including build state, 
    - Use `git revert` to roll back to a stable state if necessary
    - Try an alternative approach based on your analysis
 6. Adhere to the project's established patterns and frameworks
+7. When creating scratch files, use a directory at the root of the repository named `.agent-scratchpad`. 
+   - make sure this directory is ignored from source control
+   - never commit this directory or any of its contents
+   - this directory should be used for temporary plans, test scripts, data or output files, logs, and the like.
 
 ### Code Quality Standards
 Follow Kent Beck's "Tidy First?" principles:
