@@ -7,6 +7,7 @@ from .context import AgentContext
 import subprocess
 import inspect
 from .commit import run_commit
+from .sandbox import DoSomethingElseError
 
 from .tools import ALL_TOOLS
 from .utils import render_tree
@@ -384,10 +385,10 @@ class Toolbox:
 
         return content
 
-    def _exec(self, user_interface, sandbox, user_input, *args, **kwargs):
+    async def _exec(self, user_interface, sandbox, user_input, *args, **kwargs):
         """Execute a bash command and optionally add it to tool result buffer"""
         command = user_input[5:].strip()  # Remove '/exec' from the beginning
-        result = self._run_bash_command(command)
+        result = await self._run_bash_command_async(command)
 
         user_interface.handle_system_message(f"Command Output:\n{result}")
 
@@ -408,6 +409,7 @@ class Toolbox:
 
     # Agent Tools
     def _run_bash_command(self, command: str) -> str:
+        """Legacy synchronous version - kept for backward compatibility"""
         try:
             # Check for potentially dangerous commands
             dangerous_commands = [
@@ -421,7 +423,7 @@ class Toolbox:
             if not self.context.sandbox.check_permissions("shell", command):
                 return "Error: Operator denied permission."
 
-            # Run the command and capture output
+            # Run the command and capture output (short timeout for legacy compatibility)
             result = subprocess.run(
                 command, shell=True, capture_output=True, text=True, timeout=10
             )
@@ -436,6 +438,33 @@ class Toolbox:
             return output
         except subprocess.TimeoutExpired:
             return "Error: Command execution timed out"
+        except Exception as e:
+            return f"Error executing command: {str(e)}"
+
+    async def _run_bash_command_async(self, command: str) -> str:
+        """Async version with interactive timeout handling"""
+        try:
+            # Check for potentially dangerous commands
+            dangerous_commands = [
+                r"\bsudo\b",
+            ]
+            import re
+
+            if any(re.search(cmd, command) for cmd in dangerous_commands):
+                return "Error: This command is not allowed for safety reasons."
+
+            try:
+                if not self.context.sandbox.check_permissions("shell", command):
+                    return "Error: Operator denied permission."
+            except DoSomethingElseError:
+                raise  # Re-raise to be handled by higher-level components
+
+            # Import the enhanced function from tools.repl
+            from .tools.repl import _run_bash_command_with_interactive_timeout
+
+            return await _run_bash_command_with_interactive_timeout(
+                self.context, command
+            )
         except Exception as e:
             return f"Error executing command: {str(e)}"
 
