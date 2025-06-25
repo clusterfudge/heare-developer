@@ -547,7 +547,7 @@ class Toolbox:
                 choice = (
                     input(
                         "Command is still running. Choose action:\n"
-                        "  [C]ontinue waiting (30s more)\n"
+                        f"  [C]ontinue waiting ({initial_timeout}s more)\n"
                         "  [K]ill the process\n"
                         "  [B]ackground (continue but return current output)\n"
                         "Choice (C/K/B): "
@@ -602,9 +602,10 @@ class Toolbox:
                     return output
 
                 else:  # Default to 'C' - continue
-                    current_timeout += 30
+                    current_timeout += initial_timeout  # Add the same interval again
                     self.context.user_interface.handle_system_message(
-                        "Continuing to wait for 30 more seconds...", markdown=False
+                        f"Continuing to wait for {initial_timeout} more seconds...",
+                        markdown=False,
                     )
 
             # Sleep briefly before next check
@@ -738,4 +739,3 @@ class Toolbox:
                 schemas.append(tool.schema())
         if schemas and enable_caching:
             schemas[-1]["cache_control"] = {"type": "ephemeral"}
-        return schemas

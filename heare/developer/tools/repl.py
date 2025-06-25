@@ -325,7 +325,7 @@ async def _run_bash_command_with_interactive_timeout(
             # Prompt user for action
             choice = await context.user_interface.get_user_input(
                 "Command is still running. Choose action:\n"
-                "  [C]ontinue waiting (30s more)\n"
+                f"  [C]ontinue waiting ({initial_timeout}s more)\n"
                 "  [K]ill the process\n"
                 "  [B]ackground (continue but return current output)\n"
                 "Choice (C/K/B): "
@@ -381,9 +381,10 @@ async def _run_bash_command_with_interactive_timeout(
                 return output
 
             else:  # Default to 'C' - continue
-                current_timeout += 30
+                current_timeout += initial_timeout  # Add the same interval again
                 context.user_interface.handle_system_message(
-                    "Continuing to wait for 30 more seconds...", markdown=False
+                    f"Continuing to wait for {initial_timeout} more seconds...",
+                    markdown=False,
                 )
 
         # Sleep briefly before next check
