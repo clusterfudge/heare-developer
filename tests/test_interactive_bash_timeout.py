@@ -100,7 +100,7 @@ class TestInteractiveBashTimeout:
         context = self.create_test_context(responses=["K"])
 
         result = await _run_bash_command_with_interactive_timeout(
-            context, "sleep 5", initial_timeout=0.5
+            context, "sleep 2", initial_timeout=0.1
         )
 
         assert "Command was killed by user" in result
@@ -112,7 +112,7 @@ class TestInteractiveBashTimeout:
         context = self.create_test_context(responses=["B"])
 
         result = await _run_bash_command_with_interactive_timeout(
-            context, "sleep 5", initial_timeout=0.5
+            context, "sleep 2", initial_timeout=0.1
         )
 
         assert "Command backgrounded" in result
@@ -126,7 +126,7 @@ class TestInteractiveBashTimeout:
 
         # Need a longer sleep to ensure it doesn't complete between timeouts
         result = await _run_bash_command_with_interactive_timeout(
-            context, "sleep 10", initial_timeout=0.5
+            context, "sleep 3", initial_timeout=0.1
         )
 
         assert "Command was killed by user" in result
@@ -137,10 +137,10 @@ class TestInteractiveBashTimeout:
         context = self.create_test_context(responses=["K"])
 
         # Create a command that produces output then sleeps
-        command = "echo 'line1'; echo 'line2'; sleep 5"
+        command = "echo 'line1'; echo 'line2'; sleep 2"
 
         result = await _run_bash_command_with_interactive_timeout(
-            context, command, initial_timeout=0.5
+            context, command, initial_timeout=0.1
         )
 
         assert "Command was killed by user" in result
@@ -168,7 +168,7 @@ class TestInteractiveBashTimeout:
         )
 
         await _run_bash_command_with_interactive_timeout(
-            context, "sleep 5", initial_timeout=0.5
+            context, "sleep 2", initial_timeout=0.1
         )
 
         # Check that system messages were sent
