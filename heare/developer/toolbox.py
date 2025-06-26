@@ -739,3 +739,4 @@ class Toolbox:
                 schemas.append(tool.schema())
         if schemas and enable_caching:
             schemas[-1]["cache_control"] = {"type": "ephemeral"}
+        return schemas
