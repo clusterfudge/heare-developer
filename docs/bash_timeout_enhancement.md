@@ -90,3 +90,53 @@ Comprehensive test suite covers:
 ## Configuration
 
 Currently uses a 30-second default timeout. This can be adjusted in the implementation if needed for specific use cases.
+## Live Output Streaming
+
+### Real-time Command Output
+
+The enhancement includes live output streaming capabilities that provide real-time visibility into command execution:
+
+#### Basic Live Streaming
+```python
+from heare.developer.tools.repl import run_bash_command_with_live_streaming
+
+# Command output streams live to the terminal
+result = await run_bash_command_with_live_streaming(context, "./build_script.sh")
+```
+
+#### Advanced Live Display Management
+```python
+from heare.developer.tools.repl import create_bash_live_display
+
+# Create custom live display context
+with create_bash_live_display() as live_ctx:
+    result = await live_ctx.run_command(context, "long_running_process")
+```
+
+#### User Interface Integration
+
+The live streaming works through the enhanced UserInterface system:
+
+```python
+# All UI methods now support optional live parameter
+context.user_interface.handle_system_message("Status update", live=live_instance)
+context.user_interface.handle_tool_result("tool_name", result, live=live_instance)
+context.user_interface.bare("Direct output", live=live_instance)
+```
+
+### Live Streaming Features
+
+- **Real-time Output**: See command output as it's generated
+- **Timeout Integration**: Live display updates during timeout prompts
+- **Process Completion**: Immediate display updates when processes complete
+- **Backward Compatible**: All existing code continues working unchanged
+- **Optional Enhancement**: Tools can opt-in to live streaming
+
+## Benefits
+
+- **Better UX**: No more failed commands due to arbitrary timeouts
+- **User control**: Users decide when to terminate long-running commands
+- **Real-time Visibility**: Live output shows command progress as it happens
+- **Flexibility**: Background option for truly long-running processes
+- **Safety**: Maintains all existing security and permission checks
+- **Race Condition Free**: Process completion detected even during user input

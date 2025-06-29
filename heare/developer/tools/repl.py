@@ -6,6 +6,42 @@ from heare.developer.sandbox import DoSomethingElseError
 from .framework import tool
 
 
+def create_bash_live_display():
+    """Create a Rich Live display for bash command output streaming.
+
+    Returns:
+        A context manager that provides live streaming for bash commands.
+
+    Usage:
+        with create_bash_live_display() as live_ctx:
+            result = await live_ctx.run_command(context, "long_running_command")
+    """
+    from rich.live import Live
+    from rich.text import Text
+
+    class BashLiveContext:
+        def __init__(self, live):
+            self.live = live
+
+        async def run_command(self, context, command, initial_timeout=30):
+            """Run a command with live streaming using this context."""
+            return await _run_bash_command_with_interactive_timeout(
+                context, command, initial_timeout, live=self.live
+            )
+
+    class BashLiveDisplayManager:
+        def __enter__(self):
+            live_content = Text("Preparing to execute command...")
+            self.live = Live(live_content, refresh_per_second=4)
+            self.live.__enter__()
+            return BashLiveContext(self.live)
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            self.live.__exit__(exc_type, exc_val, exc_tb)
+
+    return BashLiveDisplayManager()
+
+
 @tool
 def python_repl(context: "AgentContext", code: str):
     """Run Python code in a sandboxed environment and return the output.
@@ -211,8 +247,32 @@ async def run_bash_command(context: "AgentContext", command: str):
         return f"Error executing command: {str(e)}"
 
 
-async def _run_bash_command_with_interactive_timeout(
+async def run_bash_command_with_live_streaming(
     context: "AgentContext", command: str, initial_timeout: int = 30
+):
+    """Run a bash command with interactive timeout handling and live output streaming.
+
+    This function creates its own Live display for real-time output streaming.
+
+    Args:
+        context: The agent context
+        command: The bash command to execute
+        initial_timeout: Initial timeout in seconds before prompting user
+    """
+    from rich.live import Live
+    from rich.text import Text
+
+    # Create live display
+    live_content = Text("Starting command execution...")
+
+    with Live(live_content, refresh_per_second=4) as live:
+        return await _run_bash_command_with_interactive_timeout(
+            context, command, initial_timeout, live=live
+        )
+
+
+async def _run_bash_command_with_interactive_timeout(
+    context: "AgentContext", command: str, initial_timeout: int = 30, live=None
 ):
     """Run a bash command with interactive timeout handling.
 
@@ -220,6 +280,7 @@ async def _run_bash_command_with_interactive_timeout(
         context: The agent context
         command: The bash command to execute
         initial_timeout: Initial timeout in seconds before prompting user
+        live: Optional Rich Live instance for real-time output streaming
     """
     import asyncio
     import time
@@ -299,6 +360,30 @@ async def _run_bash_command_with_interactive_timeout(
         # Collect any new output
         _collect_output_batch(stdout_queue, stderr_queue, stdout_buffer, stderr_buffer)
 
+        # If we have live streaming, update the display with current output
+        if live:
+            current_stdout = stdout_buffer.getvalue()
+            current_stderr = stderr_buffer.getvalue()
+
+            if current_stdout or current_stderr:
+                from rich.console import Group
+                from rich.text import Text
+
+                output_parts = []
+                if current_stdout:
+                    output_parts.extend(
+                        [Text("STDOUT:", style="bold green"), Text(current_stdout)]
+                    )
+                if current_stderr:
+                    if output_parts:
+                        output_parts.append(Text(""))  # Empty line separator
+                    output_parts.extend(
+                        [Text("STDERR:", style="bold red"), Text(current_stderr)]
+                    )
+
+                live_content = Group(*output_parts)
+                live.update(live_content)
+
         # Check if we've exceeded the timeout
         elapsed = time.time() - start_time
         if elapsed >= current_timeout:
@@ -320,7 +405,45 @@ async def _run_bash_command_with_interactive_timeout(
                     else f"Current STDERR:\n{current_stderr}\n"
                 )
 
-            context.user_interface.handle_system_message(status_msg, markdown=False)
+            # Display status message - use live if available, otherwise normal system message
+            if live:
+                from rich.console import Group
+                from rich.text import Text
+
+                # Create a combined display with current output and status
+                display_parts = []
+
+                # Add current output
+                current_stdout = stdout_buffer.getvalue()
+                current_stderr = stderr_buffer.getvalue()
+
+                if current_stdout:
+                    display_parts.extend(
+                        [Text("STDOUT:", style="bold green"), Text(current_stdout)]
+                    )
+                if current_stderr:
+                    if display_parts:
+                        display_parts.append(Text(""))  # Empty line separator
+                    display_parts.extend(
+                        [Text("STDERR:", style="bold red"), Text(current_stderr)]
+                    )
+
+                # Add timeout status
+                display_parts.extend(
+                    [
+                        Text(""),  # Empty line
+                        Text(
+                            f"Command has been running for {elapsed:.1f} seconds.",
+                            style="bold yellow",
+                        ),
+                        Text("Waiting for user input...", style="yellow"),
+                    ]
+                )
+
+                live_display = Group(*display_parts)
+                live.update(live_display)
+            else:
+                context.user_interface.handle_system_message(status_msg, markdown=False)
 
             # Race between user input and process completion
             # Create tasks for both user input and process monitoring
@@ -422,10 +545,46 @@ async def _run_bash_command_with_interactive_timeout(
 
             else:  # Default to 'C' - continue
                 current_timeout += initial_timeout  # Add the same interval again
-                context.user_interface.handle_system_message(
-                    f"Continuing to wait for {initial_timeout} more seconds...",
-                    markdown=False,
-                )
+                if live:
+                    # Update live display to show we're continuing
+                    from rich.console import Group
+                    from rich.text import Text
+
+                    display_parts = []
+
+                    # Add current output
+                    current_stdout = stdout_buffer.getvalue()
+                    current_stderr = stderr_buffer.getvalue()
+
+                    if current_stdout:
+                        display_parts.extend(
+                            [Text("STDOUT:", style="bold green"), Text(current_stdout)]
+                        )
+                    if current_stderr:
+                        if display_parts:
+                            display_parts.append(Text(""))  # Empty line separator
+                        display_parts.extend(
+                            [Text("STDERR:", style="bold red"), Text(current_stderr)]
+                        )
+
+                    # Add continuation status
+                    display_parts.extend(
+                        [
+                            Text(""),  # Empty line
+                            Text(
+                                f"Continuing to wait for {initial_timeout} more seconds...",
+                                style="bold cyan",
+                            ),
+                        ]
+                    )
+
+                    live_display = Group(*display_parts)
+                    live.update(live_display)
+                else:
+                    context.user_interface.handle_system_message(
+                        f"Continuing to wait for {initial_timeout} more seconds...",
+                        markdown=False,
+                    )
 
         # Sleep briefly before next check
         await asyncio.sleep(0.5)

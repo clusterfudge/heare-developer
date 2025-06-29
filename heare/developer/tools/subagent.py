@@ -149,7 +149,7 @@ class CaptureInterface(UserInterface):
         self._status = status
         self._prior_renderable = status.renderable
 
-    def handle_system_message(self, message, markdown=True):
+    def handle_system_message(self, message, markdown=True, live=None):
         self.output.append(message)
 
     def handle_user_input(self, message):
@@ -166,7 +166,7 @@ class CaptureInterface(UserInterface):
         self.status(message, update=True)
         self.output.append(message)
 
-    def handle_tool_result(self, tool_name, result):
+    def handle_tool_result(self, tool_name, result, live=None):
         self.output.append(f"Tool {tool_name} result: {result}")
 
     def display_token_count(
@@ -187,5 +187,5 @@ class CaptureInterface(UserInterface):
     def permission_rendering_callback(self, operation, path, action_arguments):
         return True
 
-    def bare(self, message: str | Any) -> None:
-        return self.parent.bare(message)
+    def bare(self, message: str | Any, live=None) -> None:
+        return self.parent.bare(message, live=live)

@@ -22,7 +22,7 @@ class MockUserInterface(UserInterface):
     def handle_assistant_message(self, message: str) -> None:
         pass
 
-    def handle_system_message(self, message: str, markdown=True) -> None:
+    def handle_system_message(self, message: str, markdown=True, live=None) -> None:
         self.messages.append(("system", message))
 
     def permission_callback(
@@ -38,7 +38,7 @@ class MockUserInterface(UserInterface):
     def handle_tool_use(self, tool_name: str, tool_params):
         pass
 
-    def handle_tool_result(self, name: str, result):
+    def handle_tool_result(self, name: str, result, live=None):
         pass
 
     async def get_user_input(self, prompt: str = "") -> str:
@@ -67,7 +67,7 @@ class MockUserInterface(UserInterface):
 
         return DummyContext()
 
-    def bare(self, message):
+    def bare(self, message, live=None):
         pass
 
 
@@ -212,3 +212,21 @@ class TestInteractiveBashTimeout:
 
         # Should show process completed successfully
         # The sleep command exits with code 0 when it completes normally
+
+    @pytest.mark.asyncio
+    async def test_live_streaming_functionality(self):
+        """Test that live streaming mode works correctly."""
+        from heare.developer.tools.repl import run_bash_command_with_live_streaming
+
+        context = self.create_test_context()
+
+        # Test with a quick command that should complete without timeout
+        result = await run_bash_command_with_live_streaming(
+            context, "echo 'live streaming test'"
+        )
+
+        assert "Exit code: 0" in result
+        assert "live streaming test" in result
+
+        # Test that we can run the function without errors
+        # (Real live streaming would be visible in terminal but not captured in tests)

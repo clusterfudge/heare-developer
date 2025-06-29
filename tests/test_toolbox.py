@@ -11,7 +11,7 @@ class MockUserInterface(UserInterface):
     def handle_assistant_message(self, message: str) -> None:
         pass
 
-    def handle_system_message(self, message: str, markdown=True) -> None:
+    def handle_system_message(self, message: str, markdown=True, live=None) -> None:
         pass
 
     def permission_callback(
@@ -27,7 +27,7 @@ class MockUserInterface(UserInterface):
     def handle_tool_use(self, tool_name: str, tool_params):
         pass
 
-    def handle_tool_result(self, name: str, result):
+    def handle_tool_result(self, name: str, result, live=None):
         pass
 
     async def get_user_input(self, prompt: str = "") -> str:
@@ -52,7 +52,7 @@ class MockUserInterface(UserInterface):
 
         return DummyContext()
 
-    def bare(self, message):
+    def bare(self, message, live=None):
         pass
 
 
