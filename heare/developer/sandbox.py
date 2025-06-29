@@ -93,7 +93,8 @@ class Sandbox:
         if not os.path.exists(target_dir):
             return []
 
-        for root, dirs, files in os.walk(target_dir):
+        # Use os.walk with followlinks=True to follow symlinks like find -follow
+        for root, dirs, files in os.walk(target_dir, followlinks=True):
             # Remove ignored directories to prevent further traversal
             dirs[:] = [
                 d
@@ -101,11 +102,23 @@ class Sandbox:
                 if not self.gitignore_spec.match_file(os.path.join(root, d))
             ]
 
+            # Include files
             for item in files:
                 full_path = os.path.join(root, item)
                 rel_path = os.path.relpath(full_path, target_dir)
                 if not self.gitignore_spec.match_file(os.path.join(path, rel_path)):
                     listing.append(rel_path)
+
+            # Include symlinked directories as entries (not just traverse them)
+            if root == target_dir:
+                for item in dirs:
+                    full_path = os.path.join(root, item)
+                    if os.path.islink(full_path):
+                        rel_path = os.path.relpath(full_path, target_dir)
+                        if not self.gitignore_spec.match_file(
+                            os.path.join(path, rel_path)
+                        ):
+                            listing.append(rel_path)
 
             if not recursive:
                 break  # Only process the first level for non-recursive listing
@@ -240,3 +253,162 @@ class Sandbox:
         os.makedirs(os.path.dirname(full_path), exist_ok=True)
         with open(full_path, "w") as file:
             file.write(content)
+
+    def get_directory_listing_with_metadata(self, path="", recursive=True, limit=1000):
+        """
+        Get directory listing with metadata including symlink information.
+
+        Returns:
+            List of dictionaries with metadata for each entry.
+        """
+        metadata_listing = []
+        target_dir = os.path.join(self.root_directory, path)
+
+        if not self._is_path_in_sandbox(target_dir):
+            raise ValueError(f"Path {path} is outside the sandbox")
+
+        if not os.path.exists(target_dir):
+            return []
+
+        for root, dirs, files in os.walk(target_dir):
+            # Remove ignored directories to prevent further traversal
+            dirs[:] = [
+                d
+                for d in dirs
+                if not self.gitignore_spec.match_file(os.path.join(root, d))
+            ]
+
+            # Include files with metadata
+            for item in files:
+                full_path = os.path.join(root, item)
+                rel_path = os.path.relpath(full_path, target_dir)
+                if not self.gitignore_spec.match_file(os.path.join(path, rel_path)):
+                    metadata = self._get_path_metadata(full_path, rel_path)
+                    metadata_listing.append(metadata)
+
+            # Include symlinked directories in the first iteration (current directory level)
+            if root == target_dir:
+                for item in dirs:
+                    full_path = os.path.join(root, item)
+                    if os.path.islink(full_path):
+                        rel_path = os.path.relpath(full_path, target_dir)
+                        if not self.gitignore_spec.match_file(
+                            os.path.join(path, rel_path)
+                        ):
+                            metadata = self._get_path_metadata(full_path, rel_path)
+                            metadata_listing.append(metadata)
+
+            if not recursive:
+                break  # Only process the first level for non-recursive listing
+
+            if len(metadata_listing) >= limit:
+                return []
+
+        return sorted(metadata_listing, key=lambda x: x["name"])
+
+    def _get_path_metadata(self, full_path, rel_path):
+        """Get metadata for a path including symlink information."""
+        metadata = {"name": rel_path, "is_symlink": os.path.islink(full_path)}
+
+        if metadata["is_symlink"]:
+            try:
+                metadata["symlink_target"] = os.readlink(full_path)
+                metadata["symlink_resolved_path"] = os.path.realpath(full_path)
+                metadata["symlink_exists"] = os.path.exists(full_path)
+            except OSError:
+                metadata["symlink_target"] = None
+                metadata["symlink_resolved_path"] = None
+                metadata["symlink_exists"] = False
+
+        return metadata
+
+    def is_symlink(self, file_path):
+        """
+        Check if a path is a symlink.
+
+        Args:
+            file_path: Path to check
+
+        Returns:
+            bool: True if path is a symlink, False otherwise
+        """
+        full_path = os.path.join(self.root_directory, file_path)
+        if not self._is_path_in_sandbox(full_path):
+            return False
+        return os.path.islink(full_path)
+
+    def get_symlink_target(self, file_path):
+        """
+        Get the target of a symlink.
+
+        Args:
+            file_path: Path to the symlink
+
+        Returns:
+            str: Target path of the symlink
+
+        Raises:
+            ValueError: If path is not a symlink
+        """
+        full_path = os.path.join(self.root_directory, file_path)
+        if not self._is_path_in_sandbox(full_path):
+            raise ValueError(f"File path {file_path} is outside the sandbox")
+
+        if not os.path.islink(full_path):
+            raise ValueError(f"Path {file_path} is not a symlink")
+
+        return os.readlink(full_path)
+
+    def resolve_symlink_path(self, file_path):
+        """
+        Resolve a symlink to its final target path.
+
+        Args:
+            file_path: Path to resolve
+
+        Returns:
+            str: Resolved absolute path
+        """
+        full_path = os.path.join(self.root_directory, file_path)
+        if not self._is_path_in_sandbox(full_path):
+            raise ValueError(f"File path {file_path} is outside the sandbox")
+
+        return os.path.realpath(full_path)
+
+    def create_symlink(self, target_path, link_path):
+        """
+        Create a symbolic link.
+
+        Args:
+            target_path: Path that the symlink will point to
+            link_path: Path where the symlink will be created
+        """
+        if not self.check_permissions(
+            "create_symlink", link_path, {"target": target_path}
+        ):
+            raise PermissionError
+
+        full_link_path = os.path.join(self.root_directory, link_path)
+        if not self._is_path_in_sandbox(full_link_path):
+            raise ValueError(f"Link path {link_path} is outside the sandbox")
+
+        # For absolute target paths, ensure they're within the sandbox
+        if os.path.isabs(target_path):
+            if not self._is_path_in_sandbox(target_path):
+                raise ValueError(f"Target path {target_path} is outside the sandbox")
+        else:
+            # For relative paths, resolve them relative to the link's directory
+            # and check if the resolved path would be in the sandbox
+            link_dir = os.path.dirname(full_link_path)
+            resolved_target = os.path.join(link_dir, target_path)
+            resolved_target = os.path.abspath(resolved_target)
+            if not self._is_path_in_sandbox(resolved_target):
+                raise ValueError(
+                    f"Target path {target_path} resolves outside the sandbox"
+                )
+
+        # Create parent directories if needed
+        os.makedirs(os.path.dirname(full_link_path), exist_ok=True)
+
+        # Create the symlink
+        os.symlink(target_path, full_link_path)
