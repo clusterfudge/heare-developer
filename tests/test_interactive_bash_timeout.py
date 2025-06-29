@@ -175,3 +175,40 @@ class TestInteractiveBashTimeout:
         system_messages = [msg for msg in ui.messages if msg[0] == "system"]
         assert len(system_messages) > 0
         assert any("Command has been running for" in msg[1] for msg in system_messages)
+
+    @pytest.mark.asyncio
+    async def test_process_completes_during_user_input_wait(self):
+        """Test that if process completes while waiting for user input, it's detected."""
+        import asyncio
+
+        class SlowUserInterface(MockUserInterface):
+            """User interface that delays responses to simulate user thinking."""
+
+            async def get_user_input(self, prompt: str = "") -> str:
+                # Simulate user taking time to respond
+                await asyncio.sleep(0.3)  # 300ms delay
+                return await super().get_user_input(prompt)
+
+        ui = SlowUserInterface(
+            responses=["K"]
+        )  # User would choose K, but process should complete first
+        context = AgentContext.create(
+            model_spec={},
+            sandbox_mode=SandboxMode.ALLOW_ALL,
+            sandbox_contents=[],
+            user_interface=ui,
+        )
+
+        # Use a command that will complete shortly after timeout but before user responds
+        # Timeout after 0.1s, then user takes 0.3s to respond, but sleep only lasts 0.2s total
+        result = await _run_bash_command_with_interactive_timeout(
+            context, "sleep 0.2", initial_timeout=0.1
+        )
+
+        # Process should have completed naturally, not killed by user
+        assert "Exit code: 0" in result
+        assert "Command was killed by user" not in result
+        assert "Command backgrounded" not in result
+
+        # Should show process completed successfully
+        # The sleep command exits with code 0 when it completes normally

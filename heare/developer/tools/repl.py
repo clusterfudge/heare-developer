@@ -322,16 +322,56 @@ async def _run_bash_command_with_interactive_timeout(
 
             context.user_interface.handle_system_message(status_msg, markdown=False)
 
-            # Prompt user for action
-            choice = await context.user_interface.get_user_input(
-                "Command is still running. Choose action:\n"
-                f"  [C]ontinue waiting ({initial_timeout}s more)\n"
-                "  [K]ill the process\n"
-                "  [B]ackground (continue but return current output)\n"
-                "Choice (C/K/B): "
+            # Race between user input and process completion
+            # Create tasks for both user input and process monitoring
+            user_input_task = asyncio.create_task(
+                context.user_interface.get_user_input(
+                    "Command is still running. Choose action:\n"
+                    f"  [C]ontinue waiting ({initial_timeout}s more)\n"
+                    "  [K]ill the process\n"
+                    "  [B]ackground (continue but return current output)\n"
+                    "Choice (C/K/B): "
+                )
             )
 
-            choice = choice.strip().upper()
+            async def monitor_process_completion():
+                """Monitor for process completion during user input."""
+                while process.poll() is None:
+                    await asyncio.sleep(0.1)
+                return "PROCESS_COMPLETED"
+
+            process_monitor_task = asyncio.create_task(monitor_process_completion())
+
+            try:
+                # Wait for whichever completes first
+                done, pending = await asyncio.wait(
+                    [user_input_task, process_monitor_task],
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+
+                # Cancel pending tasks
+                for task in pending:
+                    task.cancel()
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
+
+                # Check which task completed first
+                completed_task = done.pop()
+                if completed_task == process_monitor_task:
+                    # Process completed while waiting for user input
+                    # Continue to the process completion handling at top of loop
+                    continue
+                else:
+                    # User input completed first
+                    choice = completed_task.result().strip().upper()
+
+            except asyncio.CancelledError:
+                # Clean up if this whole function gets cancelled
+                user_input_task.cancel()
+                process_monitor_task.cancel()
+                raise
 
             if choice == "K":
                 # Kill the process
