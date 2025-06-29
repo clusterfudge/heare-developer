@@ -68,7 +68,7 @@ class MockUserInterface(UserInterface):
     def handle_assistant_message(self, message: str) -> None:
         self.messages.append(("assistant", message))
 
-    def handle_system_message(self, message: str, markdown=True) -> None:
+    def handle_system_message(self, message: str, markdown=True, live=None) -> None:
         self.messages.append(("system", message))
 
     async def get_user_input(self, prompt: str = "") -> str:
@@ -85,7 +85,7 @@ class MockUserInterface(UserInterface):
     def handle_tool_use(self, tool_name: str, tool_params: dict) -> bool:
         return True
 
-    def handle_tool_result(self, name: str, result: dict) -> None:
+    def handle_tool_result(self, name: str, result: dict, live=None) -> None:
         pass
 
     def display_token_count(self, *args, **kwargs) -> None:
@@ -121,7 +121,7 @@ class MockUserInterface(UserInterface):
 
         return NoOpContextManager()
 
-    def bare(self, message: str | Any) -> None:
+    def bare(self, message: str | Any, live=None) -> None:
         pass
 
 
@@ -253,3 +253,6 @@ async def test_initial_prompt_without_single_response(
         for msg in agent_context.user_interface.messages
         if msg[0] == "assistant"
     ), "Test response not found in assistant messages"
+
+    def handle_system_message(self, message: str, markdown=True, live=None) -> None:
+        pass

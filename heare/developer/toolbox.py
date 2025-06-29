@@ -7,6 +7,8 @@ from .context import AgentContext
 import subprocess
 import inspect
 from .commit import run_commit
+from .sandbox import DoSomethingElseError
+from queue import Empty
 
 from .tools import ALL_TOOLS
 from .utils import render_tree
@@ -386,7 +388,12 @@ class Toolbox:
 
     def _exec(self, user_interface, sandbox, user_input, *args, **kwargs):
         """Execute a bash command and optionally add it to tool result buffer"""
-        command = user_input[5:].strip()  # Remove '/exec' from the beginning
+        # For CLI use, user_input is the raw command (no '/exec' prefix)
+        command = user_input.strip() if user_input else ""
+        if command.startswith("/exec "):
+            command = command[
+                6:
+            ].strip()  # Remove '/exec ' from the beginning if present
         result = self._run_bash_command(command)
 
         user_interface.handle_system_message(f"Command Output:\n{result}")
@@ -408,6 +415,7 @@ class Toolbox:
 
     # Agent Tools
     def _run_bash_command(self, command: str) -> str:
+        """Synchronous version with enhanced timeout handling for CLI use"""
         try:
             # Check for potentially dangerous commands
             dangerous_commands = [
@@ -421,21 +429,246 @@ class Toolbox:
             if not self.context.sandbox.check_permissions("shell", command):
                 return "Error: Operator denied permission."
 
-            # Run the command and capture output
-            result = subprocess.run(
-                command, shell=True, capture_output=True, text=True, timeout=10
+            # Use enhanced timeout handling for CLI too
+            return self._run_bash_command_with_interactive_timeout_sync(command)
+
+        except Exception as e:
+            return f"Error executing command: {str(e)}"
+
+    def _run_bash_command_with_interactive_timeout_sync(
+        self, command: str, initial_timeout: int = 30
+    ) -> str:
+        """Synchronous version of interactive timeout handling for CLI use"""
+        import time
+        import io
+        import threading
+        from queue import Queue
+
+        # Start the process
+        process = subprocess.Popen(
+            command,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=0,  # Unbuffered for real-time output
+        )
+
+        # Queues to collect output from threads
+        stdout_queue = Queue()
+        stderr_queue = Queue()
+
+        def read_output(pipe, queue):
+            """Thread function to read from pipe and put in queue."""
+            try:
+                while True:
+                    line = pipe.readline()
+                    if not line:
+                        break
+                    queue.put(line)
+            except Exception as e:
+                queue.put(f"Error reading output: {str(e)}\n")
+            finally:
+                pipe.close()
+
+        # Start threads to read stdout and stderr
+        stdout_thread = threading.Thread(
+            target=read_output, args=(process.stdout, stdout_queue)
+        )
+        stderr_thread = threading.Thread(
+            target=read_output, args=(process.stderr, stderr_queue)
+        )
+        stdout_thread.daemon = True
+        stderr_thread.daemon = True
+        stdout_thread.start()
+        stderr_thread.start()
+
+        stdout_buffer = io.StringIO()
+        stderr_buffer = io.StringIO()
+        start_time = time.time()
+        current_timeout = initial_timeout
+
+        while True:
+            # Check if process has completed
+            returncode = process.poll()
+            if returncode is not None:
+                # Process completed, collect remaining output
+                self._collect_remaining_output_sync(
+                    stdout_queue, stderr_queue, stdout_buffer, stderr_buffer
+                )
+
+                # Wait for threads to finish
+                stdout_thread.join(timeout=1)
+                stderr_thread.join(timeout=1)
+
+                # Prepare final output
+                output = f"Exit code: {returncode}\n"
+                stdout_content = stdout_buffer.getvalue()
+                stderr_content = stderr_buffer.getvalue()
+
+                if stdout_content:
+                    output += f"STDOUT:\n{stdout_content}\n"
+                if stderr_content:
+                    output += f"STDERR:\n{stderr_content}\n"
+
+                return output
+
+            # Collect any new output
+            self._collect_output_batch_sync(
+                stdout_queue, stderr_queue, stdout_buffer, stderr_buffer
             )
 
-            # Prepare the output
-            output = f"Exit code: {result.returncode}\n"
-            if result.stdout:
-                output += f"STDOUT:\n{result.stdout}\n"
-            if result.stderr:
-                output += f"STDERR:\n{result.stderr}\n"
+            # Check if we've exceeded the timeout
+            elapsed = time.time() - start_time
+            if elapsed >= current_timeout:
+                # Show current output to user
+                current_stdout = stdout_buffer.getvalue()
+                current_stderr = stderr_buffer.getvalue()
 
-            return output
-        except subprocess.TimeoutExpired:
-            return "Error: Command execution timed out"
+                status_msg = f"Command has been running for {elapsed:.1f} seconds.\n"
+                if current_stdout:
+                    status_msg += (
+                        f"Current STDOUT:\n{current_stdout[-500:]}...\n"
+                        if len(current_stdout) > 500
+                        else f"Current STDOUT:\n{current_stdout}\n"
+                    )
+                if current_stderr:
+                    status_msg += (
+                        f"Current STDERR:\n{current_stderr[-500:]}...\n"
+                        if len(current_stderr) > 500
+                        else f"Current STDERR:\n{current_stderr}\n"
+                    )
+
+                self.context.user_interface.handle_system_message(
+                    status_msg, markdown=False
+                )
+
+                # Prompt user for action (synchronous)
+                choice = (
+                    input(
+                        "Command is still running. Choose action:\n"
+                        f"  [C]ontinue waiting ({initial_timeout}s more)\n"
+                        "  [K]ill the process\n"
+                        "  [B]ackground (continue but return current output)\n"
+                        "Choice (C/K/B): "
+                    )
+                    .strip()
+                    .upper()
+                )
+
+                if choice == "K":
+                    # Kill the process
+                    try:
+                        process.terminate()
+                        # Give it a moment to terminate gracefully
+                        time.sleep(1)
+                        if process.poll() is None:
+                            process.kill()
+
+                        # Collect any final output
+                        self._collect_remaining_output_sync(
+                            stdout_queue, stderr_queue, stdout_buffer, stderr_buffer
+                        )
+
+                        output = "Command was killed by user.\n"
+                        output += f"Execution time: {elapsed:.1f} seconds\n"
+
+                        stdout_content = stdout_buffer.getvalue()
+                        stderr_content = stderr_buffer.getvalue()
+
+                        if stdout_content:
+                            output += f"STDOUT (before kill):\n{stdout_content}\n"
+                        if stderr_content:
+                            output += f"STDERR (before kill):\n{stderr_content}\n"
+
+                        return output
+
+                    except Exception as e:
+                        return f"Error killing process: {str(e)}"
+
+                elif choice == "B":
+                    # Background the process - return current output
+                    output = f"Command backgrounded after {elapsed:.1f} seconds (PID: {process.pid}).\n"
+                    output += "Note: Process continues running but output capture has stopped.\n"
+
+                    stdout_content = stdout_buffer.getvalue()
+                    stderr_content = stderr_buffer.getvalue()
+
+                    if stdout_content:
+                        output += f"STDOUT (so far):\n{stdout_content}\n"
+                    if stderr_content:
+                        output += f"STDERR (so far):\n{stderr_content}\n"
+
+                    return output
+
+                else:  # Default to 'C' - continue
+                    current_timeout += initial_timeout  # Add the same interval again
+                    self.context.user_interface.handle_system_message(
+                        f"Continuing to wait for {initial_timeout} more seconds...",
+                        markdown=False,
+                    )
+
+            # Sleep briefly before next check
+            time.sleep(0.5)
+
+    def _collect_output_batch_sync(
+        self, stdout_queue, stderr_queue, stdout_buffer, stderr_buffer
+    ):
+        """Collect a batch of output from the queues (synchronous version)."""
+        # Collect stdout
+        while True:
+            try:
+                line = stdout_queue.get_nowait()
+                stdout_buffer.write(line)
+            except Empty:
+                break
+
+        # Collect stderr
+        while True:
+            try:
+                line = stderr_queue.get_nowait()
+                stderr_buffer.write(line)
+            except Empty:
+                break
+
+    def _collect_remaining_output_sync(
+        self, stdout_queue, stderr_queue, stdout_buffer, stderr_buffer
+    ):
+        """Collect any remaining output from the queues (synchronous version)."""
+        import time
+
+        # Give threads a moment to finish
+        time.sleep(0.1)
+
+        # Collect any remaining output
+        self._collect_output_batch_sync(
+            stdout_queue, stderr_queue, stdout_buffer, stderr_buffer
+        )
+
+    async def _run_bash_command_async(self, command: str) -> str:
+        """Async version with interactive timeout handling"""
+        try:
+            # Check for potentially dangerous commands
+            dangerous_commands = [
+                r"\bsudo\b",
+            ]
+            import re
+
+            if any(re.search(cmd, command) for cmd in dangerous_commands):
+                return "Error: This command is not allowed for safety reasons."
+
+            try:
+                if not self.context.sandbox.check_permissions("shell", command):
+                    return "Error: Operator denied permission."
+            except DoSomethingElseError:
+                raise  # Re-raise to be handled by higher-level components
+
+            # Import the enhanced function from tools.repl
+            from .tools.repl import _run_bash_command_with_interactive_timeout
+
+            return await _run_bash_command_with_interactive_timeout(
+                self.context, command
+            )
         except Exception as e:
             return f"Error executing command: {str(e)}"
 

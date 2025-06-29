@@ -15,11 +15,13 @@ class UserInterface(ABC):
         """
 
     @abstractmethod
-    def handle_system_message(self, message: str, markdown=True) -> None:
+    def handle_system_message(self, message: str, markdown=True, live=None) -> None:
         """
         Handle and display a new system message.
 
         :param message: The message
+        :param markdown: Whether to render as markdown
+        :param live: Optional Rich Live instance for real-time updates
         """
 
     @abstractmethod
@@ -66,12 +68,13 @@ class UserInterface(ABC):
         """
 
     @abstractmethod
-    def handle_tool_result(self, name: str, result: Dict[str, Any]) -> None:
+    def handle_tool_result(self, name: str, result: Dict[str, Any], live=None) -> None:
         """
         Handle and display the result of a tool use.
 
         :param name:  The name of the original tool invocation
         :param result: The result returned by the tool
+        :param live: Optional Rich Live instance for real-time updates
         """
 
     @abstractmethod
@@ -132,9 +135,10 @@ class UserInterface(ABC):
         """
 
     @abstractmethod
-    def bare(self, message: str | Any) -> None:
+    def bare(self, message: str | Any, live=None) -> None:
         """
         Display bare message to the user
         :param message:
+        :param live: Optional Rich Live instance for real-time updates
         :return:
         """

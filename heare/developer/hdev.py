@@ -151,7 +151,7 @@ class CLIUserInterface(UserInterface):
 
         self.session.completer = CustomCompleter(commands, self.session.history)
 
-    def handle_system_message(self, message: str, markdown=True) -> None:
+    def handle_system_message(self, message: str, markdown=True, live=None) -> None:
         from rich.markdown import Markdown
 
         if not message:
@@ -163,13 +163,16 @@ class CLIUserInterface(UserInterface):
         else:
             content = message
 
-        self.console.print(
-            create_clean_panel(
-                content,
-                title="System Message",
-                style="bold yellow",
-            )
+        panel = create_clean_panel(
+            content,
+            title="System Message",
+            style="bold yellow",
         )
+
+        if live:
+            live.update(panel)
+        else:
+            self.console.print(panel)
 
     def handle_assistant_message(self, message: str, markdown=True) -> None:
         from rich.markdown import Markdown
@@ -252,7 +255,7 @@ class CLIUserInterface(UserInterface):
         pass
 
     def handle_tool_result(
-        self, name: str, result: Dict[str, Any], markdown=True
+        self, name: str, result: Dict[str, Any], markdown=True, live=None
     ) -> None:
         from rich.markdown import Markdown
         from rich.console import Group
@@ -281,13 +284,16 @@ class CLIUserInterface(UserInterface):
         # Group all components together
         display_group = Group(header, Text(""), result_header, result_content)
 
-        self.console.print(
-            create_clean_panel(
-                display_group,
-                title="Tool Result",
-                style="bold magenta",
-            )
+        panel = create_clean_panel(
+            display_group,
+            title="Tool Result",
+            style="bold magenta",
         )
+
+        if live:
+            live.update(panel)
+        else:
+            self.console.print(panel)
 
     async def get_user_input(self, prompt: str = "") -> str:
         _console = Console(file=None)
@@ -393,8 +399,11 @@ Your personal coding assistant powered by AI.
     def status(self, message, spinner=None):
         return self.console.status(message, spinner=spinner or "dots")
 
-    def bare(self, message: str | Any) -> None:
-        self.console.print(message)
+    def bare(self, message: str | Any, live=None) -> None:
+        if live:
+            live.update(message)
+        else:
+            self.console.print(message)
 
 
 class CustomCompleter(Completer):
