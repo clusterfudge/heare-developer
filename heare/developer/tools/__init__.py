@@ -38,6 +38,7 @@ from .github import GITHUB_TOOLS
 from .github_comments import (
     GITHUB_COMMENT_TOOLS,
 )
+from .tmux_tool import TMUX_TOOLS
 
 ALL_TOOLS = (
     [
@@ -75,6 +76,7 @@ ALL_TOOLS = (
     ]
     + GITHUB_TOOLS
     + GITHUB_COMMENT_TOOLS
+    + TMUX_TOOLS
 )
 
 
