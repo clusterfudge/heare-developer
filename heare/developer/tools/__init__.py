@@ -9,7 +9,6 @@ from .shell import (
     shell_session_get_output,
     shell_session_destroy,
     shell_session_set_timeout,
-    run_bash_command,  # Backward compatibility
 )
 from .web import web_search, safe_curl
 from .gcal import (
@@ -67,7 +66,6 @@ ALL_TOOLS = (
         shell_session_get_output,
         shell_session_destroy,
         shell_session_set_timeout,
-        run_bash_command,  # Backward compatibility
         gmail_search,
         gmail_read,
         gmail_send,

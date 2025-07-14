@@ -93,11 +93,11 @@ async def search_memory(
         If no results match, say "No matching memory entries found."
         """
 
-        # Use the subagent tool to perform the search with run_bash_command tool
+        # Use the subagent tool to perform the search with shell_execute tool
         result = await agent(
             context=context,
             prompt=prompt,
-            tool_names="run_bash_command",  # Allow grep commands
+            tool_names="shell_execute",  # Allow grep commands
             model="smart",
         )
 

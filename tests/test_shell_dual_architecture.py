@@ -18,7 +18,6 @@ from heare.developer.tools.shell import (
     shell_session_get_output,
     shell_session_destroy,
     shell_session_set_timeout,
-    run_bash_command,
 )
 
 
@@ -275,30 +274,6 @@ class TestShellSessions:
         )
 
 
-class TestBackwardCompatibility:
-    """Test backward compatibility with the old run_bash_command function."""
-
-    @pytest.mark.asyncio
-    async def test_run_bash_command_wrapper(self, context):
-        """Test that run_bash_command still works as before."""
-        result = await run_bash_command(context, 'echo "Backward compatibility"')
-
-        assert "Exit code: 0" in result
-        assert "Backward compatibility" in result
-        assert "STDOUT:" in result
-
-    @pytest.mark.asyncio
-    async def test_run_bash_command_identical_to_shell_execute(self, context):
-        """Test that run_bash_command produces identical results to shell_execute."""
-        command = 'echo "Testing compatibility"'
-
-        result1 = await run_bash_command(context, command)
-        result2 = await shell_execute(context, command)
-
-        # Results should be identical
-        assert result1 == result2
-
-
 class TestDualArchitectureIntegration:
     """Test integration between quick commands and persistent sessions."""
 
@@ -456,3 +431,28 @@ class TestPerformanceAndUseCases:
         # Test with session (should also work)
         await shell_session_create(context, "large_session")
         await shell_session_execute(context, "large_session", large_command)
+
+
+class TestBackwardCompatibility:
+    """Test that shell_execute provides the same functionality as the old run_bash_command."""
+
+    @pytest.mark.asyncio
+    async def test_shell_execute_basic_functionality(self, context):
+        """Test that shell_execute works as expected for basic commands."""
+        result = await shell_execute(context, 'echo "Basic functionality"')
+
+        assert "Exit code: 0" in result
+        assert "Basic functionality" in result
+        assert "STDOUT:" in result
+
+    @pytest.mark.asyncio
+    async def test_shell_execute_consistency(self, context):
+        """Test that shell_execute produces consistent results."""
+        command = 'echo "Testing consistency"'
+
+        result1 = await shell_execute(context, command)
+        result2 = await shell_execute(context, command)
+
+        # Results should have same structure (though timestamps may differ)
+        assert "Exit code: 0" in result1 and "Exit code: 0" in result2
+        assert "Testing consistency" in result1 and "Testing consistency" in result2

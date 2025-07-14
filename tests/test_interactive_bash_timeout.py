@@ -5,8 +5,8 @@ import pytest
 from heare.developer.context import AgentContext
 from heare.developer.sandbox import SandboxMode
 from heare.developer.user_interface import UserInterface
+from heare.developer.tools.shell import shell_execute
 from heare.developer.tools.repl import (
-    run_bash_command,
     _run_bash_command_with_interactive_timeout,
 )
 
@@ -89,7 +89,7 @@ class TestInteractiveBashTimeout:
         """Test that quick commands complete without timeout."""
         context = self.create_test_context()
 
-        result = await run_bash_command(context, "echo 'hello world'")
+        result = await shell_execute(context, "echo 'hello world'")
 
         assert "Exit code: 0" in result
         assert "hello world" in result
@@ -152,7 +152,7 @@ class TestInteractiveBashTimeout:
         """Test that dangerous commands are blocked."""
         context = self.create_test_context()
 
-        result = await run_bash_command(context, "sudo rm -rf /")
+        result = await shell_execute(context, "sudo rm -rf /")
 
         assert "Error: This command is not allowed for safety reasons" in result
 

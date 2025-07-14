@@ -521,17 +521,3 @@ def shell_session_set_timeout(context: "AgentContext", session_name: str, timeou
     from .tmux_tool import tmux_set_session_timeout
 
     return tmux_set_session_timeout(context, session_name, timeout)
-
-
-# Backward compatibility wrapper
-@tool
-async def run_bash_command(context: "AgentContext", command: str):
-    """Run a bash command in a sandboxed environment with safety checks.
-
-    DEPRECATED: Use shell_execute instead. This function is provided for
-    backward compatibility and will be removed in a future version.
-
-    Args:
-        command: The bash command to execute
-    """
-    return await shell_execute(context, command)
