@@ -330,8 +330,8 @@ class TestDualArchitectureIntegration:
     @pytest.mark.asyncio
     async def test_large_output_handling(self, context):
         """Test handling of large output in both approaches."""
-        # Generate large output command
-        large_command = 'for i in {1..100}; do echo "Line $i"; done'
+        # Generate large output command (using seq for better portability)
+        large_command = 'seq 1 100 | while read i; do echo "Line $i"; done'
 
         # Test with shell_execute (should handle unlimited output)
         quick_result = await shell_execute(context, large_command)
@@ -442,3 +442,17 @@ class TestPerformanceAndUseCases:
         execution_time = end_time - start_time
         assert execution_time < 2.0  # Should be much faster than 2 seconds
         assert "Performance test" in result
+
+    @pytest.mark.asyncio
+    async def test_large_output_handling(self, context):
+        """Test handling of large output in both approaches."""
+        # Generate large output command (using seq for better portability)
+        large_command = 'seq 1 100 | while read i; do echo "Line $i"; done'
+
+        # Test with shell_execute (should handle unlimited output)
+        quick_result = await shell_execute(context, large_command)
+        assert "Line 1" in quick_result
+        assert "Line 100" in quick_result
+        # Test with session (should also work)
+        await shell_session_create(context, "large_session")
+        await shell_session_execute(context, "large_session", large_command)
