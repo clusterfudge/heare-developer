@@ -318,6 +318,7 @@ async def run(
 
     interrupt_count = 0
     last_interrupt_time = 0
+    return_to_user_after_interrupt = False
 
     # Handle initial prompt if provided
     if initial_prompt:
@@ -335,17 +336,13 @@ async def run(
                 agent_context, model, user_interface, enable_compaction
             )
 
-            if (
-                agent_context.chat_history
-                and agent_context.chat_history[-1]["role"] == "user"
-                and not agent_context.tool_result_buffer
-            ):
-                pass
-            elif (
+            if return_to_user_after_interrupt or (
                 not agent_context.tool_result_buffer
                 and not single_response
                 and not initial_prompt
             ):
+                # Reset the interrupt flag
+                return_to_user_after_interrupt = False
                 cost = f"${agent_context.usage_summary()['total_cost']:.2f}"
                 user_input = ""
                 while not user_input.strip():
@@ -395,6 +392,13 @@ async def run(
                     f"[bold blue]You:[/bold blue] {user_input}"
                 )
 
+            elif (
+                agent_context.chat_history
+                and agent_context.chat_history[-1]["role"] == "user"
+                and not agent_context.tool_result_buffer
+            ):
+                # User message exists with no tool results - proceed to AI generation
+                pass
             else:
                 if agent_context.tool_result_buffer:
                     agent_context.chat_history.append(
@@ -589,18 +593,27 @@ async def run(
                         "[bold yellow]Tool execution interrupted by user (Ctrl+C)[/bold yellow]"
                     )
 
-                    # Create cancelled results for all tool uses and display them
+                    # Create cancelled results for all tool uses - these MUST be added to chat history
+                    # because the API requires every tool_use to have a corresponding tool_result
+                    cancelled_results = []
                     for tool_use in tool_uses:
                         result = {
                             "type": "tool_result",
                             "tool_use_id": getattr(tool_use, "id", "unknown_id"),
                             "content": "cancelled",
                         }
+                        cancelled_results.append(result)
                         tool_name = getattr(tool_use, "name", "unknown_tool")
                         user_interface.handle_tool_result(tool_name, result)
 
-                    # Clear any existing tool results and flush current state
-                    agent_context.tool_result_buffer.clear()
+                    # Add cancelled results to chat history to satisfy API requirements
+                    # Every tool_use must have a corresponding tool_result
+                    agent_context.chat_history.append(
+                        {
+                            "role": "user",
+                            "content": cancelled_results,
+                        }
+                    )
                     agent_context.flush(
                         agent_context.chat_history,
                         compact=False,
@@ -610,6 +623,9 @@ async def run(
                     user_interface.handle_system_message(
                         "[bold green]Control returned to user. You can now enter a new command.[/bold green]"
                     )
+
+                    # Set flag to force return to user input on next iteration
+                    return_to_user_after_interrupt = True
 
                     # Continue to next iteration to return control to user
                     continue
