@@ -228,19 +228,20 @@ class Toolbox:
                     parallel_results = await asyncio.gather(
                         *parallel_coroutines, return_exceptions=True
                     )
-                except KeyboardInterrupt:
+                except (KeyboardInterrupt, asyncio.CancelledError):
                     # Cancel all running tasks
                     for coro in parallel_coroutines:
                         if hasattr(coro, "cancel"):
                             coro.cancel()
-                    raise  # Re-raise to be handled by the agent
+                    raise KeyboardInterrupt("Tool execution interrupted by user")
 
                 # Handle results and exceptions
                 for tool_use, result in zip(parallel_tools, parallel_results):
-                    if isinstance(result, Exception):
-                        if isinstance(result, KeyboardInterrupt):
-                            raise result  # Propagate KeyboardInterrupt
-                        elif isinstance(result, DoSomethingElseError):
+                    # Check for cancellation/interruption first (CancelledError is BaseException, not Exception)
+                    if isinstance(result, (KeyboardInterrupt, asyncio.CancelledError)):
+                        raise KeyboardInterrupt("Tool execution interrupted by user")
+                    elif isinstance(result, Exception):
+                        if isinstance(result, DoSomethingElseError):
                             raise result  # Propagate DoSomethingElseError
 
                         # Convert other exceptions to error results
@@ -265,8 +266,8 @@ class Toolbox:
                             self.context, tool_use, tools=self.agent_tools
                         )
                         results.append(result)
-                    except KeyboardInterrupt:
-                        raise  # Re-raise to be handled by the agent
+                    except (KeyboardInterrupt, asyncio.CancelledError):
+                        raise KeyboardInterrupt("Tool execution interrupted by user")
                     except DoSomethingElseError:
                         raise  # Propagate DoSomethingElseError
                     except Exception as e:
@@ -301,9 +302,9 @@ class Toolbox:
 
             return ordered_results
 
-        except KeyboardInterrupt:
+        except (KeyboardInterrupt, asyncio.CancelledError):
             # Let KeyboardInterrupt propagate to the agent
-            raise
+            raise KeyboardInterrupt("Tool execution interrupted by user")
         except DoSomethingElseError:
             # Let the exception propagate up to the agent to be handled
             raise
