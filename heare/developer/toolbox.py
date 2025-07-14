@@ -223,15 +223,24 @@ class Toolbox:
                     for tool_use in parallel_tools
                 ]
 
-                # Execute in parallel
-                parallel_results = await asyncio.gather(
-                    *parallel_coroutines, return_exceptions=True
-                )
+                # Execute in parallel with proper cancellation handling
+                try:
+                    parallel_results = await asyncio.gather(
+                        *parallel_coroutines, return_exceptions=True
+                    )
+                except KeyboardInterrupt:
+                    # Cancel all running tasks
+                    for coro in parallel_coroutines:
+                        if hasattr(coro, "cancel"):
+                            coro.cancel()
+                    raise  # Re-raise to be handled by the agent
 
                 # Handle results and exceptions
                 for tool_use, result in zip(parallel_tools, parallel_results):
                     if isinstance(result, Exception):
-                        if isinstance(result, DoSomethingElseError):
+                        if isinstance(result, KeyboardInterrupt):
+                            raise result  # Propagate KeyboardInterrupt
+                        elif isinstance(result, DoSomethingElseError):
                             raise result  # Propagate DoSomethingElseError
 
                         # Convert other exceptions to error results
@@ -256,6 +265,8 @@ class Toolbox:
                             self.context, tool_use, tools=self.agent_tools
                         )
                         results.append(result)
+                    except KeyboardInterrupt:
+                        raise  # Re-raise to be handled by the agent
                     except DoSomethingElseError:
                         raise  # Propagate DoSomethingElseError
                     except Exception as e:
@@ -290,6 +301,9 @@ class Toolbox:
 
             return ordered_results
 
+        except KeyboardInterrupt:
+            # Let KeyboardInterrupt propagate to the agent
+            raise
         except DoSomethingElseError:
             # Let the exception propagate up to the agent to be handled
             raise

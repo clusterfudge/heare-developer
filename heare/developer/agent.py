@@ -583,6 +583,25 @@ async def run(
                         tool_name = getattr(tool_use, "name", "unknown_tool")
                         agent_context.tool_result_buffer.append(result)
                         user_interface.handle_tool_result(tool_name, result)
+                except KeyboardInterrupt:
+                    # Handle Ctrl+C during tool execution
+                    user_interface.handle_system_message(
+                        "[bold yellow]Tool execution interrupted by user (Ctrl+C)[/bold yellow]"
+                    )
+
+                    # Create cancelled results for all tool uses
+                    for tool_use in tool_uses:
+                        result = {
+                            "type": "tool_result",
+                            "tool_use_id": getattr(tool_use, "id", "unknown_id"),
+                            "content": "cancelled",
+                        }
+                        agent_context.tool_result_buffer.append(result)
+                        tool_name = getattr(tool_use, "name", "unknown_tool")
+                        user_interface.handle_tool_result(tool_name, result)
+
+                    # Continue to next iteration to return control to user
+                    continue
                 except DoSomethingElseError:
                     # Handle "do something else" workflow:
                     # 1. Remove the last assistant message
