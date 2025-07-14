@@ -589,16 +589,27 @@ async def run(
                         "[bold yellow]Tool execution interrupted by user (Ctrl+C)[/bold yellow]"
                     )
 
-                    # Create cancelled results for all tool uses
+                    # Create cancelled results for all tool uses and display them
                     for tool_use in tool_uses:
                         result = {
                             "type": "tool_result",
                             "tool_use_id": getattr(tool_use, "id", "unknown_id"),
                             "content": "cancelled",
                         }
-                        agent_context.tool_result_buffer.append(result)
                         tool_name = getattr(tool_use, "name", "unknown_tool")
                         user_interface.handle_tool_result(tool_name, result)
+
+                    # Clear any existing tool results and flush current state
+                    agent_context.tool_result_buffer.clear()
+                    agent_context.flush(
+                        agent_context.chat_history,
+                        compact=False,
+                    )
+
+                    # Show a message that control is returning to user
+                    user_interface.handle_system_message(
+                        "[bold green]Control returned to user. You can now enter a new command.[/bold green]"
+                    )
 
                     # Continue to next iteration to return control to user
                     continue
