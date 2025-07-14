@@ -1,6 +1,15 @@
 from .subagent import agent
 from .files import read_file, write_file, list_directory, edit_file
-from .repl import run_bash_command, python_repl
+from .repl import python_repl
+from .shell import (
+    shell_execute,
+    shell_session_create,
+    shell_session_execute,
+    shell_session_list,
+    shell_session_get_output,
+    shell_session_destroy,
+    shell_session_set_timeout,
+)
 from .web import web_search, safe_curl
 from .gcal import (
     calendar_setup,
@@ -44,12 +53,19 @@ ALL_TOOLS = (
         read_file,
         write_file,
         list_directory,
-        run_bash_command,
         edit_file,
         web_search,
         agent,
         safe_curl,
         python_repl,
+        # Shell tools (dual architecture)
+        shell_execute,
+        shell_session_create,
+        shell_session_execute,
+        shell_session_list,
+        shell_session_get_output,
+        shell_session_destroy,
+        shell_session_set_timeout,
         gmail_search,
         gmail_read,
         gmail_send,
