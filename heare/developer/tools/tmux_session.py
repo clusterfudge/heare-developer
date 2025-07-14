@@ -9,6 +9,7 @@ import subprocess
 import time
 import uuid
 import signal
+import os
 from collections import deque
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
@@ -147,6 +148,39 @@ class TmuxSessionManager:
         """Validate session name contains only allowed characters."""
         return bool(re.match(r"^[a-zA-Z0-9_-]+$", name))
 
+    def _get_environment_variables_for_tmux(self) -> Dict[str, Optional[str]]:
+        """Get environment variables that should be passed to tmux sessions.
+
+        Returns:
+            Dictionary of environment variable names to values
+        """
+        # SSH agent and authentication related variables
+        ssh_env_vars = {
+            "SSH_AUTH_SOCK": os.getenv("SSH_AUTH_SOCK"),
+            "SSH_AGENT_PID": os.getenv("SSH_AGENT_PID"),
+            "SSH_CONNECTION": os.getenv("SSH_CONNECTION"),
+        }
+
+        # Display and terminal related variables
+        display_env_vars = {
+            "DISPLAY": os.getenv("DISPLAY"),
+            "TERM": os.getenv("TERM"),
+            "COLORTERM": os.getenv("COLORTERM"),
+        }
+
+        # Development environment variables
+        dev_env_vars = {
+            "LANG": os.getenv("LANG"),
+            "LC_ALL": os.getenv("LC_ALL"),
+            "PATH": os.getenv("PATH"),  # Ensure PATH is preserved
+        }
+
+        # Combine all environment variables
+        all_env_vars = {**ssh_env_vars, **display_env_vars, **dev_env_vars}
+
+        # Filter out None values and return
+        return {k: v for k, v in all_env_vars.items() if v is not None}
+
     def _run_tmux_command(self, command: List[str]) -> Tuple[int, str, str]:
         """Run a tmux command and return exit code, stdout, stderr."""
         try:
@@ -176,8 +210,15 @@ class TmuxSessionManager:
         # Generate unique tmux session name
         tmux_session_name = self._generate_tmux_session_name(session_name)
 
-        # Create tmux session
+        # Create tmux session with SSH agent environment variables
         command = ["tmux", "new-session", "-d", "-s", tmux_session_name]
+
+        # Add SSH and other important environment variables
+        env_vars = self._get_environment_variables_for_tmux()
+        for key, value in env_vars.items():
+            if value is not None:
+                command.extend(["-e", f"{key}={value}"])
+
         if initial_command:
             command.extend(["-c", initial_command])
 
@@ -196,6 +237,45 @@ class TmuxSessionManager:
             self._send_command_to_session(tmux_session_name, initial_command)
 
         return True, f"Session '{session_name}' created successfully."
+
+    def update_session_environment(self, session_name: str) -> Tuple[bool, str]:
+        """Update environment variables for an existing tmux session.
+
+        This is useful for refreshing SSH agent sockets and other environment
+        variables that may change over time.
+
+        Args:
+            session_name: Name of the session to update
+
+        Returns:
+            Tuple of (success, message)
+        """
+        if session_name not in self.sessions:
+            return False, f"Session '{session_name}' not found."
+
+        session = self.sessions[session_name]
+        env_vars = self._get_environment_variables_for_tmux()
+
+        updated_vars = []
+        failed_vars = []
+
+        for key, value in env_vars.items():
+            if value is not None:
+                exit_code, stdout, stderr = self._run_tmux_command(
+                    ["tmux", "setenv", "-t", session.tmux_session_name, key, value]
+                )
+
+                if exit_code == 0:
+                    updated_vars.append(key)
+                else:
+                    failed_vars.append(f"{key}: {stderr}")
+
+        if failed_vars:
+            return False, f"Failed to update some variables: {', '.join(failed_vars)}"
+        elif updated_vars:
+            return True, f"Updated environment variables: {', '.join(updated_vars)}"
+        else:
+            return True, "No environment variables to update"
 
     def destroy_session(self, session_name: str) -> Tuple[bool, str]:
         """Destroy a tmux session."""
@@ -237,12 +317,19 @@ class TmuxSessionManager:
         command: str,
         timeout: Optional[int] = None,
         timeout_action: str = "interrupt",
+        refresh_env: bool = False,
     ) -> Tuple[bool, str]:
         """Execute a command in a specific session with optional timeout."""
         if session_name not in self.sessions:
             return False, f"Session '{session_name}' not found."
 
         session = self.sessions[session_name]
+
+        # Optionally refresh environment variables before command execution
+        if refresh_env:
+            env_success, env_message = self.update_session_environment(session_name)
+            if not env_success:
+                return False, f"Failed to refresh environment: {env_message}"
 
         # Determine effective timeout
         effective_timeout = self._determine_effective_timeout(session_name, timeout)
@@ -260,12 +347,14 @@ class TmuxSessionManager:
         if success:
             session.add_command(command, effective_timeout)
             if effective_timeout is not None:
+                env_note = " (env refreshed)" if refresh_env else ""
                 return (
                     True,
-                    f"Command executed in session '{session_name}' (timeout: {effective_timeout}s)",
+                    f"Command executed in session '{session_name}' (timeout: {effective_timeout}s){env_note}",
                 )
             else:
-                return True, f"Command executed in session '{session_name}'"
+                env_note = " (env refreshed)" if refresh_env else ""
+                return True, f"Command executed in session '{session_name}'{env_note}"
         else:
             return False, message
 

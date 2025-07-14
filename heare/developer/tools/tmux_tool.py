@@ -134,6 +134,7 @@ def tmux_execute_command(
     capture_output: bool = True,
     timeout: Optional[int] = None,
     timeout_action: str = "interrupt",
+    refresh_env: bool = False,
 ) -> str:
     """Execute a command in a specific tmux session.
 
@@ -146,6 +147,7 @@ def tmux_execute_command(
         capture_output: Whether to capture and return recent output after execution
         timeout: Optional timeout in seconds (None for no timeout)
         timeout_action: Action to take on timeout ('interrupt', 'kill', 'terminate')
+        refresh_env: Whether to refresh environment variables before executing command
     """
     # Check if tmux is available
     if not _check_tmux_available():
@@ -172,7 +174,11 @@ def tmux_execute_command(
     # Execute command with timeout support
     session_manager = get_session_manager()
     success, message = session_manager.execute_command(
-        session_name, command, timeout=timeout, timeout_action=timeout_action
+        session_name,
+        command,
+        timeout=timeout,
+        timeout_action=timeout_action,
+        refresh_env=refresh_env,
     )
 
     if not success:
@@ -284,6 +290,27 @@ def tmux_destroy_session(context: "AgentContext", session_name: str) -> str:
 
 
 @tool
+def tmux_update_session_environment(context: "AgentContext", session_name: str) -> str:
+    """Update environment variables for an existing tmux session.
+
+    Refreshes SSH agent sockets and other environment variables that may
+    change over time. This is useful for maintaining SSH connectivity and
+    other environment-dependent functionality in long-running sessions.
+
+    Args:
+        session_name: Name of the session to update
+    """
+    # Check if tmux is available
+    if not _check_tmux_available():
+        return "Error: tmux is not available on this system."
+
+    session_manager = get_session_manager()
+    success, message = session_manager.update_session_environment(session_name)
+
+    return message
+
+
+@tool
 def tmux_destroy_all_sessions(context: "AgentContext") -> str:
     """Destroy all managed tmux sessions.
 
@@ -335,6 +362,7 @@ TMUX_TOOLS = [
     tmux_execute_command,
     tmux_get_output,
     tmux_set_session_timeout,
+    tmux_update_session_environment,
     tmux_destroy_session,
     tmux_destroy_all_sessions,
 ]

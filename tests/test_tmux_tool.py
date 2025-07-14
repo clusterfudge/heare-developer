@@ -263,7 +263,11 @@ class TestTmuxToolFunctions:
         assert "Command executed" in result
         assert "output captured" in result
         mock_manager.execute_command.assert_called_once_with(
-            "test_session", "echo hello", timeout=None, timeout_action="interrupt"
+            "test_session",
+            "echo hello",
+            timeout=None,
+            timeout_action="interrupt",
+            refresh_env=False,
         )
 
     @patch("heare.developer.tools.tmux_tool._check_tmux_available")
