@@ -1,4 +1,5 @@
 import contextlib
+import re
 from typing import Any, List
 
 from rich.status import Status
@@ -42,7 +43,7 @@ async def agent(
     """
 
     tool_names_list = (
-        [tool_name.strip(",").strip() for tool_name in tool_names.split()]
+        [tool_name.strip(",").strip() for tool_name in re.split(r"[ ,]", tool_names)]
         if tool_names
         else []
     )
