@@ -210,17 +210,25 @@ class TmuxSessionManager:
         # Generate unique tmux session name
         tmux_session_name = self._generate_tmux_session_name(session_name)
 
-        # Create tmux session with SSH agent environment variables
-        command = ["tmux", "new-session", "-d", "-s", tmux_session_name]
+        # Get current working directory to inherit from parent process
+        current_cwd = os.getcwd()
+
+        # Create tmux session with SSH agent environment variables and working directory
+        command = [
+            "tmux",
+            "new-session",
+            "-d",
+            "-s",
+            tmux_session_name,
+            "-c",
+            current_cwd,
+        ]
 
         # Add SSH and other important environment variables
         env_vars = self._get_environment_variables_for_tmux()
         for key, value in env_vars.items():
             if value is not None:
                 command.extend(["-e", f"{key}={value}"])
-
-        if initial_command:
-            command.extend(["-c", initial_command])
 
         exit_code, stdout, stderr = self._run_tmux_command(command)
 
