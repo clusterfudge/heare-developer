@@ -70,7 +70,9 @@ def _extract_file_mentions(message: MessageParam) -> list[Path]:
     File mentions are substrings that:
     - Start with @
     - Contain no breaks or backslash escapes
-    - Resolve to an actual file on the filesystem
+    - Resolve to an actual file on the filesystem (not directories)
+    - Have trailing punctuation removed (period, comma, semicolon, etc.)
+    - Are converted to relative paths when possible
 
     Note: This function only extracts the file mentions but does not read the files.
     Access to file contents is controlled by the sandbox when this is used in
@@ -96,12 +98,29 @@ def _extract_file_mentions(message: MessageParam) -> list[Path]:
 
     # Split on whitespace and get tokens starting with @
     words = content.split()
-    # Get words starting with @ and strip trailing period if present
-    file_mentions = [word[1:].rstrip(".") for word in words if word.startswith("@")]
+    # Get words starting with @ and strip trailing punctuation
+    file_mentions = []
+    for word in words:
+        if word.startswith("@"):
+            # Remove @ prefix and strip common punctuation from the end
+            mention = word[1:].rstrip(".,;:!?")
+            if mention:  # Only add if there's content after @ and punctuation removal
+                file_mentions.append(mention)
 
-    # Convert to paths and filter to existing files
-    paths = [Path(mention) for mention in file_mentions]
-    return [path for path in paths if path.exists()]
+    # Convert to paths, filter to existing files, and ensure they are files (not directories)
+    paths = []
+    for mention in file_mentions:
+        path = Path(mention)
+        if path.exists() and path.is_file():
+            # Convert to relative path if possible
+            try:
+                relative_path = path.relative_to(Path.cwd())
+                paths.append(relative_path)
+            except ValueError:
+                # If we can't make it relative, use the original path
+                paths.append(path)
+
+    return paths
 
 
 def _inline_latest_file_mentions(

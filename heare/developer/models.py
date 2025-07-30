@@ -31,6 +31,21 @@ MODEL_MAP: dict[str, ModelSpec] = {
         "max_tokens": 8192,
         "context_window": 100000,  # 100k tokens context window
     },
+    # Legacy model aliases for backwards compatibility
+    "sonnet-3.5": {
+        "title": "claude-3-5-sonnet-20241022",
+        "pricing": {"input": 3.00, "output": 15.00},
+        "cache_pricing": {"write": 3.75, "read": 0.30},
+        "max_tokens": 8192,
+        "context_window": 200000,
+    },
+    "sonnet-3.7": {
+        "title": "claude-3-7-sonnet-20250219",
+        "pricing": {"input": 3.00, "output": 15.00},
+        "cache_pricing": {"write": 3.75, "read": 0.30},
+        "max_tokens": 8192,
+        "context_window": 200000,
+    },
 }
 
 # pivot on model ids as well
@@ -44,6 +59,14 @@ def model_names() -> list[str]:
 
 
 def get_model(model_name: str) -> ModelSpec:
-    if model_name not in _ALL_ALIASES:
-        raise ValueError(f"{model_name} is not a valid model name")
-    return _ALL_ALIASES[model_name]
+    # Try exact match first
+    if model_name in _ALL_ALIASES:
+        return _ALL_ALIASES[model_name]
+
+    # Try case-insensitive match
+    model_name_lower = model_name.lower()
+    for alias, spec in _ALL_ALIASES.items():
+        if alias.lower() == model_name_lower:
+            return spec
+
+    raise ValueError(f"{model_name} is not a valid model name")

@@ -71,6 +71,9 @@ class Toolbox:
             "commit", self._commit, "Generate and execute a commit message"
         )
         self.register_cli_tool("memory", self._memory, "Interact with agent memory")
+        self.register_cli_tool(
+            "model", self._model, "Display or change the current AI model"
+        )
 
         self.register_cli_tool(
             "view-memory", self._launch_memory_webapp, "Launch memory webapp"
@@ -741,6 +744,78 @@ class Toolbox:
             return f"Failed to resume session {session_id}"
 
         return f"Resumed session {session_id}"
+
+    def _model(self, user_interface, sandbox, user_input, *args, **kwargs):
+        """Display or change the current AI model"""
+        from .models import model_names, get_model, MODEL_MAP
+
+        # If no argument provided, show current model
+        if not user_input.strip():
+            current_model = self.context.model_spec
+            model_name = current_model["title"]
+
+            # Find the short name for this model
+            short_name = None
+            for short, spec in MODEL_MAP.items():
+                if spec["title"] == model_name:
+                    short_name = short
+                    break
+
+            info = f"**Current Model:** {model_name}"
+            if short_name:
+                info += f" ({short_name})"
+
+            info += f"\n**Max Tokens:** {current_model['max_tokens']}"
+            info += f"\n**Context Window:** {current_model['context_window']:,} tokens"
+            info += "\n**Pricing:**"
+            info += f"\n  - Input: ${current_model['pricing']['input']:.2f}/MTok"
+            info += f"\n  - Output: ${current_model['pricing']['output']:.2f}/MTok"
+
+            return info
+
+        # Parse the model argument
+        new_model_name = user_input.strip()
+
+        # Check if it's a valid model
+        try:
+            new_model_spec = get_model(new_model_name)
+
+            # Update the context's model specification
+            self.context.model_spec = new_model_spec
+
+            # Find the short name for this model
+            short_name = None
+            for short, spec in MODEL_MAP.items():
+                if spec["title"] == new_model_spec["title"]:
+                    short_name = short
+                    break
+
+            info = f"**Model changed to:** {new_model_spec['title']}"
+            if short_name:
+                info += f" ({short_name})"
+
+            info += f"\n**Max Tokens:** {new_model_spec['max_tokens']}"
+            info += f"\n**Context Window:** {new_model_spec['context_window']:,} tokens"
+            info += "\n**Pricing:**"
+            info += f"\n  - Input: ${new_model_spec['pricing']['input']:.2f}/MTok"
+            info += f"\n  - Output: ${new_model_spec['pricing']['output']:.2f}/MTok"
+
+            return info
+
+        except ValueError as e:
+            available_models = model_names()
+            short_names = [name for name in available_models if name in MODEL_MAP]
+            full_names = [spec["title"] for spec in MODEL_MAP.values()]
+
+            error_msg = f"**Error:** {str(e)}\n\n"
+            error_msg += "**Available short names:**\n"
+            for name in sorted(short_names):
+                error_msg += f"  - {name}\n"
+            error_msg += "\n**Available full model names:**\n"
+            for name in sorted(set(full_names)):
+                error_msg += f"  - {name}\n"
+
+            return error_msg
 
     def schemas(self, enable_caching: bool = True) -> List[dict]:
         """Generate schemas for all tools in the toolbox.

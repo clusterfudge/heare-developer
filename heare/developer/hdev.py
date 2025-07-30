@@ -415,6 +415,16 @@ class CustomCompleter(Completer):
         )
         self.path_pattern = re.compile(r"[^\s@]+|@[^\s]*")
 
+        # Import model names for model command completion
+        try:
+            from heare.developer.models import model_names, MODEL_MAP
+
+            self.model_names = model_names()
+            self.short_model_names = list(MODEL_MAP.keys())
+        except ImportError:
+            self.model_names = []
+            self.short_model_names = []
+
     def get_word_under_cursor(self, document: Document) -> tuple[str, int]:
         """Get the word under the cursor and its start position."""
         # Get the text before cursor
@@ -435,7 +445,25 @@ class CustomCompleter(Completer):
 
         # Handle command completions
         if word.startswith("/"):
-            yield from self.word_completer.get_completions(document, complete_event)
+            # Check if this is a model command with arguments
+            text_before_cursor = document.text_before_cursor
+            if text_before_cursor.startswith("/model "):
+                # Extract the partial model name after "/model "
+                model_partial = text_before_cursor[7:]  # Remove "/model "
+
+                # Provide completions for model names
+                for model_name in self.short_model_names + [
+                    m for m in self.model_names if m not in self.short_model_names
+                ]:
+                    if model_name.lower().startswith(model_partial.lower()):
+                        completion_text = "/model " + model_name
+                        yield Completion(
+                            completion_text,
+                            start_position=-(len(text_before_cursor)),
+                            display=model_name,
+                        )
+            else:
+                yield from self.word_completer.get_completions(document, complete_event)
 
         # Handle file system completions
         elif "@" in word:
