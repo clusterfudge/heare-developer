@@ -394,7 +394,7 @@ async def run(
                                 arg_str=user_input[len(command_name) + 1 :].strip(),
                                 chat_history=agent_context.chat_history,
                             )
-                            if append:
+                            if result and append:
                                 agent_context.tool_result_buffer.append(
                                     {"type": "text", "text": result}
                                 )

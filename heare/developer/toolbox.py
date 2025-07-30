@@ -146,7 +146,7 @@ class Toolbox:
 
         self.context.user_interface.handle_system_message(content, markdown=False)
         add_to_buffer = confirm_to_add
-        if confirm_to_add:
+        if confirm_to_add and content and content.strip():
             add_to_buffer = (
                 (
                     (
@@ -765,13 +765,16 @@ class Toolbox:
             if short_name:
                 info += f" ({short_name})"
 
-            info += f"\n**Max Tokens:** {current_model['max_tokens']}"
-            info += f"\n**Context Window:** {current_model['context_window']:,} tokens"
-            info += "\n**Pricing:**"
-            info += f"\n  - Input: ${current_model['pricing']['input']:.2f}/MTok"
-            info += f"\n  - Output: ${current_model['pricing']['output']:.2f}/MTok"
+            info += f"\n\n**Max Tokens:** {current_model['max_tokens']}"
+            info += (
+                f"\n\n**Context Window:** {current_model['context_window']:,} tokens"
+            )
+            info += "\n\n**Pricing:**"
+            info += f"\n\n  - Input: ${current_model['pricing']['input']:.2f}/MTok"
+            info += f"\n\n  - Output: ${current_model['pricing']['output']:.2f}/MTok"
+            user_interface.handle_system_message(info)
 
-            return info
+            return None
 
         # Parse the model argument
         new_model_name = user_input.strip()
