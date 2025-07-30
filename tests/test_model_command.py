@@ -33,12 +33,19 @@ def test_model_command_no_args_shows_current(mock_context):
         user_input="",
     )
 
-    assert "Current Model:" in result
-    assert "claude-sonnet-4-20250514" in result
-    assert "sonnet" in result
-    assert "Max Tokens:" in result
-    assert "Context Window:" in result
-    assert "Pricing:" in result
+    # The method now calls user_interface.handle_system_message() and returns None
+    assert result is None
+
+    # Check that the user interface received the correct message
+    mock_context.user_interface.handle_system_message.assert_called_once()
+    call_args = mock_context.user_interface.handle_system_message.call_args[0][0]
+
+    assert "Current Model:" in call_args
+    assert "claude-sonnet-4-20250514" in call_args
+    assert "sonnet" in call_args
+    assert "Max Tokens:" in call_args
+    assert "Context Window:" in call_args
+    assert "Pricing:" in call_args
 
 
 def test_model_command_change_model_by_short_name(mock_context):
