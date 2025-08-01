@@ -41,6 +41,11 @@ def main(args: List[str] = None):
             from heare.developer.memory_server.cli import memory_server_main
             memory_server_main(args[2:])  # Pass remaining args to memory server CLI
             return
+        elif args[1] == "migrate-memory":
+            # Run memory migration
+            from heare.developer.tools.memory_migrate import migrate_memory_cli_main
+            migrate_memory_cli_main(args[2:])  # Pass remaining args to migration CLI
+            return
 
     # Continue with regular CLI processing
     sandbox = Sandbox(".", SandboxMode.ALLOW_ALL)
