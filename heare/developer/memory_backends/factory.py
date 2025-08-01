@@ -39,8 +39,8 @@ def create_memory_backend(config: Optional[MemoryConfig] = None) -> MemoryBacken
                 api_key=config.http_api_key,
                 timeout=config.http_timeout
             )
-        except ImportError:
-            raise ValueError("HTTP backend not available. Install httpx dependency.")
+        except ImportError as e:
+            raise ValueError(f"HTTP backend not available. Install httpx dependency: {e}")
     
     else:
         raise ValueError(f"Unsupported memory backend: {config.backend}")
