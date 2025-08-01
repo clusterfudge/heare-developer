@@ -46,6 +46,16 @@ def main(args: List[str] = None):
             from heare.developer.tools.memory_migrate import migrate_memory_cli_main
             migrate_memory_cli_main(args[2:])  # Pass remaining args to migration CLI
             return
+        elif args[1] == "backup-memory":
+            # Run memory backup
+            from heare.developer.tools.memory_migrate import backup_memory_cli_main
+            backup_memory_cli_main(args[2:])  # Pass remaining args to backup CLI
+            return
+        elif args[1] == "restore-memory":
+            # Run memory restore
+            from heare.developer.tools.memory_migrate import restore_memory_cli_main
+            restore_memory_cli_main(args[2:])  # Pass remaining args to restore CLI
+            return
 
     # Continue with regular CLI processing
     sandbox = Sandbox(".", SandboxMode.ALLOW_ALL)

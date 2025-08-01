@@ -61,6 +61,27 @@ def memory_server_main(args: list[str]):
         help="Memory backend to use (overrides config)"
     )
     
+    parser.add_argument(
+        "--disable-s3-backup",
+        action="store_true",
+        help="Disable S3 backup functionality"
+    )
+    
+    parser.add_argument(
+        "--s3-bucket",
+        help="S3 bucket for backups (overrides config)"
+    )
+    
+    parser.add_argument(
+        "--s3-region",
+        help="S3 region (overrides config)"
+    )
+    
+    parser.add_argument(
+        "--s3-endpoint-url",
+        help="S3 endpoint URL for S3-compatible services (overrides config)"
+    )
+    
     parsed_args = parser.parse_args(args)
     
     # Determine port
@@ -82,6 +103,14 @@ def memory_server_main(args: list[str]):
     if parsed_args.storage_path:
         config.memory.filesystem_path = parsed_args.storage_path
     
+    # Override S3 config if specified
+    if parsed_args.s3_bucket:
+        config.memory.s3_bucket = parsed_args.s3_bucket
+    if parsed_args.s3_region:
+        config.memory.s3_region = parsed_args.s3_region
+    if parsed_args.s3_endpoint_url:
+        config.memory.s3_endpoint_url = parsed_args.s3_endpoint_url
+    
     # Create backend
     try:
         backend = create_memory_backend(config.memory)
@@ -95,6 +124,13 @@ def memory_server_main(args: list[str]):
     else:
         print("Authentication: None (open server)")
     
+    # Show S3 backup status
+    enable_s3_backup = not parsed_args.disable_s3_backup
+    if enable_s3_backup and config.memory.s3_bucket:
+        print(f"S3 backup: Enabled (bucket: {config.memory.s3_bucket})")
+    else:
+        print("S3 backup: Disabled")
+    
     # Run server
     try:
         run_server(
@@ -103,6 +139,7 @@ def memory_server_main(args: list[str]):
             backend=backend,
             api_key=api_key,
             enable_web_ui=not parsed_args.no_web_ui,
+            enable_s3_backup=not parsed_args.disable_s3_backup,
             log_level=parsed_args.log_level,
         )
     except KeyboardInterrupt:

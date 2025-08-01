@@ -138,18 +138,26 @@ def test_api_key_authentication():
         assert response.status_code == 200
 
 
-def test_backup_restore_placeholders(client):
-    """Test backup and restore placeholder endpoints."""
-    # Backup
+def test_backup_restore_without_s3_config(client):
+    """Test backup and restore endpoints when S3 is not configured."""
+    # Backup without S3 config
     response = client.post("/api/memory/backup")
     assert response.status_code == 200
     data = response.json()
     assert data["success"] is False
-    assert "not yet implemented" in data["message"]
+    assert "S3 backup is not configured" in data["message"]
     
-    # Restore
-    response = client.post("/api/memory/restore")
+    # Restore without S3 config
+    restore_data = {"backup_key": "test-backup", "overwrite": False}
+    response = client.post("/api/memory/restore", json=restore_data)
     assert response.status_code == 200
     data = response.json()
     assert data["success"] is False
-    assert "not yet implemented" in data["message"]
+    assert "S3 backup is not configured" in data["message"]
+    
+    # List backups without S3 config
+    response = client.get("/api/memory/backups")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"] is False
+    assert "S3 backup is not configured" in data["message"]

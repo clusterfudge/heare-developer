@@ -69,17 +69,65 @@ class HealthResponse(BaseModel):
     timestamp: str
 
 
+class BackupRequest(BaseModel):
+    """Request model for backup operations."""
+    backup_name: Optional[str] = Field(None, description="Optional custom backup name")
+
+
 class BackupResponse(BaseModel):
     """Response model for backup operations."""
     success: bool
     message: str
     backup_key: Optional[str] = None
+    entries_backed_up: int = 0
+    backup_size_bytes: int = 0
+    errors: Optional[List[Dict[str, str]]] = None
     error: Optional[str] = None
+
+
+class RestoreRequest(BaseModel):
+    """Request model for restore operations."""
+    backup_key: str = Field(..., description="Backup key to restore from")
+    overwrite: bool = Field(False, description="Whether to overwrite existing entries")
 
 
 class RestoreResponse(BaseModel):
     """Response model for restore operations."""
     success: bool
     message: str
-    restored_entries: int = 0
+    backup_key: Optional[str] = None
+    entries_restored: int = 0
+    entries_skipped: int = 0
+    backup_metadata: Optional[Dict[str, Any]] = None
+    errors: Optional[List[Dict[str, str]]] = None
+    error: Optional[str] = None
+
+
+class BackupInfo(BaseModel):
+    """Information about a backup."""
+    backup_key: str
+    timestamp: str
+    total_entries: int
+    backend_type: str
+
+
+class ListBackupsResponse(BaseModel):
+    """Response model for listing backups."""
+    success: bool
+    message: str
+    backups: List[BackupInfo] = []
+    error: Optional[str] = None
+
+
+class DeleteBackupRequest(BaseModel):
+    """Request model for deleting backups."""
+    backup_key: str = Field(..., description="Backup key to delete")
+
+
+class DeleteBackupResponse(BaseModel):
+    """Response model for deleting backups."""
+    success: bool
+    message: str
+    backup_key: Optional[str] = None
+    objects_deleted: int = 0
     error: Optional[str] = None

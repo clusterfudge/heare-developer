@@ -274,6 +274,166 @@ async def migrate_memory(
         return f"Error during migration: {str(e)}"
 
 
+@tool
+async def backup_memory_s3(
+    context: AgentContext,
+    backup_name: Optional[str] = None
+) -> str:
+    """Backup memory to S3.
+    
+    Args:
+        backup_name: Optional custom backup name. If None, uses timestamp.
+        
+    Returns:
+        Backup results and statistics
+    """
+    try:
+        from ..s3_backup import S3BackupManager
+        from ..config import get_config
+        
+        config = get_config()
+        
+        if not config.memory.s3_bucket:
+            return "Error: S3 backup is not configured. Please set s3_bucket in config or environment variables."
+        
+        # Create S3 backup manager
+        s3_manager = S3BackupManager(config.memory)
+        
+        # Run backup
+        result = await s3_manager.backup_all(context.memory_manager.backend, backup_name)
+        
+        # Format results
+        output = [result["message"]]
+        if result["success"]:
+            output.append(f"Backup key: {result['backup_key']}")
+            output.append(f"Entries backed up: {result['entries_backed_up']}")
+            output.append(f"Backup size: {result['backup_size_bytes']} bytes")
+        
+        if result.get("errors"):
+            output.append("")
+            output.append("Errors:")
+            for error in result["errors"][:5]:  # Show first 5 errors
+                output.append(f"  {error['path']}: {error['error']}")
+        
+        # Close S3 manager
+        s3_manager.close()
+        
+        return "\n".join(output)
+        
+    except Exception as e:
+        return f"Error during backup: {str(e)}"
+
+
+@tool
+async def restore_memory_s3(
+    context: AgentContext,
+    backup_key: str,
+    overwrite: bool = False
+) -> str:
+    """Restore memory from S3 backup.
+    
+    Args:
+        backup_key: S3 backup key to restore from
+        overwrite: Whether to overwrite existing entries
+        
+    Returns:
+        Restore results and statistics
+    """
+    try:
+        from ..s3_backup import S3BackupManager
+        from ..config import get_config
+        
+        config = get_config()
+        
+        if not config.memory.s3_bucket:
+            return "Error: S3 backup is not configured. Please set s3_bucket in config or environment variables."
+        
+        # Create S3 backup manager
+        s3_manager = S3BackupManager(config.memory)
+        
+        # Run restore
+        result = await s3_manager.restore_backup(
+            context.memory_manager.backend, 
+            backup_key, 
+            overwrite
+        )
+        
+        # Format results
+        output = [result["message"]]
+        if result["success"]:
+            output.append(f"Entries restored: {result['entries_restored']}")
+            if result["entries_skipped"] > 0:
+                output.append(f"Entries skipped: {result['entries_skipped']}")
+            
+            if result.get("backup_metadata"):
+                metadata = result["backup_metadata"]
+                output.append(f"Backup timestamp: {metadata.get('timestamp', 'unknown')}")
+                output.append(f"Original backend: {metadata.get('backend_type', 'unknown')}")
+        
+        if result.get("errors"):
+            output.append("")
+            output.append("Errors:")
+            for error in result["errors"][:5]:  # Show first 5 errors
+                output.append(f"  {error['path']}: {error['error']}")
+        
+        # Close S3 manager
+        s3_manager.close()
+        
+        return "\n".join(output)
+        
+    except Exception as e:
+        return f"Error during restore: {str(e)}"
+
+
+@tool
+async def list_memory_backups(context: AgentContext) -> str:
+    """List all available memory backups in S3.
+    
+    Returns:
+        List of available backups with metadata
+    """
+    try:
+        from ..s3_backup import S3BackupManager
+        from ..config import get_config
+        
+        config = get_config()
+        
+        if not config.memory.s3_bucket:
+            return "Error: S3 backup is not configured. Please set s3_bucket in config or environment variables."
+        
+        # Create S3 backup manager
+        s3_manager = S3BackupManager(config.memory)
+        
+        # List backups
+        result = await s3_manager.list_backups()
+        
+        # Format results
+        if not result["success"]:
+            return f"Error: {result['message']}"
+        
+        backups = result["backups"]
+        if not backups:
+            return "No backups found in S3."
+        
+        output = [f"Found {len(backups)} backups:"]
+        output.append("")
+        
+        for backup in backups:
+            output.append(f"• {backup['backup_key']}")
+            output.append(f"  Timestamp: {backup['timestamp']}")
+            output.append(f"  Entries: {backup['total_entries']}")
+            output.append(f"  Backend: {backup['backend_type']}")
+            output.append("")
+        
+        # Close S3 manager
+        s3_manager.close()
+        
+        return "\n".join(output)
+        
+    except Exception as e:
+        return f"Error listing backups: {str(e)}"
+
+
 async def _parse_backend_config(config_str: str):
     """Parse backend configuration string and create backend.
     
@@ -503,3 +663,262 @@ def migrate_memory_cli_main(args: List[str]):
     
     # Run the async migration
     asyncio.run(run_migration())
+
+
+def backup_memory_cli_main(args: List[str]):
+    """Main entry point for memory backup CLI."""
+    import argparse
+    import os
+    
+    parser = argparse.ArgumentParser(
+        prog="hdev backup-memory",
+        description="Backup memory to S3"
+    )
+    
+    parser.add_argument(
+        "--backup-name",
+        help="Custom backup name (default: timestamp-based)"
+    )
+    
+    parser.add_argument(
+        "--s3-bucket",
+        help="S3 bucket for backup (can also use HDEV_S3_BUCKET env var)"
+    )
+    
+    parser.add_argument(
+        "--s3-region",
+        default="us-east-1",
+        help="S3 region (default: us-east-1)"
+    )
+    
+    parser.add_argument(
+        "--s3-endpoint-url",
+        help="S3 endpoint URL for S3-compatible services"
+    )
+    
+    parser.add_argument(
+        "--memory-backend",
+        choices=["filesystem", "http"],
+        default="filesystem",
+        help="Memory backend to backup from (default: filesystem)"
+    )
+    
+    parser.add_argument(
+        "--memory-path",
+        type=Path,
+        help="Path for filesystem backend (default: ~/.hdev/memory)"
+    )
+    
+    parser.add_argument(
+        "--memory-url",
+        help="URL for HTTP memory backend"
+    )
+    
+    parser.add_argument(
+        "--api-key",
+        help="API key for HTTP backends (can also use HDEV_MEMORY_HTTP_API_KEY env var)"
+    )
+    
+    parsed_args = parser.parse_args(args)
+    
+    async def run_backup():
+        try:
+            from ..s3_backup import S3BackupManager
+            from ..config import MemoryConfig
+            
+            # Create memory config for S3
+            s3_config = MemoryConfig(
+                s3_bucket=parsed_args.s3_bucket or os.getenv("HDEV_S3_BUCKET"),
+                s3_region=parsed_args.s3_region,
+                s3_access_key_id=os.getenv("HDEV_S3_ACCESS_KEY_ID"),
+                s3_secret_access_key=os.getenv("HDEV_S3_SECRET_ACCESS_KEY"),
+                s3_endpoint_url=parsed_args.s3_endpoint_url or os.getenv("HDEV_S3_ENDPOINT_URL"),
+            )
+            
+            if not s3_config.s3_bucket:
+                print("Error: S3 bucket must be specified via --s3-bucket or HDEV_S3_BUCKET env var")
+                return
+            
+            # Create S3 backup manager
+            s3_manager = S3BackupManager(s3_config)
+            
+            # Create memory backend
+            if parsed_args.memory_backend == "filesystem":
+                from ..memory_backends.filesystem import FilesystemMemoryBackend
+                backend = FilesystemMemoryBackend(parsed_args.memory_path)
+            elif parsed_args.memory_backend == "http":
+                if not parsed_args.memory_url:
+                    print("Error: --memory-url is required for HTTP backend")
+                    return
+                from ..memory_backends.http import HTTPMemoryBackend
+                api_key = parsed_args.api_key or os.getenv("HDEV_MEMORY_HTTP_API_KEY")
+                backend = HTTPMemoryBackend(base_url=parsed_args.memory_url, api_key=api_key)
+            
+            print(f"Starting backup to S3 bucket '{s3_config.s3_bucket}'...")
+            if parsed_args.backup_name:
+                print(f"Backup name: {parsed_args.backup_name}")
+            
+            # Run backup
+            result = await s3_manager.backup_all(backend, parsed_args.backup_name)
+            
+            # Print results
+            print(result["message"])
+            if result["success"]:
+                print(f"Backup key: {result['backup_key']}")
+                print(f"Entries backed up: {result['entries_backed_up']}")
+                print(f"Backup size: {result['backup_size_bytes']} bytes")
+            
+            if result.get("errors"):
+                print("\nErrors:")
+                for error in result["errors"]:
+                    print(f"  {error['path']}: {error['error']}")
+            
+            # Close backends
+            if hasattr(backend, 'close'):
+                await backend.close()
+            s3_manager.close()
+                    
+        except Exception as e:
+            print(f"Error during backup: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    # Run the async backup
+    asyncio.run(run_backup())
+
+
+def restore_memory_cli_main(args: List[str]):
+    """Main entry point for memory restore CLI."""
+    import argparse
+    import os
+    
+    parser = argparse.ArgumentParser(
+        prog="hdev restore-memory",
+        description="Restore memory from S3 backup"
+    )
+    
+    parser.add_argument(
+        "backup_key",
+        help="Backup key to restore from"
+    )
+    
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Overwrite existing entries in target backend"
+    )
+    
+    parser.add_argument(
+        "--s3-bucket",
+        help="S3 bucket for backup (can also use HDEV_S3_BUCKET env var)"
+    )
+    
+    parser.add_argument(
+        "--s3-region",
+        default="us-east-1",
+        help="S3 region (default: us-east-1)"
+    )
+    
+    parser.add_argument(
+        "--s3-endpoint-url",
+        help="S3 endpoint URL for S3-compatible services"
+    )
+    
+    parser.add_argument(
+        "--memory-backend",
+        choices=["filesystem", "http"],
+        default="filesystem",
+        help="Memory backend to restore to (default: filesystem)"
+    )
+    
+    parser.add_argument(
+        "--memory-path",
+        type=Path,
+        help="Path for filesystem backend (default: ~/.hdev/memory)"
+    )
+    
+    parser.add_argument(
+        "--memory-url",
+        help="URL for HTTP memory backend"
+    )
+    
+    parser.add_argument(
+        "--api-key",
+        help="API key for HTTP backends (can also use HDEV_MEMORY_HTTP_API_KEY env var)"
+    )
+    
+    parsed_args = parser.parse_args(args)
+    
+    async def run_restore():
+        try:
+            from ..s3_backup import S3BackupManager
+            from ..config import MemoryConfig
+            
+            # Create memory config for S3
+            s3_config = MemoryConfig(
+                s3_bucket=parsed_args.s3_bucket or os.getenv("HDEV_S3_BUCKET"),
+                s3_region=parsed_args.s3_region,
+                s3_access_key_id=os.getenv("HDEV_S3_ACCESS_KEY_ID"),
+                s3_secret_access_key=os.getenv("HDEV_S3_SECRET_ACCESS_KEY"),
+                s3_endpoint_url=parsed_args.s3_endpoint_url or os.getenv("HDEV_S3_ENDPOINT_URL"),
+            )
+            
+            if not s3_config.s3_bucket:
+                print("Error: S3 bucket must be specified via --s3-bucket or HDEV_S3_BUCKET env var")
+                return
+            
+            # Create S3 backup manager
+            s3_manager = S3BackupManager(s3_config)
+            
+            # Create memory backend
+            if parsed_args.memory_backend == "filesystem":
+                from ..memory_backends.filesystem import FilesystemMemoryBackend
+                backend = FilesystemMemoryBackend(parsed_args.memory_path)
+            elif parsed_args.memory_backend == "http":
+                if not parsed_args.memory_url:
+                    print("Error: --memory-url is required for HTTP backend")
+                    return
+                from ..memory_backends.http import HTTPMemoryBackend
+                api_key = parsed_args.api_key or os.getenv("HDEV_MEMORY_HTTP_API_KEY")
+                backend = HTTPMemoryBackend(base_url=parsed_args.memory_url, api_key=api_key)
+            
+            print(f"Starting restore from backup '{parsed_args.backup_key}'...")
+            if parsed_args.overwrite:
+                print("Overwrite mode enabled - existing entries will be replaced")
+            
+            # Run restore
+            result = await s3_manager.restore_backup(
+                backend, 
+                parsed_args.backup_key, 
+                parsed_args.overwrite
+            )
+            
+            # Print results
+            print(result["message"])
+            if result["success"]:
+                print(f"Entries restored: {result['entries_restored']}")
+                if result["entries_skipped"] > 0:
+                    print(f"Entries skipped: {result['entries_skipped']}")
+                
+                if result.get("backup_metadata"):
+                    metadata = result["backup_metadata"]
+                    print(f"Backup timestamp: {metadata.get('timestamp', 'unknown')}")
+                    print(f"Original backend: {metadata.get('backend_type', 'unknown')}")
+            
+            if result.get("errors"):
+                print("\nErrors:")
+                for error in result["errors"]:
+                    print(f"  {error['path']}: {error['error']}")
+            
+            # Close backends
+            if hasattr(backend, 'close'):
+                await backend.close()
+            s3_manager.close()
+                    
+        except Exception as e:
+            print(f"Error during restore: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    # Run the async restore
+    asyncio.run(run_restore())

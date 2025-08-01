@@ -15,8 +15,9 @@ from fastapi.responses import HTMLResponse
 
 from ..memory_backends.base import MemoryBackend
 from ..memory_backends.filesystem import FilesystemMemoryBackend
-from ..config import MemoryConfig
+from ..config import MemoryConfig, get_config
 from ..web.app import MemoryWebApp
+from ..s3_backup import S3BackupManager
 from .models import (
     MemoryTreeResponse,
     MemoryEntryResponse,
@@ -26,8 +27,13 @@ from .models import (
     SearchResponse,
     SearchResult,
     HealthResponse,
+    BackupRequest,
     BackupResponse,
+    RestoreRequest,
     RestoreResponse,
+    ListBackupsResponse,
+    DeleteBackupRequest,
+    DeleteBackupResponse,
 )
 
 # Configure logging
@@ -46,6 +52,7 @@ class MemoryServer:
         backend: MemoryBackend,
         api_key: Optional[str] = None,
         enable_web_ui: bool = True,
+        enable_s3_backup: bool = True,
     ):
         """Initialize the memory server.
         
@@ -53,10 +60,23 @@ class MemoryServer:
             backend: Memory backend to use
             api_key: Optional API key for authentication
             enable_web_ui: Whether to enable the web UI
+            enable_s3_backup: Whether to enable S3 backup functionality
         """
         self.backend = backend
         self.api_key = api_key
         self.enable_web_ui = enable_web_ui
+        self.enable_s3_backup = enable_s3_backup
+        
+        # Initialize S3 backup manager if enabled
+        self.s3_manager = None
+        if enable_s3_backup:
+            try:
+                config = get_config()
+                self.s3_manager = S3BackupManager(config.memory)
+                logger.info("S3 backup functionality enabled")
+            except Exception as e:
+                logger.warning(f"S3 backup disabled: {e}")
+                self.enable_s3_backup = False
         self.app = FastAPI(
             title="Hdev Memory Server",
             description="Remote memory storage API for hdev",
@@ -196,31 +216,105 @@ class MemoryServer:
                 logger.error(f"Error searching memory: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
         
-        # Placeholder endpoints for S3 backup/restore (to be implemented in Phase 4)
+        # S3 backup/restore endpoints
         @self.app.post("/api/memory/backup", response_model=BackupResponse)
         async def backup_memory(
+            request: BackupRequest = BackupRequest(),
             _: bool = Depends(self._verify_api_key)
         ):
             """Trigger memory backup to S3."""
-            # TODO: Implement in Phase 4
-            return BackupResponse(
-                success=False,
-                message="Backup functionality not yet implemented",
-                error="Feature coming in Phase 4"
-            )
+            if not self.enable_s3_backup or not self.s3_manager:
+                return BackupResponse(
+                    success=False,
+                    message="S3 backup is not configured or enabled",
+                    error="S3 backup not available"
+                )
+            
+            try:
+                result = await self.s3_manager.backup_all(self.backend, request.backup_name)
+                return BackupResponse(**result)
+            except Exception as e:
+                logger.error(f"Backup failed: {e}")
+                return BackupResponse(
+                    success=False,
+                    message=f"Backup failed: {str(e)}",
+                    error=str(e)
+                )
         
         @self.app.post("/api/memory/restore", response_model=RestoreResponse)
         async def restore_memory(
-            backup_key: Optional[str] = None,
+            request: RestoreRequest,
             _: bool = Depends(self._verify_api_key)
         ):
             """Restore memory from S3 backup."""
-            # TODO: Implement in Phase 4
-            return RestoreResponse(
-                success=False,
-                message="Restore functionality not yet implemented",
-                error="Feature coming in Phase 4"
-            )
+            if not self.enable_s3_backup or not self.s3_manager:
+                return RestoreResponse(
+                    success=False,
+                    message="S3 backup is not configured or enabled",
+                    error="S3 backup not available"
+                )
+            
+            try:
+                result = await self.s3_manager.restore_backup(
+                    self.backend, 
+                    request.backup_key, 
+                    request.overwrite
+                )
+                return RestoreResponse(**result)
+            except Exception as e:
+                logger.error(f"Restore failed: {e}")
+                return RestoreResponse(
+                    success=False,
+                    message=f"Restore failed: {str(e)}",
+                    error=str(e)
+                )
+        
+        @self.app.get("/api/memory/backups", response_model=ListBackupsResponse)
+        async def list_backups(
+            _: bool = Depends(self._verify_api_key)
+        ):
+            """List all available backups."""
+            if not self.enable_s3_backup or not self.s3_manager:
+                return ListBackupsResponse(
+                    success=False,
+                    message="S3 backup is not configured or enabled",
+                    error="S3 backup not available"
+                )
+            
+            try:
+                result = await self.s3_manager.list_backups()
+                return ListBackupsResponse(**result)
+            except Exception as e:
+                logger.error(f"List backups failed: {e}")
+                return ListBackupsResponse(
+                    success=False,
+                    message=f"List backups failed: {str(e)}",
+                    error=str(e)
+                )
+        
+        @self.app.delete("/api/memory/backup/{backup_key}", response_model=DeleteBackupResponse)
+        async def delete_backup(
+            backup_key: str,
+            _: bool = Depends(self._verify_api_key)
+        ):
+            """Delete a backup."""
+            if not self.enable_s3_backup or not self.s3_manager:
+                return DeleteBackupResponse(
+                    success=False,
+                    message="S3 backup is not configured or enabled",
+                    error="S3 backup not available"
+                )
+            
+            try:
+                result = await self.s3_manager.delete_backup(backup_key)
+                return DeleteBackupResponse(**result)
+            except Exception as e:
+                logger.error(f"Delete backup failed: {e}")
+                return DeleteBackupResponse(
+                    success=False,
+                    message=f"Delete backup failed: {str(e)}",
+                    error=str(e)
+                )
     
     def _setup_web_ui(self):
         """Set up the web UI routes."""
@@ -247,6 +341,7 @@ def create_app(
     api_key: Optional[str] = None,
     storage_path: Optional[Path] = None,
     enable_web_ui: bool = True,
+    enable_s3_backup: bool = True,
 ) -> FastAPI:
     """Create FastAPI app with memory server.
     
@@ -255,6 +350,7 @@ def create_app(
         api_key: Optional API key for authentication
         storage_path: Path for filesystem backend storage
         enable_web_ui: Whether to enable web UI
+        enable_s3_backup: Whether to enable S3 backup functionality
         
     Returns:
         Configured FastAPI application
@@ -264,7 +360,7 @@ def create_app(
         base_dir = storage_path or Path.cwd() / "memory"
         backend = FilesystemMemoryBackend(base_dir)
     
-    server = MemoryServer(backend, api_key, enable_web_ui)
+    server = MemoryServer(backend, api_key, enable_web_ui, enable_s3_backup)
     return server.app
 
 
@@ -275,6 +371,7 @@ def run_server(
     api_key: Optional[str] = None,
     storage_path: Optional[Path] = None,
     enable_web_ui: bool = True,
+    enable_s3_backup: bool = True,
     log_level: str = "info",
 ):
     """Run the memory server.
@@ -286,9 +383,10 @@ def run_server(
         api_key: Optional API key for authentication
         storage_path: Path for filesystem backend storage
         enable_web_ui: Whether to enable web UI
+        enable_s3_backup: Whether to enable S3 backup functionality
         log_level: Logging level
     """
-    app = create_app(backend, api_key, storage_path, enable_web_ui)
+    app = create_app(backend, api_key, storage_path, enable_web_ui, enable_s3_backup)
     
     logger.info(f"Starting memory server on {host}:{port}")
     if api_key:
