@@ -36,6 +36,11 @@ def main(args: List[str] = None):
             session_id = args[2]
             resume_session(session_id)
             return
+        elif args[1] == "memory-server":
+            # Run the memory server
+            from heare.developer.memory_server.cli import memory_server_main
+            memory_server_main(args[2:])  # Pass remaining args to memory server CLI
+            return
 
     # Continue with regular CLI processing
     sandbox = Sandbox(".", SandboxMode.ALLOW_ALL)
