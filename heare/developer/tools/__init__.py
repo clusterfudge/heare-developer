@@ -35,6 +35,12 @@ from .memory import (
     critique_memory,
     delete_memory_entry,
 )
+from .memory_migrate import (
+    migrate_memory,
+    backup_memory_s3,
+    restore_memory_s3,
+    list_memory_backups,
+)
 from .todos import (
     todo_read,
     todo_write,
@@ -84,6 +90,10 @@ ALL_TOOLS = (
         write_memory_entry,
         critique_memory,
         delete_memory_entry,
+        migrate_memory,
+        backup_memory_s3,
+        restore_memory_s3,
+        list_memory_backups,
         todo_read,
         todo_write,
         list_sessions_tool,
