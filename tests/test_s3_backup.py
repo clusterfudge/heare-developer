@@ -172,7 +172,7 @@ async def test_list_backups_success(s3_manager):
     manager, mock_client = s3_manager
     
     # Mock S3 list response
-    mock_client.list_objects_v2.return_value = {
+    list_response = {
         'CommonPrefixes': [
             {'Prefix': 'hdev-memory-backups/backup_20231201_120000/'},
             {'Prefix': 'hdev-memory-backups/backup_20231201_130000/'},
@@ -180,42 +180,43 @@ async def test_list_backups_success(s3_manager):
     }
     
     # Mock metadata responses
+    metadata_responses = {
+        'hdev-memory-backups/backup_20231201_120000/metadata.json': {
+            "backup_name": "backup_20231201_120000",
+            "timestamp": "2023-12-01T12:00:00Z",
+            "total_entries": 5,
+            "backend_type": "FilesystemMemoryBackend"
+        },
+        'hdev-memory-backups/backup_20231201_130000/metadata.json': {
+            "backup_name": "backup_20231201_130000", 
+            "timestamp": "2023-12-01T13:00:00Z",
+            "total_entries": 3,
+            "backend_type": "HTTPMemoryBackend"
+        }
+    }
+    
     def mock_get_object(Bucket, Key):
-        if 'backup_20231201_120000/metadata.json' in Key:
-            metadata = {
-                "backup_name": "backup_20231201_120000",
-                "timestamp": "2023-12-01T12:00:00Z",
-                "total_entries": 5,
-                "backend_type": "FilesystemMemoryBackend"
-            }
-            return {'Body': MagicMock(read=lambda: json.dumps(metadata).encode())}
-        elif 'backup_20231201_130000/metadata.json' in Key:
-            metadata = {
-                "backup_name": "backup_20231201_130000", 
-                "timestamp": "2023-12-01T13:00:00Z",
-                "total_entries": 3,
-                "backend_type": "HTTPMemoryBackend"
-            }
+        if Key in metadata_responses:
+            metadata = metadata_responses[Key]
             return {'Body': MagicMock(read=lambda: json.dumps(metadata).encode())}
         return None
     
+    # Setup mocks
+    mock_client.list_objects_v2.return_value = list_response
     mock_client.get_object.side_effect = mock_get_object
     
-    with patch('asyncio.get_event_loop') as mock_get_loop:
-        mock_loop = AsyncMock()
-        mock_get_loop.return_value = mock_loop
-        
-        # Mock run_in_executor calls
-        def run_in_executor_side_effect(executor, func):
-            if 'list_objects_v2' in str(func):
-                return mock_client.list_objects_v2.return_value
-            else:
-                # This is a get_object call
-                return mock_get_object('test-bucket', str(func))
-        
-        mock_loop.run_in_executor.side_effect = run_in_executor_side_effect
-        
-        result = await manager.list_backups()
+    # Mock the executor to actually call the functions
+    async def mock_run_in_executor(executor, func):
+        # Execute the lambda function directly
+        return func()
+    
+    with patch.object(manager, 'executor') as mock_executor:
+        with patch('asyncio.get_event_loop') as mock_get_loop:
+            mock_loop = AsyncMock()
+            mock_get_loop.return_value = mock_loop
+            mock_loop.run_in_executor = mock_run_in_executor
+            
+            result = await manager.list_backups()
     
     # Verify result
     assert result["success"] is True
@@ -255,7 +256,7 @@ async def test_delete_backup_success(s3_manager):
     manager, mock_client = s3_manager
     
     # Mock S3 list response for backup contents
-    mock_client.list_objects_v2.return_value = {
+    list_response = {
         'Contents': [
             {'Key': 'hdev-memory-backups/test-backup/entries/entry1.json.gz'},
             {'Key': 'hdev-memory-backups/test-backup/entries/entry2.json.gz'},
@@ -263,23 +264,21 @@ async def test_delete_backup_success(s3_manager):
         ]
     }
     
-    # Mock delete response
+    mock_client.list_objects_v2.return_value = list_response
     mock_client.delete_objects.return_value = {}
     
-    with patch('asyncio.get_event_loop') as mock_get_loop:
-        mock_loop = AsyncMock()
-        mock_get_loop.return_value = mock_loop
-        
-        # Mock both list and delete operations
-        def run_in_executor_side_effect(executor, func):
-            if 'list_objects_v2' in str(func):
-                return mock_client.list_objects_v2.return_value
-            else:
-                return mock_client.delete_objects.return_value
-        
-        mock_loop.run_in_executor.side_effect = run_in_executor_side_effect
-        
-        result = await manager.delete_backup("test-backup")
+    # Mock the executor to actually call the functions
+    async def mock_run_in_executor(executor, func):
+        # Execute the lambda function directly
+        return func()
+    
+    with patch.object(manager, 'executor') as mock_executor:
+        with patch('asyncio.get_event_loop') as mock_get_loop:
+            mock_loop = AsyncMock()
+            mock_get_loop.return_value = mock_loop
+            mock_loop.run_in_executor = mock_run_in_executor
+            
+            result = await manager.delete_backup("test-backup")
     
     # Verify result
     assert result["success"] is True
@@ -322,46 +321,47 @@ async def test_restore_backup_success(s3_manager, tmp_path):
         "backend_type": "FilesystemMemoryBackend"
     }
     
-    # Mock S3 responses
-    def mock_get_object(Bucket, Key):
-        if 'metadata.json' in Key:
-            return {'Body': MagicMock(read=lambda: json.dumps(metadata).encode())}
-        elif 'entry1.json.gz' in Key:
-            entry_data = {"content": "Entry 1 content", "metadata": {"type": "test"}}
-            compressed = gzip.compress(json.dumps(entry_data).encode())
-            return {'Body': MagicMock(read=lambda: compressed)}
-        elif 'entry2.json.gz' in Key:
-            entry_data = {"content": "Entry 2 content", "metadata": {"type": "test"}}
-            compressed = gzip.compress(json.dumps(entry_data).encode())
-            return {'Body': MagicMock(read=lambda: compressed)}
-        return None
-    
     # Mock list response for backup entries
-    mock_client.list_objects_v2.return_value = {
+    list_response = {
         'Contents': [
             {'Key': 'hdev-memory-backups/test-backup/entries/entry1.json.gz'},
             {'Key': 'hdev-memory-backups/test-backup/entries/entry2.json.gz'},
         ]
     }
     
+    # Mock S3 responses for different keys
+    get_object_responses = {
+        'hdev-memory-backups/test-backup/metadata.json': {
+            'Body': MagicMock(read=lambda: json.dumps(metadata).encode())
+        },
+        'hdev-memory-backups/test-backup/entries/entry1.json.gz': {
+            'Body': MagicMock(read=lambda: gzip.compress(json.dumps({"content": "Entry 1 content", "metadata": {"type": "test"}}).encode()))
+        },
+        'hdev-memory-backups/test-backup/entries/entry2.json.gz': {
+            'Body': MagicMock(read=lambda: gzip.compress(json.dumps({"content": "Entry 2 content", "metadata": {"type": "test"}}).encode()))
+        }
+    }
+    
+    def mock_get_object(Bucket, Key):
+        return get_object_responses.get(Key)
+    
+    mock_client.list_objects_v2.return_value = list_response
     mock_client.get_object.side_effect = mock_get_object
     
-    with patch('asyncio.get_event_loop') as mock_get_loop:
-        mock_loop = AsyncMock()
-        mock_get_loop.return_value = mock_loop
-        
-        def run_in_executor_side_effect(executor, func):
-            if 'list_objects_v2' in str(func):
-                return mock_client.list_objects_v2.return_value
-            else:
-                # This is a get_object call - need to determine which one
-                return mock_get_object('test-bucket', 'mock-key')
-        
-        mock_loop.run_in_executor.side_effect = run_in_executor_side_effect
-        
-        result = await manager.restore_backup(target_backend, "test-backup", overwrite=False)
+    # Mock the executor to actually call the functions
+    async def mock_run_in_executor(executor, func):
+        # Execute the lambda function directly
+        return func()
     
-    # Verify result
+    with patch.object(manager, 'executor') as mock_executor:
+        with patch('asyncio.get_event_loop') as mock_get_loop:
+            mock_loop = AsyncMock()
+            mock_get_loop.return_value = mock_loop
+            mock_loop.run_in_executor = mock_run_in_executor
+            
+            result = await manager.restore_backup(target_backend, "test-backup", overwrite=False)
+    
+    # Verify result  
     assert result["success"] is True
     assert result["backup_key"] == "test-backup"
     assert result["entries_restored"] == 2

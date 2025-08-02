@@ -253,7 +253,7 @@ class S3BackupManager:
             )
             
             backups = []
-            if 'CommonPrefixes' in response:
+            if response and 'CommonPrefixes' in response:
                 for prefix in response['CommonPrefixes']:
                     backup_name = prefix['Prefix'].split('/')[-2]
                     if backup_name:
@@ -306,7 +306,7 @@ class S3BackupManager:
                 )
             )
             
-            if 'Contents' not in response:
+            if not response or 'Contents' not in response:
                 return {
                     "success": False,
                     "message": f"Backup '{backup_key}' not found",
@@ -457,7 +457,7 @@ class S3BackupManager:
             )
             
             entries = []
-            if 'Contents' in response:
+            if response and 'Contents' in response:
                 for obj in response['Contents']:
                     # Extract entry path from S3 key (remove prefix and .json.gz suffix)
                     key = obj['Key']
