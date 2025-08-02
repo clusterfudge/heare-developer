@@ -39,21 +39,25 @@ def main(args: List[str] = None):
         elif args[1] == "memory-server":
             # Run the memory server
             from heare.developer.memory_server.cli import memory_server_main
+
             memory_server_main(args[2:])  # Pass remaining args to memory server CLI
             return
         elif args[1] == "migrate-memory":
             # Run memory migration
             from heare.developer.tools.memory_migrate import migrate_memory_cli_main
+
             migrate_memory_cli_main(args[2:])  # Pass remaining args to migration CLI
             return
         elif args[1] == "backup-memory":
             # Run memory backup
             from heare.developer.tools.memory_migrate import backup_memory_cli_main
+
             backup_memory_cli_main(args[2:])  # Pass remaining args to backup CLI
             return
         elif args[1] == "restore-memory":
             # Run memory restore
             from heare.developer.tools.memory_migrate import restore_memory_cli_main
+
             restore_memory_cli_main(args[2:])  # Pass remaining args to restore CLI
             return
 

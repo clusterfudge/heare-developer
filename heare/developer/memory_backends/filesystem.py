@@ -3,14 +3,13 @@
 import json
 from pathlib import Path
 from typing import Optional, Dict, Any, List
-import re
 
 from .base import MemoryBackend
 
 
 class FilesystemMemoryBackend(MemoryBackend):
     """Filesystem-based implementation of the memory backend.
-    
+
     This is the original implementation that stores memory entries as:
     1. A markdown file (.md) containing the content
     2. A JSON file (.metadata.json) containing the metadata
@@ -408,7 +407,9 @@ class FilesystemMemoryBackend(MemoryBackend):
                 "error": f"Error deleting memory entry: {str(e)}",
             }
 
-    async def search(self, query: str, prefix: Optional[str] = None) -> List[Dict[str, Any]]:
+    async def search(
+        self, query: str, prefix: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """Search for memory entries matching the query.
 
         Args:
@@ -462,13 +463,11 @@ class FilesystemMemoryBackend(MemoryBackend):
                     # Calculate a simple score based on query frequency
                     score = content.lower().count(query.lower()) / len(content)
 
-                    results.append({
-                        "path": memory_path,
-                        "snippet": snippet,
-                        "score": score
-                    })
+                    results.append(
+                        {"path": memory_path, "snippet": snippet, "score": score}
+                    )
 
-        except Exception as e:
+        except Exception:
             # Return empty results on error
             pass
 

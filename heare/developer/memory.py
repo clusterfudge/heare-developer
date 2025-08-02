@@ -1,4 +1,3 @@
-import json
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 import asyncio
@@ -14,9 +13,11 @@ class MemoryManager:
     while maintaining backward compatibility with the original interface.
     """
 
-    def __init__(self, base_dir: Path | None = None, backend: MemoryBackend | None = None):
+    def __init__(
+        self, base_dir: Path | None = None, backend: MemoryBackend | None = None
+    ):
         """Initialize the memory manager.
-        
+
         Args:
             base_dir: Legacy parameter for backward compatibility with filesystem backend
             backend: Optional memory backend instance. If not provided, uses FilesystemMemoryBackend
@@ -26,7 +27,7 @@ class MemoryManager:
         else:
             # Use filesystem backend for backward compatibility
             self.backend = FilesystemMemoryBackend(base_dir)
-        
+
         # Maintain backward compatibility - expose base_dir if using filesystem backend
         if isinstance(self.backend, FilesystemMemoryBackend):
             self.base_dir = self.backend.base_dir
@@ -45,26 +46,26 @@ class MemoryManager:
         if isinstance(self.backend, FilesystemMemoryBackend):
             # Create a synchronous version of the operation for filesystem backend
             import inspect
+
             if inspect.iscoroutine(coro):
                 # The filesystem backend methods are async but they don't actually need to be
                 # For now, let's run them in the event loop
                 try:
-                    loop = asyncio.get_running_loop()
-                    # We're in an async context, schedule the coroutine  
+                    asyncio.get_running_loop()
+                    # We're in an async context, schedule the coroutine
                     import concurrent.futures
-                    import threading
-                    
+
                     def run_in_thread():
                         return asyncio.run(coro)
-                    
+
                     with concurrent.futures.ThreadPoolExecutor() as executor:
                         future = executor.submit(run_in_thread)
                         return future.result()
-                        
+
                 except RuntimeError:
                     # No event loop running, create a new one
                     return asyncio.run(coro)
-        
+
         # For other backends, try to run normally
         try:
             return asyncio.run(coro)
@@ -158,6 +159,8 @@ class MemoryManager:
         """Async version of delete_entry."""
         return await self.backend.delete_entry(path)
 
-    async def search_async(self, query: str, prefix: Optional[str] = None) -> List[Dict[str, Any]]:
+    async def search_async(
+        self, query: str, prefix: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """Search for memory entries matching the query."""
         return await self.backend.search(query, prefix)

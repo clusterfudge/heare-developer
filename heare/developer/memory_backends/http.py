@@ -12,19 +12,19 @@ logger = logging.getLogger(__name__)
 
 class HTTPMemoryBackend(MemoryBackend):
     """HTTP-based implementation of the memory backend.
-    
+
     This backend communicates with a remote memory server via REST API.
     """
 
     def __init__(
-        self, 
-        base_url: str, 
+        self,
+        base_url: str,
         api_key: Optional[str] = None,
         timeout: int = 30,
-        max_retries: int = 3
+        max_retries: int = 3,
     ):
         """Initialize the HTTP memory backend.
-        
+
         Args:
             base_url: Base URL of the memory server (e.g., "https://memory.example.com")
             api_key: Optional API key for authentication
@@ -35,55 +35,57 @@ class HTTPMemoryBackend(MemoryBackend):
         self.api_key = api_key
         self.timeout = timeout
         self.max_retries = max_retries
-        
+
         # Prepare headers
         self.headers = {"Content-Type": "application/json"}
         if api_key:
             self.headers["Authorization"] = f"Bearer {api_key}"
-        
+
         # Create HTTP client with retry logic
         self.client = httpx.AsyncClient(
             timeout=timeout,
             headers=self.headers,
-            limits=httpx.Limits(max_keepalive_connections=10, max_connections=20)
+            limits=httpx.Limits(max_keepalive_connections=10, max_connections=20),
         )
 
     async def _make_request(
-        self, 
-        method: str, 
-        endpoint: str, 
-        **kwargs
+        self, method: str, endpoint: str, **kwargs
     ) -> httpx.Response:
         """Make an HTTP request with retry logic.
-        
+
         Args:
             method: HTTP method (GET, POST, PUT, DELETE)
             endpoint: API endpoint (without base URL)
             **kwargs: Additional arguments to pass to httpx
-            
+
         Returns:
             HTTP response
-            
+
         Raises:
             httpx.HTTPError: If request fails after all retries
         """
         url = f"{self.base_url}{endpoint}"
-        
+
         for attempt in range(self.max_retries + 1):
             try:
                 response = await self.client.request(method, url, **kwargs)
                 response.raise_for_status()
                 return response
             except (httpx.HTTPError, httpx.ConnectError, httpx.TimeoutException) as e:
-                logger.warning(f"Request failed (attempt {attempt + 1}/{self.max_retries + 1}): {e}")
+                logger.warning(
+                    f"Request failed (attempt {attempt + 1}/{self.max_retries + 1}): {e}"
+                )
                 if attempt == self.max_retries:
                     raise
                 # Simple exponential backoff
                 import asyncio
-                await asyncio.sleep(2 ** attempt)
-        
+
+                await asyncio.sleep(2**attempt)
+
         # This should never be reached, but just in case
-        raise httpx.HTTPError(f"Failed to make request after {self.max_retries + 1} attempts")
+        raise httpx.HTTPError(
+            f"Failed to make request after {self.max_retries + 1} attempts"
+        )
 
     async def get_tree(
         self, prefix: Optional[Path] = None, depth: int = -1
@@ -101,10 +103,12 @@ class HTTPMemoryBackend(MemoryBackend):
             params = {"depth": depth}
             if prefix:
                 params["prefix"] = str(prefix)
-            
-            response = await self._make_request("GET", "/api/memory/tree", params=params)
+
+            response = await self._make_request(
+                "GET", "/api/memory/tree", params=params
+            )
             return response.json()
-            
+
         except Exception as e:
             logger.error(f"Error getting memory tree: {e}")
             return {
@@ -127,7 +131,7 @@ class HTTPMemoryBackend(MemoryBackend):
         try:
             response = await self._make_request("GET", f"/api/memory/entry/{path}")
             return response.json()
-            
+
         except Exception as e:
             logger.error(f"Error reading memory entry {path}: {e}")
             return {
@@ -156,12 +160,12 @@ class HTTPMemoryBackend(MemoryBackend):
             data = {"content": content}
             if metadata:
                 data["metadata"] = metadata
-            
+
             response = await self._make_request(
                 "PUT", f"/api/memory/entry/{path}", json=data
             )
             return response.json()
-            
+
         except Exception as e:
             logger.error(f"Error writing memory entry {path}: {e}")
             return {
@@ -183,7 +187,7 @@ class HTTPMemoryBackend(MemoryBackend):
         try:
             response = await self._make_request("DELETE", f"/api/memory/entry/{path}")
             return response.json()
-            
+
         except Exception as e:
             logger.error(f"Error deleting memory entry {path}: {e}")
             return {
@@ -193,7 +197,9 @@ class HTTPMemoryBackend(MemoryBackend):
                 "error": f"HTTP request failed: {str(e)}",
             }
 
-    async def search(self, query: str, prefix: Optional[str] = None) -> List[Dict[str, Any]]:
+    async def search(
+        self, query: str, prefix: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """Search for memory entries matching the query.
 
         Args:
@@ -207,13 +213,15 @@ class HTTPMemoryBackend(MemoryBackend):
             params = {"q": query}
             if prefix:
                 params["prefix"] = prefix
-            
-            response = await self._make_request("GET", "/api/memory/search", params=params)
+
+            response = await self._make_request(
+                "GET", "/api/memory/search", params=params
+            )
             data = response.json()
-            
+
             # Convert from API response format to expected format
             return data.get("results", [])
-            
+
         except Exception as e:
             logger.error(f"Error searching memory: {e}")
             return []
@@ -234,9 +242,9 @@ class HTTPMemoryBackend(MemoryBackend):
                     "backend_type": self.__class__.__name__,
                     "server_details": data.get("details", {}),
                     "base_url": self.base_url,
-                }
+                },
             }
-            
+
         except Exception as e:
             logger.error(f"Health check failed: {e}")
             return {
@@ -245,8 +253,8 @@ class HTTPMemoryBackend(MemoryBackend):
                 "details": {
                     "backend_type": self.__class__.__name__,
                     "base_url": self.base_url,
-                    "error": str(e)
-                }
+                    "error": str(e),
+                },
             }
 
     async def close(self):

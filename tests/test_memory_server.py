@@ -48,16 +48,13 @@ def test_get_memory_tree(client):
 def test_write_and_read_entry(client):
     """Test writing and reading memory entries."""
     # Write an entry
-    write_data = {
-        "content": "Test content",
-        "metadata": {"test": True}
-    }
+    write_data = {"content": "Test content", "metadata": {"test": True}}
     response = client.put("/api/memory/entry/test/entry", json=write_data)
     assert response.status_code == 200
     data = response.json()
     assert data["success"] is True
     assert data["path"] == "test/entry"
-    
+
     # Read the entry back
     response = client.get("/api/memory/entry/test/entry")
     assert response.status_code == 200
@@ -72,13 +69,13 @@ def test_delete_entry(client):
     # First create an entry
     write_data = {"content": "To be deleted"}
     client.put("/api/memory/entry/delete/me", json=write_data)
-    
+
     # Delete it
     response = client.delete("/api/memory/entry/delete/me")
     assert response.status_code == 200
     data = response.json()
     assert data["success"] is True
-    
+
     # Verify it's gone
     response = client.get("/api/memory/entry/delete/me")
     assert response.status_code == 200
@@ -91,7 +88,7 @@ def test_search_memory(client):
     # Create some test entries
     client.put("/api/memory/entry/search/test1", json={"content": "Python programming"})
     client.put("/api/memory/entry/search/test2", json={"content": "JavaScript coding"})
-    
+
     # Search for "programming"
     response = client.get("/api/memory/search?q=programming")
     assert response.status_code == 200
@@ -113,27 +110,25 @@ def test_api_key_authentication():
     """Test API key authentication."""
     from heare.developer.memory_backends.filesystem import FilesystemMemoryBackend
     import tempfile
-    
+
     with tempfile.TemporaryDirectory() as tmp_dir:
         backend = FilesystemMemoryBackend(Path(tmp_dir) / "memory")
         app = create_app(backend=backend, api_key="test-key")
         client = TestClient(app)
-        
+
         # Request without API key should fail
         response = client.get("/api/memory/tree")
         assert response.status_code == 401
-        
+
         # Request with wrong API key should fail
         response = client.get(
-            "/api/memory/tree",
-            headers={"Authorization": "Bearer wrong-key"}
+            "/api/memory/tree", headers={"Authorization": "Bearer wrong-key"}
         )
         assert response.status_code == 401
-        
+
         # Request with correct API key should succeed
         response = client.get(
-            "/api/memory/tree",
-            headers={"Authorization": "Bearer test-key"}
+            "/api/memory/tree", headers={"Authorization": "Bearer test-key"}
         )
         assert response.status_code == 200
 
@@ -146,7 +141,7 @@ def test_backup_restore_without_s3_config(client):
     data = response.json()
     assert data["success"] is False
     assert "S3 backup is not configured" in data["message"]
-    
+
     # Restore without S3 config
     restore_data = {"backup_key": "test-backup", "overwrite": False}
     response = client.post("/api/memory/restore", json=restore_data)
@@ -154,7 +149,7 @@ def test_backup_restore_without_s3_config(client):
     data = response.json()
     assert data["success"] is False
     assert "S3 backup is not configured" in data["message"]
-    
+
     # List backups without S3 config
     response = client.get("/api/memory/backups")
     assert response.status_code == 200

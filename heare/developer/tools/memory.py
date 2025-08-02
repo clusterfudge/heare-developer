@@ -190,7 +190,9 @@ async def critique_memory(context: "AgentContext", prefix: str | None = None) ->
     for improving organization, reducing redundancy, and identifying gaps.
     """
     # First get the tree structure for organization analysis
-    tree_result = await context.memory_manager.get_tree_async(prefix, -1)  # Get full tree
+    tree_result = await context.memory_manager.get_tree_async(
+        prefix, -1
+    )  # Get full tree
 
     if not tree_result["success"]:
         return f"Error getting memory tree: {tree_result['error']}"

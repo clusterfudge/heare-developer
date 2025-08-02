@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 class MemoryTreeResponse(BaseModel):
     """Response model for memory tree endpoint."""
+
     type: str = "tree"
     path: str
     items: Dict[str, Any]
@@ -15,6 +16,7 @@ class MemoryTreeResponse(BaseModel):
 
 class MemoryEntryResponse(BaseModel):
     """Response model for memory entry endpoint."""
+
     type: str
     path: str
     content: Optional[str] = None
@@ -26,12 +28,14 @@ class MemoryEntryResponse(BaseModel):
 
 class WriteEntryRequest(BaseModel):
     """Request model for writing memory entries."""
+
     content: str = Field(..., description="Content to write")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Optional metadata")
 
 
 class WriteEntryResponse(BaseModel):
     """Response model for write operations."""
+
     path: str
     success: bool
     message: Optional[str] = None
@@ -40,6 +44,7 @@ class WriteEntryResponse(BaseModel):
 
 class DeleteEntryResponse(BaseModel):
     """Response model for delete operations."""
+
     path: str
     success: bool
     message: Optional[str] = None
@@ -48,6 +53,7 @@ class DeleteEntryResponse(BaseModel):
 
 class SearchResult(BaseModel):
     """Individual search result."""
+
     path: str
     snippet: str
     score: float
@@ -55,6 +61,7 @@ class SearchResult(BaseModel):
 
 class SearchResponse(BaseModel):
     """Response model for search endpoint."""
+
     query: str
     results: List[SearchResult]
     success: bool = True
@@ -63,6 +70,7 @@ class SearchResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     """Response model for health check."""
+
     healthy: bool
     message: str
     details: Dict[str, Any]
@@ -71,11 +79,13 @@ class HealthResponse(BaseModel):
 
 class BackupRequest(BaseModel):
     """Request model for backup operations."""
+
     backup_name: Optional[str] = Field(None, description="Optional custom backup name")
 
 
 class BackupResponse(BaseModel):
     """Response model for backup operations."""
+
     success: bool
     message: str
     backup_key: Optional[str] = None
@@ -87,12 +97,14 @@ class BackupResponse(BaseModel):
 
 class RestoreRequest(BaseModel):
     """Request model for restore operations."""
+
     backup_key: str = Field(..., description="Backup key to restore from")
     overwrite: bool = Field(False, description="Whether to overwrite existing entries")
 
 
 class RestoreResponse(BaseModel):
     """Response model for restore operations."""
+
     success: bool
     message: str
     backup_key: Optional[str] = None
@@ -105,6 +117,7 @@ class RestoreResponse(BaseModel):
 
 class BackupInfo(BaseModel):
     """Information about a backup."""
+
     backup_key: str
     timestamp: str
     total_entries: int
@@ -113,6 +126,7 @@ class BackupInfo(BaseModel):
 
 class ListBackupsResponse(BaseModel):
     """Response model for listing backups."""
+
     success: bool
     message: str
     backups: List[BackupInfo] = []
@@ -121,11 +135,13 @@ class ListBackupsResponse(BaseModel):
 
 class DeleteBackupRequest(BaseModel):
     """Request model for deleting backups."""
+
     backup_key: str = Field(..., description="Backup key to delete")
 
 
 class DeleteBackupResponse(BaseModel):
     """Response model for deleting backups."""
+
     success: bool
     message: str
     backup_key: Optional[str] = None
