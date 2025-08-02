@@ -85,6 +85,7 @@ async def _run_shell_command_with_interactive_timeout(
         shell=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+        stdin=subprocess.DEVNULL,  # Prevent stdin capture conflicts with CLI
         text=True,
         bufsize=0,  # Unbuffered for real-time output
     )
