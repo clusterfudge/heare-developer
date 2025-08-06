@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import Mock, patch
 from heare.developer.context import AgentContext
-from heare.developer.tools.gmail import gmail_forward
+from heare.developer.tools.gmail import gmail_forward, gmail_send
 
 
 class TestGmailTools(unittest.TestCase):
@@ -174,6 +174,164 @@ class TestGmailTools(unittest.TestCase):
         self.assertNotIn("cc", required_params)
         self.assertNotIn("bcc", required_params)
         self.assertNotIn("additional_message", required_params)
+
+    @patch("heare.developer.tools.gmail.get_credentials")
+    @patch("heare.developer.tools.gmail.build")
+    def test_gmail_send_plain_text(self, mock_build, mock_get_credentials):
+        """Test sending a plain text email."""
+        # Mock the Gmail service
+        mock_service = Mock()
+        mock_build.return_value = mock_service
+
+        # Mock credentials
+        mock_get_credentials.return_value = Mock()
+
+        # Mock profile response
+        mock_service.users().getProfile().execute.return_value = {
+            "emailAddress": "test@example.com"
+        }
+
+        # Mock send response
+        mock_service.users().messages().send().execute.return_value = {
+            "id": "sent_msg_id"
+        }
+
+        # Test sending plain text email
+        result = gmail_send(
+            self.context,
+            to="recipient@example.com",
+            subject="Test Subject",
+            body="This is plain text content.",
+            content_type="plain",
+        )
+
+        # Verify the result
+        self.assertIn("Email sent successfully", result)
+        self.assertIn("sent_msg_id", result)
+
+        # Verify send was called
+        assert mock_service.users().messages().send.called
+
+    @patch("heare.developer.tools.gmail.get_credentials")
+    @patch("heare.developer.tools.gmail.build")
+    def test_gmail_send_html(self, mock_build, mock_get_credentials):
+        """Test sending an HTML email."""
+        # Mock the Gmail service
+        mock_service = Mock()
+        mock_build.return_value = mock_service
+
+        # Mock credentials
+        mock_get_credentials.return_value = Mock()
+
+        # Mock profile response
+        mock_service.users().getProfile().execute.return_value = {
+            "emailAddress": "test@example.com"
+        }
+
+        # Mock send response
+        mock_service.users().messages().send().execute.return_value = {
+            "id": "sent_msg_id"
+        }
+
+        # Test sending HTML email
+        result = gmail_send(
+            self.context,
+            to="recipient@example.com",
+            subject="Test Subject",
+            body="<h1>This is HTML content</h1><p>With <em>formatting</em>.</p>",
+            content_type="html",
+        )
+
+        # Verify the result
+        self.assertIn("Email sent successfully", result)
+        self.assertIn("sent_msg_id", result)
+
+        # Verify send was called
+        assert mock_service.users().messages().send.called
+
+    @patch("heare.developer.tools.gmail.get_credentials")
+    @patch("heare.developer.tools.gmail.build")
+    @patch("markdown.markdown")
+    def test_gmail_send_markdown(
+        self, mock_markdown_func, mock_build, mock_get_credentials
+    ):
+        """Test sending a markdown email (converted to HTML)."""
+        # Mock the Gmail service
+        mock_service = Mock()
+        mock_build.return_value = mock_service
+
+        # Mock credentials
+        mock_get_credentials.return_value = Mock()
+
+        # Mock profile response
+        mock_service.users().getProfile().execute.return_value = {
+            "emailAddress": "test@example.com"
+        }
+
+        # Mock send response
+        mock_service.users().messages().send().execute.return_value = {
+            "id": "sent_msg_id"
+        }
+
+        # Mock markdown conversion
+        mock_markdown_func.return_value = (
+            "<h1>This is converted HTML</h1><p>With <em>formatting</em>.</p>"
+        )
+
+        # Test sending markdown email
+        result = gmail_send(
+            self.context,
+            to="recipient@example.com",
+            subject="Test Subject",
+            body="# This is converted HTML\n\nWith *formatting*.",
+            content_type="markdown",
+        )
+
+        # Verify the result
+        self.assertIn("Email sent successfully", result)
+        self.assertIn("sent_msg_id", result)
+
+        # Verify markdown conversion was called
+        mock_markdown_func.assert_called_once_with(
+            "# This is converted HTML\n\nWith *formatting*."
+        )
+
+        # Verify send was called
+        assert mock_service.users().messages().send.called
+
+    def test_gmail_send_invalid_content_type(self):
+        """Test that invalid content types return an error."""
+        result = gmail_send(
+            self.context,
+            to="recipient@example.com",
+            subject="Test Subject",
+            body="Test body",
+            content_type="invalid",
+        )
+
+        # Verify error message
+        self.assertIn("Error: Invalid content_type 'invalid'", result)
+        self.assertIn("Must be one of: plain, html, markdown", result)
+
+    def test_gmail_send_schema(self):
+        """Test that the gmail_send tool schema includes content_type parameter."""
+        schema = gmail_send.schema()
+
+        # Check basic schema structure
+        self.assertEqual(schema["name"], "gmail_send")
+        self.assertIn("description", schema)
+        self.assertIn("input_schema", schema)
+
+        # Check required parameters
+        required_params = schema["input_schema"]["required"]
+        self.assertIn("to", required_params)
+        self.assertIn("subject", required_params)
+        self.assertIn("body", required_params)
+
+        # Check that content_type is an optional parameter
+        properties = schema["input_schema"]["properties"]
+        self.assertIn("content_type", properties)
+        self.assertNotIn("content_type", required_params)
 
 
 if __name__ == "__main__":
