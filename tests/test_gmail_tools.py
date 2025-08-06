@@ -301,6 +301,8 @@ class TestGmailTools(unittest.TestCase):
 
     def test_gmail_send_invalid_content_type(self):
         """Test that invalid content types return an error."""
+        # The validation should happen before any Gmail API calls,
+        # so we don't need to mock anything for this test
         result = gmail_send(
             self.context,
             to="recipient@example.com",
