@@ -160,6 +160,7 @@ def gmail_send(
     bcc: str = "",
     reply_to: str = "",
     in_reply_to: str = "",
+    content_type: str = "plain",
 ) -> str:
     """Send an email via Gmail.
 
@@ -171,17 +172,40 @@ def gmail_send(
         bcc: Email address(es) to BCC, comma-separated for multiple (optional)
         reply_to: Email address to set in the Reply-To header (optional)
         in_reply_to: Message ID of the email being replied to (optional)
+        content_type: Content type of the body - "plain", "html", or "markdown" (optional, default: "plain")
     """
+    # Validate content_type parameter first (before any API calls)
+    valid_content_types = ["plain", "html", "markdown"]
+    if content_type.lower() not in valid_content_types:
+        return f"Error: Invalid content_type '{content_type}'. Must be one of: {', '.join(valid_content_types)}"
+
     try:
         # Get credentials for Gmail API
         creds = get_credentials(GMAIL_SCOPES, token_file="gmail_token.pickle")
         service = build("gmail", "v1", credentials=creds)
 
+        # Process body based on content type
+        processed_body = body
+        mime_subtype = "plain"
+
+        if content_type.lower() == "markdown":
+            # Convert markdown to HTML
+            import markdown
+
+            processed_body = markdown.markdown(body)
+            mime_subtype = "html"
+        elif content_type.lower() == "html":
+            processed_body = body
+            mime_subtype = "html"
+        else:  # plain text
+            processed_body = body
+            mime_subtype = "plain"
+
         # Construct the email
         import base64
         from email.mime.text import MIMEText
 
-        message = MIMEText(body)
+        message = MIMEText(processed_body, mime_subtype)
         message["to"] = to
         message["subject"] = subject
 
